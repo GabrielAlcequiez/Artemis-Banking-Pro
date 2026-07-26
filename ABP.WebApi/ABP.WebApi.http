@@ -1,0 +1,6 @@
+@ABP.WebApi_HostAddress = http://localhost:5241
+
+GET {{ABP.WebApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

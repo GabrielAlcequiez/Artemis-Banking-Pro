@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/ABP.Infrastructure/">
+    <Project Path="ABP.Infrastructure/ABP.Infrastructure.Identity/ABP.Infrastructure.Identity.csproj" />
+    <Project Path="ABP.Infrastructure/ABP.Infrastructure.Persistence/ABP.Infrastructure.Persistence.csproj" />
+  </Folder>
+  <Project Path="ABP.Application/ABP.Application.csproj" />
+  <Project Path="ABP.Domain/ABP.Domain.csproj" />
+  <Project Path="ABP.Shared/ABP.Shared.csproj" />
+  <Project Path="ABP.WebApi/ABP.WebApi.csproj" />
+  <Project Path="ABP.WebApp/ABP.WebApp.csproj" />
+</Solution>
