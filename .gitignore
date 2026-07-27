@@ -3,6 +3,13 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Our specific ignore rules
+Images*/
+*.md
+!README.md
+output.css
+graphify-out
+
 # dotenv files
 .env
 
