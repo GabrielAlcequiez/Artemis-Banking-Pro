@@ -3,6 +3,13 @@
     <Project Path="ABP.Infrastructure/ABP.Infrastructure.Identity/ABP.Infrastructure.Identity.csproj" />
     <Project Path="ABP.Infrastructure/ABP.Infrastructure.Persistence/ABP.Infrastructure.Persistence.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ABP.Application.UnitTests/ABP.Application.UnitTests.csproj" />
+    <Project Path="tests/ABP.Domain.UnitTests/ABP.Domain.UnitTests.csproj" />
+    <Project Path="tests/ABP.Infrastructure.IntegrationTests/ABP.Infrastructure.IntegrationTests.csproj" />
+    <Project Path="tests/ABP.WebApi.IntegrationTests/ABP.WebApi.IntegrationTests.csproj" />
+    <Project Path="tests/ABP.WebApp.IntegrationTests/ABP.WebApp.IntegrationTests.csproj" />
+  </Folder>
   <Project Path="ABP.Application/ABP.Application.csproj" />
   <Project Path="ABP.Domain/ABP.Domain.csproj" />
   <Project Path="ABP.Shared/ABP.Shared.csproj" />
