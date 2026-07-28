@@ -7,6 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ABP.Application\ABP.Application.csproj" />
+    <ProjectReference Include="..\ABP.Infrastructure\ABP.Infrastructure.Identity\ABP.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\ABP.Infrastructure\ABP.Infrastructure.Persistence\ABP.Infrastructure.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.16" />
   </ItemGroup>
 
