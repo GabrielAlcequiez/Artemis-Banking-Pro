@@ -132,6 +132,21 @@ Esta estructura conserva el estilo de las imágenes compartidas y sigue siendo a
 - `ABP.Shared` no debe convertirse en un cajón de sastre. Se mantiene solo para tipos realmente neutrales y sin dependencia de negocio; por defecto, los contratos pertenecen a Domain o Application.
 - La organización por verticales asignada a los cuatro programadores se conserva como **propiedad de módulos**, no como una estructura de carpetas obligatoriamente profunda.
 
+### Uso combinado de servicios y CQRS
+
+Esta mezcla responde directamente a los dos requisitos académicos del documento y evita duplicar lógica:
+
+```text
+WebApp Controller -> servicio/fachada de Application -> ISender (MediatR) -> Command/Query Handler
+Web API Controller -------------------------------> ISender (MediatR) -> Command/Query Handler
+                                                                  |
+                                                          Domain + repositories
+```
+
+- La **Web API** implementa CQRS: cada endpoint envía un Command o Query mediante MediatR y los Behaviors ejecutan FluentValidation.
+- La **Web App MVC** usa servicios/fachadas de Application, como exige el documento. Estos servicios solo adaptan ViewModels y despachan el mismo Command o Query; no contienen una segunda versión de las reglas.
+- Los **repositorios y servicios genéricos** se reservan para CRUD sencillo. Flujos financieros —pagos, transferencias, préstamos, avances y Hermes Pay— usan handlers, agregados y servicios especializados.
+
 ### Dependencias permitidas
 
 ```text
@@ -264,7 +279,7 @@ IGenericService<TEntity, TKey>
 IUnitOfWork
 ITransactionalExecutor
 IClock
-ICurrentUser
+ICurrentUserService
 IFinancialIdentifierGenerator
 IEmailSender
 INotificationOutbox
@@ -338,16 +353,16 @@ Estas interfaces se ubican en Application. Cada consumidor puede usar mocks hast
 
 ### 3.6 Decisiones técnicas obligatorias del Sprint 0
 
-1. **Dinero:** `decimal`, nunca `double`; dos decimales en persistencia monetaria y precisión ampliada durante amortización.
-2. **Redondeo:** política única, propuesta `MidpointRounding.AwayFromZero`, con ajuste de centavos en la última cuota.
-3. **Fechas:** persistir UTC y calcular “hoy” con zona bancaria configurable; propuesta `America/Santo_Domingo`.
+1. **Persistencia:** SQL Server mediante EF Core Code First.
+2. **Dinero:** `decimal`, nunca `double`; persistencia monetaria a dos decimales. No se introduce una política de redondeo de negocio adicional en Sprint 0; los cálculos de amortización se cubrirán con pruebas de aceptación antes de implementarse.
+3. **Fechas:** persistir UTC y calcular “hoy” con zona bancaria configurable `America/La_Paz`.
 4. **Vencimientos:** definir qué ocurre si el préstamo nace el día 29, 30 o 31 y el mes destino no contiene ese día; propuesta: último día válido del mes.
 5. **Atomicidad:** débito, crédito, deuda, cuota y registros de ledger se confirman en una sola transacción de base de datos.
 6. **Concurrencia:** `rowversion`/optimistic concurrency en cuentas, préstamos, tarjetas y comercios; revalidar saldo/deuda dentro de la transacción.
-7. **Notificaciones:** commit financiero primero, correo mediante Outbox después. Un fallo de correo se registra, se reintenta y nunca revierte la operación aprobada.
+7. **Notificaciones:** Gmail SMTP con App Password almacenado en .NET User Secrets; el envío se implementará mediante Outbox para que un fallo de correo nunca revierta la operación financiera.
 8. **Identificadores de 9 dígitos:** registro central con índice único para impedir colisiones entre cuentas y préstamos.
 9. **CVC:** `ICvcHasher`; usar HMAC-SHA-256 con secreto externo o mecanismo equivalente seguro, sin retornar ni registrar dato/hash.
-10. **Tokens:** almacenar hash del token, propósito, expiración y uso; activación de un solo uso y reset con vigencia máxima de 30 minutos.
+10. **Tokens:** su implementación y persistencia se abordarán en el Sprint de Identity; deben cumplir activación de un solo uso y reset con vigencia máxima de 30 minutos.
 11. **Idempotencia:** POST financieros y confirmaciones MVC reciben un `OperationId`/`Idempotency-Key` para impedir doble cargo por reintentos o doble clic.
 12. **Transacciones rechazadas:** registrar intento solo cuando existe un producto origen identificable, sin cambiar balances/deudas.
 13. **Seguridad por superficie:** Web App permite Administrador/Cajero/Cliente; API permite Administrador/Comercio; Comercio nunca inicia sesión en MVC.
@@ -923,9 +938,9 @@ flowchart LR
     P3["P3 Préstamos<br/>Amortización, riesgo y pagos"]
     P4["P4 Tarjetas, Comercio<br/>Avances y Hermes Pay"]
 
-    P1 -->|"IIdentityService, ICurrentUser,<br/>Outbox, IdentifierGenerator"| P2
+    P1 -->|"IIdentityService, ICurrentUserService,<br/>Outbox, IdentifierGenerator"| P2
     P1 -->|"Identity, Outbox,<br/>IdentifierGenerator"| P3
-    P1 -->|"Identity, Outbox,<br/>CurrentUser"| P4
+    P1 -->|"Identity, Outbox,<br/>ICurrentUserService"| P4
 
     P2 -->|"IPrimaryAccountProvisioner,<br/>IAccountBalanceService, IAccountLedger"| P1
     P2 -->|"Desembolso y débito de pagos"| P3
