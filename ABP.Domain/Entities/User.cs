@@ -5,6 +5,14 @@ namespace ABP.Domain.Entities
 {
     public class User : AuditableEntity<string>
     {
+        public User()
+        {
+        }
+
+        public User(string id) : base(id)
+        {
+        }
+
         public string Name { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
 
