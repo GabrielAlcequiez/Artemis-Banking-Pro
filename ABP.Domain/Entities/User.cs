@@ -1,4 +1,5 @@
 using ABP.Domain.Common;
+using ABP.Domain.Enums;
 
 namespace ABP.Domain.Entities
 {
@@ -12,7 +13,7 @@ namespace ABP.Domain.Entities
         public string UserName { get; set; } = string.Empty;
 
         public string Identification { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
+        public Roles Role { get; set; }
 
         public bool IsActive { get; set; }
 
