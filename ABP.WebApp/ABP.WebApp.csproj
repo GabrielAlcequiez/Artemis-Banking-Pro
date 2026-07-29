@@ -6,6 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ABP.Application\ABP.Application.csproj" />
+    <ProjectReference Include="..\ABP.Infrastructure\ABP.Infrastructure.Identity\ABP.Infrastructure.Identity.csproj" />
+    <ProjectReference Include="..\ABP.Infrastructure\ABP.Infrastructure.Persistence\ABP.Infrastructure.Persistence.csproj" />
+  </ItemGroup>
+
    <Target Name="Tailwind" BeforeTargets="Build;PrepareForPublish">
     <Exec Command="npm install" />
     <Exec Command="npx @tailwindcss/cli -i ./wwwroot/css/site.css -o ./wwwroot/css/output.css --minify" />
