@@ -11,5 +11,5 @@ public abstract class BaseEntity<TKey>
         Id = id;
     }
 
-    public TKey Id { get; protected set; }
+    public TKey Id { get; protected set; } = default!;
 }
