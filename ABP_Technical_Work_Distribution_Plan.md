@@ -9,6 +9,51 @@
 
 ---
 
+## Tecnologías y estándares obligatorios
+
+Esta sección centraliza el stack acordado para que todos los programadores y
+agentes mantengan las mismas decisiones técnicas. `ABP_Document.md` contiene
+los requisitos académicos originales; este plan define cómo aplicarlos en la
+solución.
+
+| Área | Tecnología o estándar | Uso acordado en ABP | Estado/nota |
+|---|---|---|---|
+| Plataforma | .NET 9 | Target framework de todos los proyectos .NET. | Base actual |
+| Web | ASP.NET Core MVC | WebApp, Controllers, ViewModels y Views. | Base actual |
+| API | ASP.NET Core Web API + Swagger/OpenAPI | Endpoints HTTP, contratos y documentación interactiva. | OpenAPI ya referenciado; mantener Swagger actualizado |
+| Arquitectura | Onion Architecture | Dependencias hacia el centro: Domain no depende de capas externas. | Obligatorio |
+| Persistencia | Entity Framework Core + SQL Server | Code First, DbContext, configuraciones, repositorios y migraciones. | EF Core 9; obligatorio |
+| Identidad | ASP.NET Identity | Usuarios, roles, contraseñas, activación y recuperación. | Cookies en WebApp; JWT en Web API |
+| Autenticación API | JWT Bearer | Autenticación/autorización de la Web API y sus endpoints. | Obligatorio |
+| Casos de uso | CQRS + MediatR | Commands/Queries, handlers y `ISender`; los Controllers deben ser delgados. | Obligatorio; no sustituir por lógica en Controllers |
+| Validación de aplicación | FluentValidation + MediatR Behaviors | Validar Commands/Queries antes de ejecutar sus handlers. | Obligatorio |
+| Validación MVC | Validaciones del framework en ViewModels | Validar los datos de formularios de la WebApp en la capa de presentación. | Obligatorio según `ABP_Document.md` |
+| Mapeo | AutoMapper | Mapear ViewModels, Entities y DTOs mediante Profiles. | Obligatorio |
+| UI/CSS | Tailwind CSS 4 | Estilos de la WebApp y generación de `wwwroot/css/output.css`. | Estándar actual del repositorio; el documento permite Bootstrap u otro framework CSS |
+| Logging | Serilog | Auditoría, diagnóstico, errores, correlation id y seguimiento de operaciones. | Obligatorio; nunca registrar secretos o CVC |
+| Pruebas | xUnit | Pruebas unitarias de Domain/Application y pruebas de integración. | Obligatorio |
+| Procesos programados | Azure Functions | Proceso de mora de préstamos (`LoanDelinquency`). | Obligatorio; pendiente de completar en `ABP.Functions` |
+| Email | SMTP + MimeKit | Activación, recuperación de contraseña y notificaciones. | MimeKit ya usado en Identity |
+
+### Regla para dependencias pendientes
+
+La tabla expresa el stack obligatorio, aunque una tecnología todavía no tenga
+su `PackageReference` o implementación completa en cada proyecto. Si una tarea
+necesita MediatR, FluentValidation, AutoMapper, Serilog o Azure Functions, debe
+completar la integración prevista y no reemplazarla silenciosamente por otra
+opción. Antes de agregar una tecnología nueva, actualizar esta sección y
+acordar el cambio con el equipo.
+
+### Reglas rápidas de implementación
+
+- La API despacha Commands/Queries con MediatR; los Behaviors ejecutan FluentValidation.
+- La WebApp usa servicios o fachadas de Application y ViewModels; no duplica reglas financieras ni crea una segunda implementación de CQRS.
+- AutoMapper se configura mediante Profiles y debe tener una prueba de configuración.
+- Domain no referencia ASP.NET Identity, EF Core, JWT, SMTP, Serilog ni detalles de infraestructura.
+- Las respuestas de error usan manejo global y Problem Details; Swagger debe reflejar los contratos vigentes.
+
+---
+
 ## 1. Resumen ejecutivo
 
 La distribución recomendada es por **verticales de negocio**, no por “frontend”, “backend” o capas aisladas. Cada programador será responsable de las reglas de su dominio en Domain/Application/Infrastructure y de las superficies MVC/API que las consumen. Esto evita que una regla sensible —por ejemplo, el pago de un préstamo o la actualización de una tarjeta— tenga implementaciones diferentes según el canal.
