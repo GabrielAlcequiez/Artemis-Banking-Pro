@@ -1,12 +1,12 @@
 namespace ABP.Domain.Common;
 
-public abstract class AuditableEntity : BaseEntity
+public abstract class AuditableEntity<TKey> : BaseEntity<TKey>
 {
     protected AuditableEntity()
     {
     }
 
-    protected AuditableEntity(Guid id)
+    protected AuditableEntity(TKey id)
         : base(id)
     {
     }

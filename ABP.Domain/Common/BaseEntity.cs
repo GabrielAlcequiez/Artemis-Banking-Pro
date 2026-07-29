@@ -1,15 +1,15 @@
 namespace ABP.Domain.Common;
 
-public abstract class BaseEntity
+public abstract class BaseEntity<TKey>
 {
     protected BaseEntity()
     {
     }
 
-    protected BaseEntity(Guid id)
+    protected BaseEntity(TKey id)
     {
         Id = id;
     }
 
-    public Guid Id { get; protected set; }
+    public TKey Id { get; protected set; }
 }
