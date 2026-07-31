@@ -32,7 +32,11 @@ namespace ABP.Infrastructure.Persistence
             #endregion
 
             #region Repositories
-            services.AddTransient<IUnitOfWork, UnitOfWork>();
+            services.AddScoped(
+                typeof(IGenericRepository<,>),
+                typeof(GenericRepository<,>));
+
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             #endregion
         }
