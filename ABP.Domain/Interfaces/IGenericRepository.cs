@@ -1,4 +1,4 @@
-namespace ABP.Application.Interfaces.Persistence;
+namespace ABP.Domain.Interfaces;
 
 public interface IGenericRepository<TEntity, in TId>
     where TEntity : class

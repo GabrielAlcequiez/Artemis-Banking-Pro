@@ -1,4 +1,4 @@
-using ABP.Application.Interfaces.Persistence;
+using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence.Context;
 
 namespace ABP.Infrastructure.Persistence.Repositories

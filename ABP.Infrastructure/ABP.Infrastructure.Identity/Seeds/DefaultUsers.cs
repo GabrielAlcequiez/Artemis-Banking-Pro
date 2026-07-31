@@ -1,6 +1,6 @@
-using ABP.Application.Interfaces.Persistence;
 using ABP.Domain.Entities;
 using ABP.Domain.Enums;
+using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
