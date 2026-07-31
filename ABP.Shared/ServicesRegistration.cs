@@ -1,0 +1,19 @@
+using ABP.Application.Interfaces.Services;
+using ABP.Domain.Settings;
+using ABP.Shared.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace ABP.Shared
+{
+    public static class ServicesRegistration
+    {
+        public static void AddSharedServices(this IServiceCollection services, IConfiguration config)
+        {
+            services.Configure<EmailSettings>(config.GetSection("EmailSettings"));
+
+            services.AddScoped<IEmailService, EmailService>();
+            services.AddScoped<IFileManager, FileManager>();
+        }
+    }
+}
