@@ -1,11 +1,13 @@
+using ABP.Domain.Common;
+
 namespace ABP.Domain.Interfaces;
 
-public interface IGenericRepository<TEntity, in TId>
-    where TEntity : class
+public interface IGenericRepository<TEntity, TKey>
+    where TEntity : BaseEntity<TKey>
 {
     IQueryable<TEntity> GetAllQueryable(bool trackChanges = false);
 
-    Task<TEntity?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);
+    Task<TEntity?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TEntity>> GetAllAsync(
         bool trackChanges = false,
@@ -14,11 +16,11 @@ public interface IGenericRepository<TEntity, in TId>
     Task<TEntity> AddAsync(TEntity entity, CancellationToken cancellationToken = default);
 
     Task<TEntity?> UpdateAsync(
-        TId id,
+        TKey id,
         TEntity value,
         CancellationToken cancellationToken = default);
 
     Task<TEntity?> DeleteAsync(
-        TId id,
+        TKey id,
         CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,18 @@
+using Serilog;
+
 var builder = WebApplication.CreateBuilder(args);
+
+#region Serilog Configuration
+
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+#endregion
+
 
 // Add services to the container.
 
@@ -20,4 +34,5 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+await Log.CloseAndFlushAsync();
+await app.RunAsync();
