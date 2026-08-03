@@ -47,7 +47,7 @@ acordar el cambio con el equipo.
 ### Reglas rápidas de implementación
 
 - La API despacha Commands/Queries con MediatR; los Behaviors ejecutan FluentValidation.
-- La WebApp usa servicios o fachadas de Application y ViewModels; no duplica reglas financieras ni crea una segunda implementación de CQRS.
+- La WebApp usa servicios tradicionales de Application y ViewModels; esos servicios no despachan Commands/Queries ni implementan CQRS internamente.
 - AutoMapper se configura mediante Profiles y debe tener una prueba de configuración.
 - Domain no referencia ASP.NET Identity, EF Core, JWT, SMTP, Serilog ni detalles de infraestructura.
 - Las respuestas de error usan manejo global y Problem Details; Swagger debe reflejar los contratos vigentes.
@@ -56,7 +56,7 @@ acordar el cambio con el equipo.
 
 ## 1. Resumen ejecutivo
 
-La distribución recomendada es por **verticales de negocio**, no por “frontend”, “backend” o capas aisladas. Cada programador será responsable de las reglas de su dominio en Domain/Application/Infrastructure y de las superficies MVC/API que las consumen. Esto evita que una regla sensible —por ejemplo, el pago de un préstamo o la actualización de una tarjeta— tenga implementaciones diferentes según el canal.
+La distribución recomendada es por **verticales de negocio**, no por “frontend”, “backend” o capas aisladas. Cada programador será responsable de las reglas de su dominio en Domain/Application/Infrastructure y de las superficies MVC/API que las consumen. Por requisito académico, cada caso de uso puede tener una implementación de servicio para MVC y otra implementación CQRS para API; ambas siguen bajo el mismo dueño vertical.
 
 | Programador | Rol técnico | Vertical principal | Carga relativa inicial |
 |---|---|---|---:|
@@ -70,11 +70,11 @@ Los puntos solo sirven para comparar la carga entre verticales. El equipo debe r
 ### Regla de propiedad
 
 - El dueño de una vertical implementa sus reglas en todas las capas.
-- MVC y API no duplican lógica financiera.
+- MVC y API mantienen implementaciones de Application separadas, aunque exista duplicación de orquestación por el requisito académico.
 - Los Controllers son adaptadores delgados.
 - La Web App consume servicios de Application, según exige el documento.
 - La API consume Commands/Queries de MediatR con FluentValidation.
-- Servicios MVC y handlers CQRS reutilizan las mismas políticas y servicios de dominio.
+- Servicios MVC y handlers CQRS pueden compartir DTOs e invariantes de Domain, pero ninguno delega su ejecución al otro.
 - P1 custodia los archivos de composición global, la configuración de los hosts y las migraciones; esto no convierte a P1 en dueño de todas las entidades.
 
 ---
@@ -180,24 +180,24 @@ Esta estructura conserva el estilo de las imágenes compartidas y sigue siendo a
 
 - **Domain** se organiza por tipo técnico (`Entities`, `Enums`, `Interfaces`, `ValueObjects`). Dentro de `Entities` se agrupa por módulo solo para que el número de archivos siga siendo manejable. No se crean subcapas DDD adicionales sin una necesidad real.
 - **Application** centraliza los elementos transversales en `Behaviors`, `DTOs`, `Interfaces`, `Mappings`, `Services` y `Settings`. Los DTOs compartidos por servicios y CQRS se organizan por módulo en `DTOs`; los Commands, Queries, Handlers y Validators permanecen en `Features`.
-- Cada feature API implementa CQRS con MediatR. Las pantallas MVC consumen servicios tradicionales de Application. Ambos caminos reutilizan los mismos DTOs y reglas centrales, sin que la WebApp despache Commands/Queries ni que la Web API consuma los servicios de MVC.
+- Cada feature API implementa CQRS con MediatR. Las pantallas MVC consumen servicios tradicionales de Application. Ambos caminos pueden compartir DTOs e invariantes de Domain, pero mantienen implementaciones y pruebas de Application independientes.
 - `ABP.Shared` no debe convertirse en un cajón de sastre. Se mantiene solo para tipos realmente neutrales y sin dependencia de negocio; por defecto, los contratos pertenecen a Domain o Application.
 - La organización por verticales asignada a los cuatro programadores se conserva como **propiedad de módulos**, no como una estructura de carpetas obligatoriamente profunda.
 
 ### Uso combinado de servicios y CQRS
 
-Esta mezcla responde directamente a los dos requisitos académicos del documento y evita duplicar lógica:
+Esta mezcla responde directamente a los dos requisitos académicos del documento. Se acepta la duplicación de orquestación entre ambos caminos para demostrar por separado servicios tradicionales y CQRS:
 
 ```text
-WebApp Controller -> servicio de Application ---------------------\
-                                                                    -> reglas compartidas de Domain/Application -> repositories
-Web API Controller -> ISender (MediatR) -> Command/Query Handler --/
+WebApp Controller -> servicio de Application -> Domain + repositories
+Web API Controller -> ISender (MediatR) -> Command/Query Handler -> Domain + repositories
 ```
 
 - La **Web API** implementa CQRS: cada endpoint envía un Command o Query mediante MediatR y los Behaviors ejecutan FluentValidation.
 - La **Web App MVC** usa servicios tradicionales de Application, como exige el documento, y no despacha Commands/Queries mediante MediatR.
-- Servicios y handlers son entradas paralelas: comparten DTOs y reutilizan invariantes de Domain, puertos y componentes internos de Application para no mantener dos versiones de una regla de negocio.
-- Los **repositorios y servicios genéricos** se reservan para CRUD sencillo. Flujos financieros —pagos, transferencias, préstamos, avances y Hermes Pay— usan servicios y handlers especializados apoyados en la misma lógica central.
+- Servicios y handlers son implementaciones paralelas e independientes: pueden compartir DTOs e invocar las mismas invariantes de Domain, pero no comparten un ejecutor de Application ni se llaman entre sí.
+- La duplicación de orquestación de Application se cubre con pruebas separadas de servicios y handlers para asegurar resultados equivalentes en MVC y API.
+- Los **repositorios y servicios genéricos** se reservan para CRUD sencillo. Flujos financieros —pagos, transferencias, préstamos, avances y Hermes Pay— cuentan con un servicio especializado para MVC y un handler especializado para API.
 
 ### Dependencias permitidas
 
