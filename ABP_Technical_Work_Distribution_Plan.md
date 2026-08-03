@@ -96,6 +96,10 @@ ArtemisBankingPro.slnx
   ABP.Application/
     Behaviors/
     Common/
+    DTOs/
+      CreditCards/
+      Commerce/
+      HermesPay/
     Features/
       Auth/
         Commands/
@@ -120,12 +124,14 @@ ArtemisBankingPro.slnx
       CreditCards/
         Commands/
         Queries/
-        DTOs/
         Validators/
       Commerce/
         Commands/
         Queries/
-        DTOs/
+        Validators/
+      HermesPay/
+        Commands/
+        Queries/
         Validators/
       Dashboards/
         Queries/
@@ -135,6 +141,7 @@ ArtemisBankingPro.slnx
       Persistence/
       Services/
     Mappings/
+    Services/
     Settings/
   ABP.Infrastructure/
     ABP.Infrastructure.Identity/
@@ -172,8 +179,8 @@ ArtemisBankingPro.slnx
 Esta estructura conserva el estilo de las imágenes compartidas y sigue siendo adecuada para una Onion Architecture profesional:
 
 - **Domain** se organiza por tipo técnico (`Entities`, `Enums`, `Interfaces`, `ValueObjects`). Dentro de `Entities` se agrupa por módulo solo para que el número de archivos siga siendo manejable. No se crean subcapas DDD adicionales sin una necesidad real.
-- **Application** centraliza los elementos transversales en `Behaviors`, `Interfaces`, `Mappings` y `Settings`. Los casos de uso viven en `Features`, separados por módulo y luego por `Commands`, `Queries`, `DTOs` y `Validators`.
-- Cada feature API implementa CQRS con MediatR. Las pantallas MVC consumen servicios de Application que reutilizan las mismas políticas de negocio; no duplican Commands/Queries en la capa de Presentation.
+- **Application** centraliza los elementos transversales en `Behaviors`, `DTOs`, `Interfaces`, `Mappings`, `Services` y `Settings`. Los DTOs compartidos por servicios y CQRS se organizan por módulo en `DTOs`; los Commands, Queries, Handlers y Validators permanecen en `Features`.
+- Cada feature API implementa CQRS con MediatR. Las pantallas MVC consumen servicios tradicionales de Application. Ambos caminos reutilizan los mismos DTOs y reglas centrales, sin que la WebApp despache Commands/Queries ni que la Web API consuma los servicios de MVC.
 - `ABP.Shared` no debe convertirse en un cajón de sastre. Se mantiene solo para tipos realmente neutrales y sin dependencia de negocio; por defecto, los contratos pertenecen a Domain o Application.
 - La organización por verticales asignada a los cuatro programadores se conserva como **propiedad de módulos**, no como una estructura de carpetas obligatoriamente profunda.
 
@@ -182,15 +189,15 @@ Esta estructura conserva el estilo de las imágenes compartidas y sigue siendo a
 Esta mezcla responde directamente a los dos requisitos académicos del documento y evita duplicar lógica:
 
 ```text
-WebApp Controller -> servicio/fachada de Application -> ISender (MediatR) -> Command/Query Handler
-Web API Controller -------------------------------> ISender (MediatR) -> Command/Query Handler
-                                                                  |
-                                                          Domain + repositories
+WebApp Controller -> servicio de Application ---------------------\
+                                                                    -> reglas compartidas de Domain/Application -> repositories
+Web API Controller -> ISender (MediatR) -> Command/Query Handler --/
 ```
 
 - La **Web API** implementa CQRS: cada endpoint envía un Command o Query mediante MediatR y los Behaviors ejecutan FluentValidation.
-- La **Web App MVC** usa servicios/fachadas de Application, como exige el documento. Estos servicios solo adaptan ViewModels y despachan el mismo Command o Query; no contienen una segunda versión de las reglas.
-- Los **repositorios y servicios genéricos** se reservan para CRUD sencillo. Flujos financieros —pagos, transferencias, préstamos, avances y Hermes Pay— usan handlers, agregados y servicios especializados.
+- La **Web App MVC** usa servicios tradicionales de Application, como exige el documento, y no despacha Commands/Queries mediante MediatR.
+- Servicios y handlers son entradas paralelas: comparten DTOs y reutilizan invariantes de Domain, puertos y componentes internos de Application para no mantener dos versiones de una regla de negocio.
+- Los **repositorios y servicios genéricos** se reservan para CRUD sencillo. Flujos financieros —pagos, transferencias, préstamos, avances y Hermes Pay— usan servicios y handlers especializados apoyados en la misma lógica central.
 
 ### Dependencias permitidas
 
@@ -267,6 +274,8 @@ Se congelan valores internos en inglés o español, pero nunca se persisten text
 Los textos “ACTIVA”, “APROBADA”, “DÉBITO”, etc. se resuelven en Presentation/DTO mapping.
 
 ### 3.4 Tipos base y DTOs que se congelan
+
+Los DTOs consumidos tanto por los servicios tradicionales como por los casos CQRS se ubican en `ABP.Application/DTOs`, organizados por módulo. No pertenecen exclusivamente a ninguna superficie de presentación.
 
 #### Comunes
 
