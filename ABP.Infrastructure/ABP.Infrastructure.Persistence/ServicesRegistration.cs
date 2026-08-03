@@ -2,7 +2,7 @@ using ABP.Infrastructure.Persistence.Context;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using ABP.Application.Interfaces.Persistence;
+using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence.Repositories;
 
 namespace ABP.Infrastructure.Persistence
@@ -32,7 +32,11 @@ namespace ABP.Infrastructure.Persistence
             #endregion
 
             #region Repositories
-            services.AddTransient<IUnitOfWork, UnitOfWork>();
+            services.AddScoped(
+                typeof(IGenericRepository<,>),
+                typeof(GenericRepository<,>));
+
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             #endregion
         }

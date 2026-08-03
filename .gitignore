@@ -6,6 +6,13 @@
 .graphifyignore
 .codex
 
+# Our specific ignore rules
+Images*/
+*.md
+!README.md
+output.css
+graphify-out
+
 # dotenv files
 .env
 

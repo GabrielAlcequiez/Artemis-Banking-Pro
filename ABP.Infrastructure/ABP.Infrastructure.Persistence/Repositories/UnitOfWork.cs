@@ -1,4 +1,4 @@
-using ABP.Application.Interfaces.Persistence;
+using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence.Context;
 
 namespace ABP.Infrastructure.Persistence.Repositories
@@ -14,7 +14,7 @@ namespace ABP.Infrastructure.Persistence.Repositories
         // Implementación vaga
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-            return await _context.SaveChangesAsync();
+            return await _context.SaveChangesAsync(cancellationToken);
         }
     }
 }
