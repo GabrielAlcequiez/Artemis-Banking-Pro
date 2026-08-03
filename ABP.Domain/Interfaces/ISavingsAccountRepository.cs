@@ -1,7 +1,7 @@
-using ABP.Application.Common;
+using ABP.Domain.Common;
 using ABP.Domain.Entities;
 
-namespace ABP.Application.Interfaces.Persistence;
+namespace ABP.Domain.Interfaces;
 
 public interface ISavingsAccountRepository
 {

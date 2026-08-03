@@ -1,12 +1,9 @@
 using ABP.Domain.Entities.Commerce;
-using ABP.Domain.Interfaces;
 
-namespace ABP.Application.Interfaces.Persistence
+namespace ABP.Domain.Interfaces;
+
+public interface ICommerceRepository : IGenericRepository<Commerce, Guid>
 {
-    public interface ICommerceRepository : IGenericRepository<Commerce, Guid>
-    {
-        Task<bool> EmailExistsAsync(string email, Guid? excludingCommerceId = null, CancellationToken cancellationToken = default);
-        Task<bool> RncExistsAsync(string rnc, Guid? excludingCommerceId = null, CancellationToken cancellationToken = default);
-
-    }
+    Task<bool> EmailExistsAsync(string email, Guid? excludingCommerceId = null, CancellationToken cancellationToken = default);
+    Task<bool> RncExistsAsync(string rnc, Guid? excludingCommerceId = null, CancellationToken cancellationToken = default);
 }
