@@ -1,3 +1,6 @@
+using ABP.Infrastructure.Identity;
+using ABP.Infrastructure.Persistence;
+using ABP.Shared;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +15,10 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 #endregion
+
+builder.Services.AddInfrastructureIdentityServices(builder.Configuration);
+builder.Services.AddInfrastructurePersistence(builder.Configuration);
+builder.Services.AddSharedServices(builder.Configuration);
 
 builder.Services.AddControllersWithViews();
 
