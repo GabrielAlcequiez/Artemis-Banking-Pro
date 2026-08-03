@@ -1,4 +1,4 @@
-namespace ABP.Application.Features.Accounts.DTOs;
+namespace ABP.Application.DTOs.Account;
 
 public class BeneficiaryDto
 {

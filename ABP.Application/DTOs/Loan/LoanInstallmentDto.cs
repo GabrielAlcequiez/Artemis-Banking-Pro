@@ -1,4 +1,4 @@
-namespace ABP.Application.Features.Loans.DTOs
+namespace ABP.Application.DTOs.Loan
 {
     public sealed record LoanInstallmentDto(
         int InstallmentNumber,

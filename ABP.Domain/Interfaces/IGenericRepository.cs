@@ -2,8 +2,7 @@ using ABP.Domain.Common;
 
 namespace ABP.Domain.Interfaces;
 
-public interface IGenericRepository<TEntity, TKey>
-    where TEntity : BaseEntity<TKey>
+public interface IGenericRepository<TEntity, TKey> where TEntity : BaseEntity<TKey>
 {
     IQueryable<TEntity> GetAllQueryable(bool trackChanges = false);
 
