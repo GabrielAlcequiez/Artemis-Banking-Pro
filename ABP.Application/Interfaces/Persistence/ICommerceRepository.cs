@@ -1,4 +1,5 @@
 using ABP.Domain.Entities.Commerce;
+using ABP.Domain.Interfaces;
 
 namespace ABP.Application.Interfaces.Persistence
 {

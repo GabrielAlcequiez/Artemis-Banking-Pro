@@ -19,10 +19,11 @@ builder.Host.UseSerilog();
 builder.Services.AddInfrastructureIdentityServices(builder.Configuration);
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
 builder.Services.AddSharedServices(builder.Configuration);
-
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
+
+// await app.Services.RunSeedsAsync();
 
 app.UseStaticFiles();
 app.UseRouting();
@@ -37,5 +38,11 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-await Log.CloseAndFlushAsync();
-await app.RunAsync();
+try
+{
+    await app.RunAsync(); 
+}
+finally
+{
+    await Log.CloseAndFlushAsync(); 
+}
