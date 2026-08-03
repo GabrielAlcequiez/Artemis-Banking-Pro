@@ -1,6 +1,6 @@
-namespace ABP.Application.Features.CreditCards.DTOs
+namespace ABP.Application.DTOs.CreditCards
 {
-    public sealed record CreditCardDetailDto(
+    public sealed record CreditCardSummaryDto(
     Guid Id,
     string MaskedCardNumber,
     string LastFourDigits,
@@ -11,5 +11,5 @@ namespace ABP.Application.Features.CreditCards.DTOs
     decimal CurrentDebt,
     string ExpirationDate,
     string Status,
-    IReadOnlyCollection<CardConsumptionDto> Consumptions);
+    DateTimeOffset CreatedAt);
 }

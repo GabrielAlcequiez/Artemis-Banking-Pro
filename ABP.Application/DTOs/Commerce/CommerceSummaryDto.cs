@@ -1,4 +1,4 @@
-namespace ABP.Application.Features.Commerce.DTOs;
+namespace ABP.Application.DTOs.Commerce;
 
 public sealed record CommerceSummaryDto(
     Guid Id,
