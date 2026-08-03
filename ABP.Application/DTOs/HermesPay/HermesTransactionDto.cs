@@ -1,4 +1,4 @@
-namespace ABP.Application.Features.HermesPay.DTOs
+namespace ABP.Application.DTOs.HermesPay
 {
     public sealed record HermesTransactionDto(
     Guid Id,
