@@ -1,4 +1,5 @@
 using ABP.Domain.Common;
+using ABP.Domain.Entities;
 using ABP.Domain.Enums;
 
 namespace ABP.Domain.Entities.Lending
@@ -14,5 +15,9 @@ namespace ABP.Domain.Entities.Lending
         public LoanStatus Status { get; set; } = LoanStatus.Active;
         public string AssignedByUserId { get; set; } = string.Empty;
         public byte[] RowVersion { get; set; } = [];
+        public User Client { get; set; } = null!;
+        public User AssignedByUser { get; set; } = null!;
+        public ICollection<LoanInstallment> Installments { get; set; } = [];
+        public ICollection<LoanPayment> Payments { get; set; } = [];
     }
 }
