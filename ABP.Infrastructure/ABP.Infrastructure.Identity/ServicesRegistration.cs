@@ -5,6 +5,8 @@ using ABP.Application.Interfaces.Identity;
 using ABP.Application.DTOs;
 using ABP.Domain.Enums;
 using ABP.Domain.Settings;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -177,39 +179,72 @@ namespace ABP.Infrastructure.Identity
                     ValidAudience = config["JwtSettings:Audience"],
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["JwtSettings:SecretKey"] ?? ""))
                 };
-                opt.Events = new JwtBearerEvents()
+opt.Events = new JwtBearerEvents()
+            {
+                OnAuthenticationFailed = async context =>
                 {
-                    OnAuthenticationFailed = c =>
+                    context.NoResult();
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/problem+json";
+
+                    var problem = new ProblemDetails
                     {
-                        c.NoResult();
-                        c.Response.StatusCode = 500;
-                        c.Response.ContentType = "text/plain";
-                        return c.Response.WriteAsync(c.Exception.Message.ToString());
-                    },
-                    OnChallenge = c =>
+                        Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
+                        Title = "Unauthorized",
+                        Status = StatusCodes.Status401Unauthorized,
+                        Detail = "No tiene autorización para acceder a este recurso.",
+                        Instance = context.Request.Path
+                    };
+
+                    var env = context.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+                    if (env.EnvironmentName == "Development")
+                        problem.Extensions["exception"] = context.Exception.Message;
+
+                    if (!string.IsNullOrEmpty(context.HttpContext.TraceIdentifier))
+                        problem.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
+                    await context.Response.WriteAsJsonAsync(problem);
+                },
+                OnChallenge = async context =>
+                {
+                    context.HandleResponse();
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/problem+json";
+
+                    var problem = new ProblemDetails
                     {
-                        c.HandleResponse();
-                        c.Response.StatusCode = 401;
-                        c.Response.ContentType = "application/json";
-                        var result = JsonConvert.SerializeObject(new JwtResponseDto
-                        {
-                            HasError = true,
-                            Error = "No está autorizado para acceder a este recurso."
-                        });
-                        return c.Response.WriteAsync(result);
-                    },
-                    OnForbidden = c =>
+                        Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
+                        Title = "Unauthorized",
+                        Status = StatusCodes.Status401Unauthorized,
+                        Detail = "No tiene autorización para acceder a este recurso.",
+                        Instance = context.Request.Path
+                    };
+
+                    if (!string.IsNullOrEmpty(context.HttpContext.TraceIdentifier))
+                        problem.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
+                    await context.Response.WriteAsJsonAsync(problem);
+                },
+                OnForbidden = async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/problem+json";
+
+                    var problem = new ProblemDetails
                     {
-                        c.Response.StatusCode = 403;
-                        c.Response.ContentType = "application/json";
-                        var result = JsonConvert.SerializeObject(new JwtResponseDto
-                        {
-                            HasError = true,
-                            Error = "Acceso denegado. No tiene permisos para realizar esta acción."
-                        });
-                        return c.Response.WriteAsync(result);
-                    }
-                };
+                        Type = "https://tools.ietf.org/html/rfc7231#section-6.5.3",
+                        Title = "Forbidden",
+                        Status = StatusCodes.Status403Forbidden,
+                        Detail = "Acceso denegado. No tiene permisos para utilizar este recurso.",
+                        Instance = context.Request.Path
+                    };
+
+                    if (!string.IsNullOrEmpty(context.HttpContext.TraceIdentifier))
+                        problem.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
+                    await context.Response.WriteAsJsonAsync(problem);
+                }
+            };
             }).AddCookie(IdentityConstants.ApplicationScheme, opt =>
             {
                 opt.ExpireTimeSpan = TimeSpan.FromHours(2);
