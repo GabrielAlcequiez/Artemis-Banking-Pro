@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ABP.Application\ABP.Application.csproj" />
+    <ProjectReference Include="..\ABP.TestDoubles\ABP.TestDoubles.csproj" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>
