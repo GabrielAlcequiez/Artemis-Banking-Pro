@@ -1,3 +1,4 @@
+using ABP.WebApp.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ABP.WebApp.Controllers
@@ -7,6 +8,11 @@ namespace ABP.WebApp.Controllers
         public IActionResult Index()
         {
             return View();
+        }
+
+        public IActionResult Error()
+        {
+            return View(new ErrorViewModel());
         }
     }
 }

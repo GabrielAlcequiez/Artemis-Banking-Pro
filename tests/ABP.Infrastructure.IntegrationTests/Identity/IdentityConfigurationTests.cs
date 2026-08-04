@@ -27,7 +27,7 @@ public class IdentityConfigurationTests
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddInfrastructureIdentityServices(configuration);
+        services.AddInfrastructureServicesWebApp(configuration);
 
         using var serviceProvider = services.BuildServiceProvider();
 

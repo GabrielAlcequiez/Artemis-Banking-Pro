@@ -6,6 +6,7 @@ namespace ABP.Domain.Entities.Lending
     public sealed class LoanInstallment : AuditableEntity<Guid>
     {
         public Guid LoanId { get; set; }
+        public Loan Loan { get; set; } = null!;
         public int Number { get; set; }
         public DateOnly DueDate { get; set; }
         public decimal InstallmentAmount { get; set; }
