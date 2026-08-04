@@ -1,4 +1,4 @@
-namespace ABP.Application.Common;
+namespace ABP.Domain.Common;
 
 public sealed class PagedResult<TValue>(
     IReadOnlyCollection<TValue> data,

@@ -1,7 +1,7 @@
 ﻿using ABP.Domain.Common;
 using ABP.Domain.Enums;
 
-namespace ABP.Domain.Entities;
+namespace ABP.Domain.Entities.Accounts;
 
 public class SavingsAccount : AuditableEntity<Guid>
 {

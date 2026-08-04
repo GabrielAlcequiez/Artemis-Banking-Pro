@@ -1,3 +1,6 @@
+using ABP.Infrastructure.Identity;
+using ABP.Infrastructure.Persistence;
+using ABP.Shared;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,9 +16,14 @@ builder.Host.UseSerilog();
 
 #endregion
 
+builder.Services.AddInfrastructureIdentityServices(builder.Configuration);
+builder.Services.AddInfrastructurePersistence(builder.Configuration);
+builder.Services.AddSharedServices(builder.Configuration);
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
+
+// await app.Services.RunSeedsAsync();
 
 app.UseStaticFiles();
 app.UseRouting();
@@ -30,5 +38,11 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-await Log.CloseAndFlushAsync();
-await app.RunAsync();
+try
+{
+    await app.RunAsync(); 
+}
+finally
+{
+    await Log.CloseAndFlushAsync(); 
+}

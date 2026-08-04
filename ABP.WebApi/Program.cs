@@ -1,3 +1,4 @@
+using ABP.Infrastructure.Identity;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,6 +23,9 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// await app.Services.RunSeedsAsync();
+
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -34,5 +38,12 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-await Log.CloseAndFlushAsync();
-await app.RunAsync();
+try
+{
+    await app.RunAsync(); 
+}
+finally
+{
+    await Log.CloseAndFlushAsync(); 
+}
+

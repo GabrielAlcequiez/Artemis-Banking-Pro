@@ -1,9 +1,8 @@
-using ABP.Application.Common;
+using ABP.Domain.Common;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
-using ABP.Domain.Interfaces;
 
-namespace ABP.Application.Interfaces.Persistence;
+namespace ABP.Domain.Interfaces;
 
 public interface ILoanRepository : IGenericRepository<Loan, Guid>
 {
