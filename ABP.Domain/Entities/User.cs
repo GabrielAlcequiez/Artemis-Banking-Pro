@@ -1,4 +1,7 @@
 using ABP.Domain.Common;
+using ABP.Domain.Entities.Accounts;
+using ABP.Domain.Entities.Cards;
+using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
 
 namespace ABP.Domain.Entities
@@ -27,8 +30,10 @@ namespace ABP.Domain.Entities
 
         public Guid? CommerceId { get; set; }
 
-
-        // Acá irán los navigations y relaciones, como prestamos, cuenta de ahorro y tarjeta de credito
-        // PENDIENTE
+        // Propiedades de navegación (Relaciones)
+        public ICollection<SavingsAccount> SavingsAccounts { get; set; } = new List<SavingsAccount>();
+        public ICollection<CreditCard> CreditCards { get; set; } = new List<CreditCard>();
+        public ICollection<Loan> Loans { get; set; } = new List<Loan>();
+        public ICollection<Beneficiary> Beneficiaries { get; set; } = new List<Beneficiary>();
     }
 }
