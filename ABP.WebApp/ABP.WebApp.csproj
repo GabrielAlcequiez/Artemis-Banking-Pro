@@ -7,9 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../ABP.Shared/ABP.Shared.csproj" />
     <ProjectReference Include="..\ABP.Application\ABP.Application.csproj" />
     <ProjectReference Include="..\ABP.Infrastructure\ABP.Infrastructure.Identity\ABP.Infrastructure.Identity.csproj" />
     <ProjectReference Include="..\ABP.Infrastructure\ABP.Infrastructure.Persistence\ABP.Infrastructure.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.1" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
    <Target Name="Tailwind" BeforeTargets="Build;PrepareForPublish">

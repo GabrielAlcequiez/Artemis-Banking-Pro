@@ -1,6 +1,6 @@
 using ABP.Domain.Entities;
 
-namespace ABP.Application.Interfaces.Persistence;
+namespace ABP.Domain.Interfaces;
 
 public interface IBeneficiaryRepository
 {

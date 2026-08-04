@@ -1,5 +1,6 @@
 using System.Reflection;
 using ABP.Domain.Entities;
+using ABP.Domain.Entities.Accounts;
 using Microsoft.EntityFrameworkCore;
 
 namespace ABP.Infrastructure.Persistence.Context
@@ -8,6 +9,9 @@ namespace ABP.Infrastructure.Persistence.Context
     {
         #region DbSets
         public DbSet<User> Users { get; set; }
+        public DbSet<SavingsAccount> SavingsAccounts { get; set; }
+        public DbSet<AccountTransaction> AccountTransactions { get; set; }
+        public DbSet<Beneficiary> Beneficiaries { get; set; }
 
         #endregion
 

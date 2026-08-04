@@ -1,17 +1,17 @@
-namespace ABP.Application.Features.Loans.DTOs
+namespace ABP.Application.DTOs.Loan
 {
-    public sealed record LoanSummaryDto(
+    public sealed record LoanDetailDto(
         Guid Id,
         string LoanNumber,
         string ClientId,
         string ClientFullName,
         decimal CapitalAmount,
-        int TotalInstallments,
-        int PaidInstallments,
-        decimal PendingAmount,
         decimal AnnualInterestRate,
         int TermInMonths,
+        decimal MonthlyInstallment,
+        decimal PendingAmount,
         string Status,
         string ClientPaymentStatus,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        IReadOnlyCollection<LoanInstallmentDto> Amortization);
 }

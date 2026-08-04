@@ -1,3 +1,5 @@
+using ABP.Domain.Common;
+
 namespace ABP.Application.Interfaces.Services;
 
 /// <summary>
@@ -6,16 +8,13 @@ namespace ABP.Application.Interfaces.Services;
 /// <remarks>
 /// Financial operations must use dedicated commands, handlers, and transactional services.
 /// </remarks>
-public interface IGenericService<TEntity, in TId>
-    where TEntity : class
+public interface IGenericService<TDto, TEntity, TKey>
+    where TDto : class
+    where TEntity : BaseEntity<TKey>
 {
-    Task<TEntity?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);
+    Task<TDto?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyCollection<TEntity>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<TDto>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    Task AddAsync(TEntity entity, CancellationToken cancellationToken = default);
-
-    Task UpdateAsync(TEntity entity, CancellationToken cancellationToken = default);
-
-    Task DeleteAsync(TEntity entity, CancellationToken cancellationToken = default);
+    Task DeleteAsync(TKey id, CancellationToken cancellationToken = default);
 }
