@@ -11,7 +11,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Options;
+using ABP.Infrastructure.Identity.Seeds;
+using ABP.Domain.Interfaces;
+using ABP.Domain.Entities;
 
 namespace ABP.Infrastructure.Identity
 {
@@ -158,5 +160,23 @@ namespace ABP.Infrastructure.Identity
             await context.HttpContext.SignOutAsync(
                 IdentityConstants.ApplicationScheme);
         }
+    
+        public static async Task RunSeedsAsync(this IServiceProvider serviceProvider)
+        {
+            using var scope = serviceProvider.CreateScope();
+            var services = scope.ServiceProvider;
+
+            var userManager = services.GetRequiredService<UserManager<AppUser>>();
+            var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+            var configuration = services.GetRequiredService<IConfiguration>();
+
+            await DefaultUserRoles.SeedRolesAsync(roleManager);
+            await DefaultUsers.SeedDefaultUsersAsync(
+                userManager,
+                services.GetRequiredService<IGenericRepository<User, string>>(),
+                services.GetRequiredService<IUnitOfWork>(),
+                configuration);
+        }
+    
     }
 }
