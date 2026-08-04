@@ -1,3 +1,5 @@
+using ABP.Application.DTOs.Loan;
+
 namespace ABP.Application.Features.Loans.DTOs
 {
     public sealed record AmortizationResult(

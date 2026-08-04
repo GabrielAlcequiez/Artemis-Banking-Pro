@@ -1,5 +1,6 @@
 using ABP.Domain.Common;
 using ABP.Domain.Entities;
+using ABP.Domain.Entities.Accounts;
 
 namespace ABP.Domain.Entities.Lending
 {

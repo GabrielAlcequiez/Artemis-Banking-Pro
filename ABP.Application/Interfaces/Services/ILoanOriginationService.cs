@@ -1,4 +1,5 @@
 using ABP.Application.Common;
+using ABP.Application.DTOs.Loan;
 using ABP.Application.Features.Loans.DTOs;
 
 namespace ABP.Application.Interfaces.Services;
