@@ -1,10 +1,11 @@
+using ABP.Domain.Common;
 using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
 namespace ABP.Infrastructure.Persistence.Repositories
 {
-    public class GenericRepository<TEntity, TKey> : IGenericRepository<TEntity, TKey> where TEntity : class
+    public class GenericRepository<TEntity, TKey> : IGenericRepository<TEntity, TKey> where TEntity : BaseEntity<TKey>
     {
         protected readonly AppDbContext _context;
         protected DbSet<TEntity> Entities => _context.Set<TEntity>();
