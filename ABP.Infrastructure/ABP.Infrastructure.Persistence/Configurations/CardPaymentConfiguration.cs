@@ -1,4 +1,5 @@
 using ABP.Domain.Entities;
+using ABP.Domain.Entities.Accounts;
 using ABP.Domain.Entities.Cards;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
