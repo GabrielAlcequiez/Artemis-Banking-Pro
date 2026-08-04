@@ -47,7 +47,7 @@ acordar el cambio con el equipo.
 ### Reglas rápidas de implementación
 
 - La API despacha Commands/Queries con MediatR; los Behaviors ejecutan FluentValidation.
-- La WebApp usa servicios o fachadas de Application y ViewModels; no duplica reglas financieras ni crea una segunda implementación de CQRS.
+- La WebApp usa servicios tradicionales de Application y ViewModels; esos servicios no despachan Commands/Queries ni implementan CQRS internamente.
 - AutoMapper se configura mediante Profiles y debe tener una prueba de configuración.
 - Domain no referencia ASP.NET Identity, EF Core, JWT, SMTP, Serilog ni detalles de infraestructura.
 - Las respuestas de error usan manejo global y Problem Details; Swagger debe reflejar los contratos vigentes.
@@ -56,7 +56,7 @@ acordar el cambio con el equipo.
 
 ## 1. Resumen ejecutivo
 
-La distribución recomendada es por **verticales de negocio**, no por “frontend”, “backend” o capas aisladas. Cada programador será responsable de las reglas de su dominio en Domain/Application/Infrastructure y de las superficies MVC/API que las consumen. Esto evita que una regla sensible —por ejemplo, el pago de un préstamo o la actualización de una tarjeta— tenga implementaciones diferentes según el canal.
+La distribución recomendada es por **verticales de negocio**, no por “frontend”, “backend” o capas aisladas. Cada programador será responsable de las reglas de su dominio en Domain/Application/Infrastructure y de las superficies MVC/API que las consumen. Por requisito académico, cada caso de uso puede tener una implementación de servicio para MVC y otra implementación CQRS para API; ambas siguen bajo el mismo dueño vertical.
 
 | Programador | Rol técnico | Vertical principal | Carga relativa inicial |
 |---|---|---|---:|
@@ -70,11 +70,11 @@ Los puntos solo sirven para comparar la carga entre verticales. El equipo debe r
 ### Regla de propiedad
 
 - El dueño de una vertical implementa sus reglas en todas las capas.
-- MVC y API no duplican lógica financiera.
+- MVC y API mantienen implementaciones de Application separadas, aunque exista duplicación de orquestación por el requisito académico.
 - Los Controllers son adaptadores delgados.
 - La Web App consume servicios de Application, según exige el documento.
 - La API consume Commands/Queries de MediatR con FluentValidation.
-- Servicios MVC y handlers CQRS reutilizan las mismas políticas y servicios de dominio.
+- Servicios MVC y handlers CQRS pueden compartir DTOs e invariantes de Domain, pero ninguno delega su ejecución al otro.
 - P1 custodia los archivos de composición global, la configuración de los hosts y las migraciones; esto no convierte a P1 en dueño de todas las entidades.
 
 ---
@@ -96,6 +96,10 @@ ArtemisBankingPro.slnx
   ABP.Application/
     Behaviors/
     Common/
+    DTOs/
+      CreditCards/
+      Commerce/
+      HermesPay/
     Features/
       Auth/
         Commands/
@@ -120,12 +124,14 @@ ArtemisBankingPro.slnx
       CreditCards/
         Commands/
         Queries/
-        DTOs/
         Validators/
       Commerce/
         Commands/
         Queries/
-        DTOs/
+        Validators/
+      HermesPay/
+        Commands/
+        Queries/
         Validators/
       Dashboards/
         Queries/
@@ -135,6 +141,7 @@ ArtemisBankingPro.slnx
       Persistence/
       Services/
     Mappings/
+    Services/
     Settings/
   ABP.Infrastructure/
     ABP.Infrastructure.Identity/
@@ -172,25 +179,25 @@ ArtemisBankingPro.slnx
 Esta estructura conserva el estilo de las imágenes compartidas y sigue siendo adecuada para una Onion Architecture profesional:
 
 - **Domain** se organiza por tipo técnico (`Entities`, `Enums`, `Interfaces`, `ValueObjects`). Dentro de `Entities` se agrupa por módulo solo para que el número de archivos siga siendo manejable. No se crean subcapas DDD adicionales sin una necesidad real.
-- **Application** centraliza los elementos transversales en `Behaviors`, `Interfaces`, `Mappings` y `Settings`. Los casos de uso viven en `Features`, separados por módulo y luego por `Commands`, `Queries`, `DTOs` y `Validators`.
-- Cada feature API implementa CQRS con MediatR. Las pantallas MVC consumen servicios de Application que reutilizan las mismas políticas de negocio; no duplican Commands/Queries en la capa de Presentation.
+- **Application** centraliza los elementos transversales en `Behaviors`, `DTOs`, `Interfaces`, `Mappings`, `Services` y `Settings`. Los DTOs compartidos por servicios y CQRS se organizan por módulo en `DTOs`; los Commands, Queries, Handlers y Validators permanecen en `Features`.
+- Cada feature API implementa CQRS con MediatR. Las pantallas MVC consumen servicios tradicionales de Application. Ambos caminos pueden compartir DTOs e invariantes de Domain, pero mantienen implementaciones y pruebas de Application independientes.
 - `ABP.Shared` no debe convertirse en un cajón de sastre. Se mantiene solo para tipos realmente neutrales y sin dependencia de negocio; por defecto, los contratos pertenecen a Domain o Application.
 - La organización por verticales asignada a los cuatro programadores se conserva como **propiedad de módulos**, no como una estructura de carpetas obligatoriamente profunda.
 
 ### Uso combinado de servicios y CQRS
 
-Esta mezcla responde directamente a los dos requisitos académicos del documento y evita duplicar lógica:
+Esta mezcla responde directamente a los dos requisitos académicos del documento. Se acepta la duplicación de orquestación entre ambos caminos para demostrar por separado servicios tradicionales y CQRS:
 
 ```text
-WebApp Controller -> servicio/fachada de Application -> ISender (MediatR) -> Command/Query Handler
-Web API Controller -------------------------------> ISender (MediatR) -> Command/Query Handler
-                                                                  |
-                                                          Domain + repositories
+WebApp Controller -> servicio de Application -> Domain + repositories
+Web API Controller -> ISender (MediatR) -> Command/Query Handler -> Domain + repositories
 ```
 
 - La **Web API** implementa CQRS: cada endpoint envía un Command o Query mediante MediatR y los Behaviors ejecutan FluentValidation.
-- La **Web App MVC** usa servicios/fachadas de Application, como exige el documento. Estos servicios solo adaptan ViewModels y despachan el mismo Command o Query; no contienen una segunda versión de las reglas.
-- Los **repositorios y servicios genéricos** se reservan para CRUD sencillo. Flujos financieros —pagos, transferencias, préstamos, avances y Hermes Pay— usan handlers, agregados y servicios especializados.
+- La **Web App MVC** usa servicios tradicionales de Application, como exige el documento, y no despacha Commands/Queries mediante MediatR.
+- Servicios y handlers son implementaciones paralelas e independientes: pueden compartir DTOs e invocar las mismas invariantes de Domain, pero no comparten un ejecutor de Application ni se llaman entre sí.
+- La duplicación de orquestación de Application se cubre con pruebas separadas de servicios y handlers para asegurar resultados equivalentes en MVC y API.
+- Los **repositorios y servicios genéricos** se reservan para CRUD sencillo. Flujos financieros —pagos, transferencias, préstamos, avances y Hermes Pay— cuentan con un servicio especializado para MVC y un handler especializado para API.
 
 ### Dependencias permitidas
 
@@ -267,6 +274,8 @@ Se congelan valores internos en inglés o español, pero nunca se persisten text
 Los textos “ACTIVA”, “APROBADA”, “DÉBITO”, etc. se resuelven en Presentation/DTO mapping.
 
 ### 3.4 Tipos base y DTOs que se congelan
+
+Los DTOs consumidos tanto por los servicios tradicionales como por los casos CQRS se ubican en `ABP.Application/DTOs`, organizados por módulo. No pertenecen exclusivamente a ninguna superficie de presentación.
 
 #### Comunes
 
@@ -373,13 +382,13 @@ ILoansMetricsReader
 
 ```csharp
 ICreditCardRepository
-ICvcHasher
+ICvcHasherService
 ICardPaymentService
 ICashAdvanceService
-ICardDebtReader
-ICardsMetricsReader
+ICardDebtReaderService
+ICardsMetricsReaderService
 ICommerceRepository
-ICommerceAuthorizationResolver
+ICommerceAuthorizationResolverService
 IHermesPaymentService
 ```
 
@@ -406,12 +415,16 @@ Estas interfaces se ubican en Application. Cada consumidor puede usar mocks hast
 6. **Concurrencia:** `rowversion`/optimistic concurrency en cuentas, préstamos, tarjetas y comercios; revalidar saldo/deuda dentro de la transacción.
 7. **Notificaciones:** Gmail SMTP con App Password almacenado en .NET User Secrets; el envío se implementará mediante Outbox para que un fallo de correo nunca revierta la operación financiera.
 8. **Identificadores de 9 dígitos:** registro central con índice único para impedir colisiones entre cuentas y préstamos.
-9. **CVC:** `ICvcHasher`; usar HMAC-SHA-256 con secreto externo o mecanismo equivalente seguro, sin retornar ni registrar dato/hash.
+9. **CVC:** `ICvcHasherService`; usar HMAC-SHA-256 con secreto externo o mecanismo equivalente seguro, sin retornar ni registrar dato/hash.
 10. **Tokens:** su implementación y persistencia se abordarán en el Sprint de Identity; deben cumplir activación de un solo uso y reset con vigencia máxima de 30 minutos.
 11. **Idempotencia:** POST financieros y confirmaciones MVC reciben un `OperationId`/`Idempotency-Key` para impedir doble cargo por reintentos o doble clic.
 12. **Transacciones rechazadas:** registrar intento solo cuando existe un producto origen identificable, sin cambiar balances/deudas.
 13. **Seguridad por superficie:** Web App permite Administrador/Cajero/Cliente; API permite Administrador/Comercio; Comercio nunca inicia sesión en MVC.
 14. **Migraciones:** cada programador entrega configuraciones EF de su vertical; solo P1 genera/integra la migración consolidada.
+15. **Identificadores de Entidad y Comercio:** `CommerceId` (y todos los demás identificadores de entidades del dominio) utilizan `Guid`. La única excepción es `User.Id`, que es `string` por integración con ASP.NET Core Identity.
+16. **Destino de Avance de Efectivo:** El avance de efectivo acredita una cuenta de ahorro activa seleccionada por el cliente (no únicamente la cuenta principal).
+17. **Fakes Obligatorios de Sprint 0:** Los fakes exportados en Sprint 0 son los puertos interverticales requeridos para trabajo en paralelo (por ejemplo, `FakeCardDebtReaderService` para P3 e `FakeCommerceAuthorizationResolverService` para P1).
+18. **Expiración de Tarjetas:** `CreditCard.ExpirationDate` representa el último día calendario del mes indicado por el formato MM/AA y la tarjeta permanece válida durante todo ese día según la fecha bancaria/UTC.
 
 ---
 
@@ -902,7 +915,7 @@ Ser dueño del ciclo de vida de tarjetas y del procesamiento de consumos, incluy
 - `IAccountBalanceService`, `IAccountLedger` e `IPrimaryAccountProvisioner` de P2.
 - Identity/User inactivation de P1 al desactivar Comercio.
 - Outbox y current user de P1.
-- Publica `ICardDebtReader` para riesgo de P3.
+- Publica `ICardDebtReaderService` para riesgo de P3.
 
 ### Reglas críticas bajo su propiedad
 
@@ -913,7 +926,7 @@ Ser dueño del ciclo de vida de tarjetas y del procesamiento de consumos, incluy
 - Nuevo límite > 0 y nunca menor que deuda.
 - Cancelación solo activa y sin deuda; no elimina historial.
 - Pago limita monto efectivo a deuda; no debita excedente.
-- Avance acredita solo principal y carga principal + 6.25%.
+- Avance acredita cuenta de ahorro activa seleccionada por el cliente y carga principal + 6.25% a la tarjeta.
 - Hermes aumenta deuda, registra consumo y acredita cuenta principal del Comercio atómicamente.
 - Consumo rechazado por crédito insuficiente queda registrado sin acreditar comercio.
 - Usuario Comercio ignora `commerceId` de URL y opera con su asociación del JWT.
@@ -962,7 +975,7 @@ Ser dueño del ciclo de vida de tarjetas y del procesamiento de consumos, incluy
 - [ ] Detalle lista consumos recientes y muestra AVANCE cuando aplica.
 - [ ] Pago Cliente valida ownership y no debita sobrepago.
 - [ ] Pago Cajero soporta titulares distintos y notificaciones correspondientes.
-- [ ] Avance acredita principal y carga principal + 6.25% a la tarjeta.
+- [ ] Avance acredita una cuenta de ahorro activa seleccionada por el cliente y carga principal + 6.25% a la tarjeta.
 - [ ] Commerce CRUD cumple paginación, unicidad y estados.
 - [ ] Desactivar Comercio inactiva usuarios; reactivar no los activa.
 - [ ] Usuario Comercio está asociado 1:1 a Comercio.
@@ -991,9 +1004,9 @@ flowchart LR
     P2 -->|"Desembolso y débito de pagos"| P3
     P2 -->|"Pago, avance y crédito a Comercio"| P4
 
-    P4 -->|"ICardDebtReader"| P3
+    P4 -->|"ICardDebtReaderService"| P3
     P3 -->|"ILoanDebtReader"| P1
-    P4 -->|"ICardsMetricsReader"| P1
+    P4 -->|"ICardsMetricsReaderService"| P1
     P2 -->|"Accounts/Transaction metrics"| P1
 
     P4 -->|"Validación/asociación de Comercio"| P1
@@ -1017,7 +1030,7 @@ Las flechas representan contratos, no referencias entre Presentation ni acceso d
 
 ### 6.1 Mocks y adaptadores preliminares
 
-- Cada interfaz del Sprint 0 incluye un fake simple en `tests/TestDoubles`.
+- Cada puerto intervertical obligatorio del Sprint 0 incluye un fake simple en `tests/ABP.TestDoubles` (por ejemplo `FakeCardDebtReaderService` e `FakeCommerceAuthorizationResolverService`).
 - P1 crea usuario Cliente con `IPrimaryAccountProvisioner` mock mientras P2 termina la implementación.
 - P3 prueba originación con `IAccountBalanceService` fake y deuda de tarjetas fake.
 - P4 prueba Hermes con ledger/cuenta fake.
@@ -1061,9 +1074,9 @@ Nadie edita una migración ya compartida. Los cambios de modelo se entregan como
 | Consumidor | Proveedor | Contrato | Momento |
 |---|---|---|---|
 | P1 Users | P2 Accounts | `IPrimaryAccountProvisioner` | Sprint 0 fake, Sprint 1 real |
-| P1 Users Commerce | P4 Commerce | `ICommerceAuthorizationResolver`/reader | Sprint 0 fake, Sprint 2 real |
+| P1 Users Commerce | P4 Commerce | `ICommerceAuthorizationResolverService` | Sprint 0 fake, Sprint 2 real |
 | P3 Loans | P2 Accounts | `IAccountBalanceService`, `IAccountLedger` | Sprint 0 fake, Sprint 2 real |
-| P3 Risk | P4 Cards | `ICardDebtReader` | Sprint 0 fake, Sprint 2 real |
+| P3 Risk | P4 Cards | `ICardDebtReaderService` | Sprint 0 fake, Sprint 2 real |
 | P4 Cards/Hermes | P2 Accounts | Balance, ledger, primary account | Sprint 0 fake, Sprint 2 real |
 | P4 Commerce status | P1 Identity | User inactivation service | Sprint 0 fake, Sprint 2 real |
 | P1 Dashboards | P2/P3/P4 | Metrics readers | Sprint 1 fake, Sprint 3 real |

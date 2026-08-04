@@ -9,6 +9,7 @@ namespace ABP.Domain.Entities.Cards
         public string CvcHash { get; set; } = string.Empty;
         public decimal Limit { get; set; }
         public decimal Debt { get; set; }
+        // Expira el último día calendario del mes (MM/AA) y es válida durante todo ese día (UTC/bancario).
         public DateOnly ExpirationDate { get; set; }
         public CreditCardStatus Status { get; set; } = CreditCardStatus.Active;
         public string AssignedByUserId { get; set; } = string.Empty;
