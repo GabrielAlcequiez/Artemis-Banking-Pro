@@ -1,7 +1,10 @@
+using System.Text;
 using ABP.Infrastructure.Identity.Context;
 using ABP.Infrastructure.Identity.Security;
 using ABP.Application.Interfaces.Identity;
+using ABP.Application.DTOs;
 using ABP.Domain.Enums;
+using ABP.Domain.Settings;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +13,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json;
 using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
@@ -26,7 +32,7 @@ namespace ABP.Infrastructure.Identity
             Roles.Client.ToString()
         ];
 
-        public static IServiceCollection AddInfrastructureIdentityServices(
+        public static IServiceCollection AddInfrastructureServicesWebApp(
             this IServiceCollection services,
             IConfiguration config)
         {
@@ -129,6 +135,87 @@ namespace ABP.Infrastructure.Identity
             #endregion
 
             return services;
+        }
+
+        public static void AddInfrastructureIdentityServicesWebApi(this IServiceCollection services, IConfiguration config)
+        {
+            GeneralContextConfiguration(services, config);
+
+            services.Configure<JwtSettings>(config.GetSection("JwtSettings"));
+            #region Jwt Authentication
+
+            services.AddIdentityCore<AppUser>()
+                .AddSignInManager()
+                .AddRoles<IdentityRole>()
+                .AddRoleManager<RoleManager<IdentityRole>>()
+                .AddEntityFrameworkStores<IdentityContext>()
+                .AddDefaultTokenProviders();
+
+
+            services.Configure<DataProtectionTokenProviderOptions>(opt =>
+            {
+                opt.TokenLifespan = TimeSpan.FromHours(2);
+            });
+
+            services.AddAuthentication(opt =>
+            {
+                opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                opt.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(opt =>
+            {
+                opt.RequireHttpsMetadata = false;
+                opt.SaveToken = false;
+                opt.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ClockSkew = TimeSpan.FromMinutes(2),
+                    ValidIssuer = config["JwtSettings:Issuer"],
+                    ValidAudience = config["JwtSettings:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["JwtSettings:SecretKey"] ?? ""))
+                };
+                opt.Events = new JwtBearerEvents()
+                {
+                    OnAuthenticationFailed = c =>
+                    {
+                        c.NoResult();
+                        c.Response.StatusCode = 500;
+                        c.Response.ContentType = "text/plain";
+                        return c.Response.WriteAsync(c.Exception.Message.ToString());
+                    },
+                    OnChallenge = c =>
+                    {
+                        c.HandleResponse();
+                        c.Response.StatusCode = 401;
+                        c.Response.ContentType = "application/json";
+                        var result = JsonConvert.SerializeObject(new JwtResponseDto
+                        {
+                            HasError = true,
+                            Error = "No está autorizado para acceder a este recurso."
+                        });
+                        return c.Response.WriteAsync(result);
+                    },
+                    OnForbidden = c =>
+                    {
+                        c.Response.StatusCode = 403;
+                        c.Response.ContentType = "application/json";
+                        var result = JsonConvert.SerializeObject(new JwtResponseDto
+                        {
+                            HasError = true,
+                            Error = "Acceso denegado. No tiene permisos para realizar esta acción."
+                        });
+                        return c.Response.WriteAsync(result);
+                    }
+                };
+            }).AddCookie(IdentityConstants.ApplicationScheme, opt =>
+            {
+                opt.ExpireTimeSpan = TimeSpan.FromHours(2);
+            });
+
+            #endregion
         }
 
         private static void GeneralContextConfiguration(IServiceCollection services, IConfiguration config)

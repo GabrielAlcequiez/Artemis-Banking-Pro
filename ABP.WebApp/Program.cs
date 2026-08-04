@@ -19,7 +19,7 @@ builder.Host.UseSerilog();
 
 #endregion
 
-builder.Services.AddInfrastructureIdentityServices(builder.Configuration);
+builder.Services.AddInfrastructureServicesWebApp(builder.Configuration);
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
 builder.Services.AddSharedServices(builder.Configuration);
 builder.Services.AddControllersWithViews();

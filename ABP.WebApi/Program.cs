@@ -1,6 +1,10 @@
 using System.Security.Claims;
+using ABP.Application;
 using ABP.Infrastructure.Identity;
+using ABP.Infrastructure.Persistence;
+using ABP.Shared;
 using ABP.Shared.Middleware;
+using ABP.WebApi.Extensions;
 using ABP.WebApi.Handler;
 using Serilog;
 
@@ -21,8 +25,17 @@ builder.Host.UseSerilog();
 // Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddApplicationServices();
+builder.Services.AddSharedServices(builder.Configuration);
+builder.Services.AddInfrastructureIdentityServicesWebApi(builder.Configuration);
+builder.Services.AddInfrastructurePersistence(builder.Configuration);
 builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHealthChecks();
+builder.Services.AddApiVersioningExtension();
+builder.Services.AddSwaggerExtension();
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
@@ -30,11 +43,12 @@ var app = builder.Build();
 
 // await app.Services.RunSeedsAsync();
 
-
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    app.UseSwaggerExtension(app);
     app.MapOpenApi();
+
+    app.MapGet("/", () => Results.Redirect("/swagger"));
 }
 
 app.UseCorrelationId();
@@ -53,6 +67,7 @@ app.UseSerilogRequestLogging(o =>
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
