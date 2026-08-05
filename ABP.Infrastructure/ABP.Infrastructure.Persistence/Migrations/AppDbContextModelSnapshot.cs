@@ -224,7 +224,75 @@ namespace ABP.Infrastructure.Persistence.Migrations
                     b.ToTable("Beneficiaries", (string)null);
                 });
 
-            modelBuilder.Entity("ABP.Domain.Entities.Cards.CardConsumption", b =>
+            modelBuilder.Entity("ABP.Domain.Entities.Commerce.Commerce", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LastModifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Rnc")
+                        .IsRequired()
+                        .HasMaxLength(11)
+                        .HasColumnType("nvarchar(11)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("Rnc")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "CreatedAtUtc");
+
+                    b.ToTable("Commerces", (string)null);
+                });
+
+            modelBuilder.Entity("ABP.Domain.Entities.CreditCards.CardConsumption", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -287,7 +355,7 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ABP.Domain.Entities.Cards.CardPayment", b =>
+            modelBuilder.Entity("ABP.Domain.Entities.CreditCards.CardPayment", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -347,7 +415,7 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ABP.Domain.Entities.Cards.CreditCard", b =>
+            modelBuilder.Entity("ABP.Domain.Entities.CreditCards.CreditCard", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -429,74 +497,6 @@ namespace ABP.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CreditCards_PAN_16Digits", "LEN([PAN]) = 16 AND [PAN] NOT LIKE '%[^0-9]%'");
                         });
-                });
-
-            modelBuilder.Entity("ABP.Domain.Entities.Commerce.Commerce", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("LastModifiedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Rnc")
-                        .IsRequired()
-                        .HasMaxLength(11)
-                        .HasColumnType("nvarchar(11)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.HasIndex("Rnc")
-                        .IsUnique();
-
-                    b.HasIndex("Status", "CreatedAtUtc");
-
-                    b.ToTable("Commerces", (string)null);
                 });
 
             modelBuilder.Entity("ABP.Domain.Entities.FinancialIdentifier", b =>
@@ -853,21 +853,21 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ABP.Domain.Entities.Cards.CardConsumption", b =>
+            modelBuilder.Entity("ABP.Domain.Entities.CreditCards.CardConsumption", b =>
                 {
                     b.HasOne("ABP.Domain.Entities.Commerce.Commerce", null)
                         .WithMany()
                         .HasForeignKey("CommerceId")
                         .OnDelete(DeleteBehavior.NoAction);
 
-                    b.HasOne("ABP.Domain.Entities.Cards.CreditCard", null)
+                    b.HasOne("ABP.Domain.Entities.CreditCards.CreditCard", null)
                         .WithMany()
                         .HasForeignKey("CreditCardId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ABP.Domain.Entities.Cards.CardPayment", b =>
+            modelBuilder.Entity("ABP.Domain.Entities.CreditCards.CardPayment", b =>
                 {
                     b.HasOne("ABP.Domain.Entities.User", null)
                         .WithMany()
@@ -875,7 +875,7 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.HasOne("ABP.Domain.Entities.Cards.CreditCard", null)
+                    b.HasOne("ABP.Domain.Entities.CreditCards.CreditCard", null)
                         .WithMany()
                         .HasForeignKey("CreditCardId")
                         .OnDelete(DeleteBehavior.NoAction)
@@ -888,7 +888,7 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ABP.Domain.Entities.Cards.CreditCard", b =>
+            modelBuilder.Entity("ABP.Domain.Entities.CreditCards.CreditCard", b =>
                 {
                     b.HasOne("ABP.Domain.Entities.User", null)
                         .WithMany()
