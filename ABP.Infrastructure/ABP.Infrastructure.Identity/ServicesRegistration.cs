@@ -1,7 +1,10 @@
+using System.Text;
 using ABP.Infrastructure.Identity.Context;
 using ABP.Infrastructure.Identity.Security;
-using ABP.Application.Interfaces.Identity;
 using ABP.Domain.Enums;
+using ABP.Domain.Settings;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -10,10 +13,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.IdentityModel.Tokens;
 using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
+using ABP.Application.Common.Interfaces.Identity;
 
 namespace ABP.Infrastructure.Identity
 {
@@ -26,7 +32,7 @@ namespace ABP.Infrastructure.Identity
             Roles.Client.ToString()
         ];
 
-        public static IServiceCollection AddInfrastructureIdentityServices(
+        public static IServiceCollection AddInfrastructureServicesWebApp(
             this IServiceCollection services,
             IConfiguration config)
         {
@@ -129,6 +135,120 @@ namespace ABP.Infrastructure.Identity
             #endregion
 
             return services;
+        }
+
+        public static void AddInfrastructureIdentityServicesWebApi(this IServiceCollection services, IConfiguration config)
+        {
+            GeneralContextConfiguration(services, config);
+
+            services.Configure<JwtSettings>(config.GetSection("JwtSettings"));
+            #region Jwt Authentication
+
+            services.AddIdentityCore<AppUser>()
+                .AddSignInManager()
+                .AddRoles<IdentityRole>()
+                .AddRoleManager<RoleManager<IdentityRole>>()
+                .AddEntityFrameworkStores<IdentityContext>()
+                .AddDefaultTokenProviders();
+
+
+            services.Configure<DataProtectionTokenProviderOptions>(opt =>
+            {
+                opt.TokenLifespan = TimeSpan.FromHours(2);
+            });
+
+            services.AddAuthentication(opt =>
+            {
+                opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                opt.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(opt =>
+            {
+                opt.RequireHttpsMetadata = false;
+                opt.SaveToken = false;
+                opt.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ClockSkew = TimeSpan.FromMinutes(2),
+                    ValidIssuer = config["JwtSettings:Issuer"],
+                    ValidAudience = config["JwtSettings:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["JwtSettings:SecretKey"] ?? ""))
+                };
+opt.Events = new JwtBearerEvents()
+            {
+                OnAuthenticationFailed = async context =>
+                {
+                    context.NoResult();
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/problem+json";
+
+                    var problem = new ProblemDetails
+                    {
+                        Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
+                        Title = "Unauthorized",
+                        Status = StatusCodes.Status401Unauthorized,
+                        Detail = "No tiene autorización para acceder a este recurso.",
+                        Instance = context.Request.Path
+                    };
+
+                    var env = context.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+                    if (env.EnvironmentName == "Development")
+                        problem.Extensions["exception"] = context.Exception.Message;
+
+                    if (!string.IsNullOrEmpty(context.HttpContext.TraceIdentifier))
+                        problem.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
+                    await context.Response.WriteAsJsonAsync(problem);
+                },
+                OnChallenge = async context =>
+                {
+                    context.HandleResponse();
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/problem+json";
+
+                    var problem = new ProblemDetails
+                    {
+                        Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
+                        Title = "Unauthorized",
+                        Status = StatusCodes.Status401Unauthorized,
+                        Detail = "No tiene autorización para acceder a este recurso.",
+                        Instance = context.Request.Path
+                    };
+
+                    if (!string.IsNullOrEmpty(context.HttpContext.TraceIdentifier))
+                        problem.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
+                    await context.Response.WriteAsJsonAsync(problem);
+                },
+                OnForbidden = async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/problem+json";
+
+                    var problem = new ProblemDetails
+                    {
+                        Type = "https://tools.ietf.org/html/rfc7231#section-6.5.3",
+                        Title = "Forbidden",
+                        Status = StatusCodes.Status403Forbidden,
+                        Detail = "Acceso denegado. No tiene permisos para utilizar este recurso.",
+                        Instance = context.Request.Path
+                    };
+
+                    if (!string.IsNullOrEmpty(context.HttpContext.TraceIdentifier))
+                        problem.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+
+                    await context.Response.WriteAsJsonAsync(problem);
+                }
+            };
+            }).AddCookie(IdentityConstants.ApplicationScheme, opt =>
+            {
+                opt.ExpireTimeSpan = TimeSpan.FromHours(2);
+            });
+
+            #endregion
         }
 
         private static void GeneralContextConfiguration(IServiceCollection services, IConfiguration config)

@@ -88,7 +88,7 @@ ArtemisBankingPro.slnx
     Entities/
       Accounts/
       Lending/
-      Cards/
+      CreditCards/
       Commerce/
     Enums/
     Interfaces/
@@ -96,52 +96,76 @@ ArtemisBankingPro.slnx
   ABP.Application/
     Behaviors/
     Common/
-    DTOs/
-      CreditCards/
-      Commerce/
-      HermesPay/
+      DTOs/
+      Services/
+      Interfaces/
+        Identity/
+        Services/
     Features/
       Auth/
         Commands/
         Queries/
+        Services/
+          Interfaces/
+          Implementations/
         DTOs/
-        Validators/
+        Validation/
       Users/
         Commands/
         Queries/
+        Services/
+          Interfaces/
+          Implementations/
         DTOs/
-        Validators/
+        Validation/
       Accounts/
         Commands/
         Queries/
+        Services/
+          Interfaces/
+          Implementations/
         DTOs/
-        Validators/
+        Validation/
       Loans/
         Commands/
         Queries/
+        Services/
+          Interfaces/
+          Implementations/
         DTOs/
-        Validators/
+        Validation/
       CreditCards/
         Commands/
         Queries/
-        Validators/
+        Services/
+          Interfaces/
+          Implementations/
+        DTOs/
+        Validation/
       Commerce/
         Commands/
         Queries/
-        Validators/
+        Services/
+          Interfaces/
+          Implementations/
+        DTOs/
+        Validation/
       HermesPay/
         Commands/
         Queries/
-        Validators/
+        Services/
+          Interfaces/
+          Implementations/
+        DTOs/
+        Validation/
       Dashboards/
         Queries/
+        Services/
+          Interfaces/
+          Implementations/
         DTOs/
-    Interfaces/
-      Identity/
-      Persistence/
-      Services/
+        Validation/
     Mappings/
-    Services/
     Settings/
   ABP.Infrastructure/
     ABP.Infrastructure.Identity/
@@ -174,15 +198,87 @@ ArtemisBankingPro.slnx
     ABP.WebApp.IntegrationTests/
 ```
 
-### Criterio de organización de carpetas
+### Criterio de organización por Feature y reutilización de validaciones
 
-Esta estructura conserva el estilo de las imágenes compartidas y sigue siendo adecuada para una Onion Architecture profesional:
+Esta estructura organiza las funcionalidades del negocio por **Feature vertical** dentro de `ABP.Application/Features/`, encapsulando los artefactos de CQRS, servicios tradicionales, DTOs y validadores en un solo lugar.
 
-- **Domain** se organiza por tipo técnico (`Entities`, `Enums`, `Interfaces`, `ValueObjects`). Dentro de `Entities` se agrupa por módulo solo para que el número de archivos siga siendo manejable. No se crean subcapas DDD adicionales sin una necesidad real.
-- **Application** centraliza los elementos transversales en `Behaviors`, `DTOs`, `Interfaces`, `Mappings`, `Services` y `Settings`. Los DTOs compartidos por servicios y CQRS se organizan por módulo en `DTOs`; los Commands, Queries, Handlers y Validators permanecen en `Features`.
-- Cada feature API implementa CQRS con MediatR. Las pantallas MVC consumen servicios tradicionales de Application. Ambos caminos pueden compartir DTOs e invariantes de Domain, pero mantienen implementaciones y pruebas de Application independientes.
-- `ABP.Shared` no debe convertirse en un cajón de sastre. Se mantiene solo para tipos realmente neutrales y sin dependencia de negocio; por defecto, los contratos pertenecen a Domain o Application.
-- La organización por verticales asignada a los cuatro programadores se conserva como **propiedad de módulos**, no como una estructura de carpetas obligatoriamente profunda.
+#### Clasificación y responsabilidad de carpetas de servicios
+- **`Features/{Feature}/Services/Interfaces/`**: Contratos de servicios de negocio pertenecientes a una vertical específica (ej: `ICreditCardService.cs`).
+- **`Features/{Feature}/Services/Implementations/`**: Implementaciones concretas de servicios de negocio pertenecientes a la vertical (ej: `CreditCardService.cs`).
+- **`ABP.Application/Common/Interfaces/Services/`**: Puertos técnicos transversales del sistema (ej: `IClock`, `IEmailService`, `IFileManager`, `ICurrentUserService`).
+- **`ABP.Application/Common/Interfaces/Identity/`**: Puertos de abstracción para servicios de identidad e infraestructura (ej: `IAccountTokenService`).
+- **`ABP.Application/Common/Services/`**: Servicios y contratos genéricos reutilizables (ej: `IGenericService<,,>`, `GenericService<,,>`).
+
+#### Responsabilidad de las carpetas dentro de cada Feature (`Features/{FeatureName}/`)
+- **`Commands/`**: Contiene los comandos, handlers y validators específicos de CQRS.
+- **`Queries/`**: Contiene las consultas, handlers y validators específicos de CQRS.
+- **`Services/`**: Contiene las subcarpetas `Interfaces/` e `Implementations/` para los servicios tradicionales de la vertical (consumidos por MVC).
+- **`DTOs/`**: Contiene únicamente los objetos de transferencia de datos de la feature.
+- **`Validation/`**: Nombre único estandarizado para los validators de los DTOs y reglas reutilizables de FluentValidation. (La carpeta `Validators/` no debe usarse para evitar ambigüedades).
+
+#### Problema que resuelve y decisión arquitectónica
+Como el proyecto implementa los mismos casos de uso mediante CQRS (para API) y mediante servicios tradicionales (para MVC) como **requisito académico**, existe el riesgo de duplicar reglas de validación.
+
+Para evitar esto, se toma la decisión arquitectónica de **duplicar la implementación de los flujos por exigencia académica, pero no duplicar contratos ni reglas de validación**.
+
+#### Funcionamiento en CQRS (Web API)
+```text
+Controller -> MediatR -> ValidationBehavior -> CommandValidator (ej: CreateCreditCardCommandValidator) -> DTOValidator (ej: CreateCreditCardRequestValidator) -> CommandHandler
+```
+El `ValidationBehavior` interceptará automáticamente todos los Commands/Queries enviados mediante MediatR. Los `CommandValidators` reutilizarán las reglas comunes definidas en los `DTOValidators` ubicados en `Validation/` mediante `SetValidator`. De esta forma, los handlers no necesitarán validar manualmente.
+
+#### Funcionamiento en Servicios Tradicionales (Web App MVC)
+```text
+Controller -> TraditionalService (ej: CreditCardService) -> DTOValidator (ej: CreateCreditCardRequestValidator) -> Lógica del servicio
+```
+Los servicios tradicionales no pasan por MediatR ni sus behaviors. Por ello, el servicio inyectará y ejecutará explícitamente el mismo `DTOValidator` compartido (ej: `await _validator.ValidateAndThrowAsync(dto, cancellationToken);`).
+
+#### Ejemplo conceptual de estructura por Feature:
+```text
+Features/
+└── CreditCards/
+    ├── Commands/
+    │   └── CreateCreditCard/
+    │       ├── CreateCreditCardCommand.cs
+    │       └── CreateCreditCardCommandValidator.cs
+    │
+    ├── Queries/
+    │
+    ├── Services/
+    │   ├── Interfaces/
+    │   │   └── ICreditCardService.cs
+    │   └── Implementations/
+    │       └── CreditCardService.cs
+    │
+    ├── DTOs/
+    │   └── CreateCreditCardRequest.cs
+    │
+    └── Validation/
+        └── CreateCreditCardRequestValidator.cs
+```
+
+#### Estado de implementación e hitos pendientes `[PENDIENTE - Arquitectura Objetivo]`
+El alcance de reorganización actual completó la migración física de archivos existentes, la normalización de namespaces y el establecimiento de la estructura de carpetas por feature. Quedan explícitamente **pendientes** como trabajo futuro del equipo para el desarrollo de los casos de uso:
+1. Implementar `ValidationBehavior<TRequest, TResponse>` en `Behaviors/`.
+2. Registrar MediatR y el `ValidationBehavior` mediante `AddApplicationCqrs()`.
+3. Crear los validadores DTO con FluentValidation en `Features/{Feature}/Validation/`.
+4. Crear command validators que reutilicen los DTO validators mediante `SetValidator`.
+5. Registrar `AddApplicationServices` en la composición DI de `ABP.WebApp`.
+6. Inyectar `IValidator<TDto>` y ejecutar `ValidateAndThrowAsync` en los futuros servicios tradicionales MVC.
+
+#### Regla principal de validación
+1. El validator del DTO (`CreateCreditCardRequestValidator`) vive en `Validation/` y contiene las reglas compartidas del caso de uso.
+2. El validator del Command (`CreateCreditCardCommandValidator`) vive en `Commands/` y valida aspectos específicos del request CQRS, reutilizando el validator del DTO mediante `SetValidator`.
+3. El servicio tradicional (`CreditCardService`) vive en `Services/Implementations/` e inyecta y reutiliza directamente ese mismo validator del DTO.
+
+#### Beneficios del enfoque
+- Evita duplicación de reglas de validación.
+- Mantiene los DTOs separados de sus validadores.
+- Mantiene clara la diferencia entre CQRS y servicios tradicionales.
+- Centraliza la validación transversal de CQRS mediante behaviors.
+- Facilita pruebas unitarias e integración.
+- Organiza el proyecto por feature y no por tipo técnico global.
+- Cumple con el requisito académico sin comprometer la mantenibilidad del código.
 
 ### Uso combinado de servicios y CQRS
 
@@ -275,7 +371,7 @@ Los textos “ACTIVA”, “APROBADA”, “DÉBITO”, etc. se resuelven en Pre
 
 ### 3.4 Tipos base y DTOs que se congelan
 
-Los DTOs consumidos tanto por los servicios tradicionales como por los casos CQRS se ubican en `ABP.Application/DTOs`, organizados por módulo. No pertenecen exclusivamente a ninguna superficie de presentación.
+Los DTOs consumidos tanto por los servicios tradicionales como por los casos CQRS se ubican dentro de cada módulo en `ABP.Application/Features/{Feature}/DTOs`. No pertenecen exclusivamente a ninguna superficie de presentación.
 
 #### Comunes
 

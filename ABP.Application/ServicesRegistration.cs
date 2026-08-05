@@ -1,6 +1,6 @@
 using System.Reflection;
-using ABP.Application.Interfaces.Services;
-using ABP.Application.Services;
+using ABP.Application.Common.Services.Interfaces;
+using ABP.Application.Common.Services.Implementations;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 

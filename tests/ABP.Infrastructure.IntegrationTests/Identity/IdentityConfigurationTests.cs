@@ -1,4 +1,4 @@
-using ABP.Application.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Identity;
 using ABP.Domain.Entities;
 using ABP.Infrastructure.Identity;
 using ABP.Infrastructure.Identity.Context;
@@ -27,7 +27,7 @@ public class IdentityConfigurationTests
 
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddInfrastructureIdentityServices(configuration);
+        services.AddInfrastructureServicesWebApp(configuration);
 
         using var serviceProvider = services.BuildServiceProvider();
 

@@ -1,4 +1,4 @@
-using ABP.Application.Interfaces.Services;
+using ABP.Application.Features.CreditCards.Services.Interfaces;
 
 namespace ABP.TestDoubles
 {
