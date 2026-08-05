@@ -1,5 +1,5 @@
 using ABP.Application.Common;
-using ABP.Application.Interfaces.Services;
+using ABP.Application.Features.Commerce.Services.Interfaces;
 
 namespace ABP.TestDoubles
 {

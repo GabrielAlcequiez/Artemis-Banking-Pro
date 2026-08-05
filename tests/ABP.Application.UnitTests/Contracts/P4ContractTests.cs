@@ -3,7 +3,9 @@ using ABP.Application.Common;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.Commerce.DTOs;
 using ABP.Application.Features.HermesPay.DTOs;
-using ABP.Application.Interfaces.Services;
+using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Application.Features.Commerce.Services.Interfaces;
+using ABP.Application.Features.HermesPay.Services.Interfaces;
 using ABP.TestDoubles;
 using Xunit;
 
