@@ -1,6 +1,6 @@
 using ABP.Domain.Common;
 
-namespace ABP.Domain.Entities.Cards
+namespace ABP.Domain.Entities.CreditCards
 {
     public sealed class CardPayment : AuditableEntity<Guid>
     {

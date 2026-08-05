@@ -1,6 +1,6 @@
 using ABP.Domain.Enums;
 
-namespace ABP.Application.Interfaces.Services;
+namespace ABP.Application.Features.Accounts.Services.Interfaces;
 
 
 public interface IAccountLedger

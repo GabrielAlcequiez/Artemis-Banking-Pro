@@ -1,4 +1,4 @@
-namespace ABP.Application.DTOs.Loan
+namespace ABP.Application.Features.Loans.DTOs
 {
     public sealed record LoanSummaryDto(
         Guid Id,

@@ -1,6 +1,6 @@
 using ABP.Application.Common;
 
-namespace ABP.Application.Interfaces.Services
+namespace ABP.Application.Features.Commerce.Services.Interfaces
 {
     public interface ICommerceAuthorizationResolverService
     {

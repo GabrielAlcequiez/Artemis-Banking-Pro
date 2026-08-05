@@ -1,6 +1,6 @@
 using ABP.Domain.Enums;
 
-namespace ABP.Application.DTOs.Account;
+namespace ABP.Application.Features.Accounts.DTOs;
 
 public class SavingsAccountDetailDto
 {

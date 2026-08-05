@@ -1,6 +1,6 @@
 using ABP.Application.Features.Loans.DTOs;
 
-namespace ABP.Application.Interfaces.Services;
+namespace ABP.Application.Features.Loans.Services.Interfaces;
 
 public interface IAmortizationCalculator
 {

@@ -1,7 +1,7 @@
 using ABP.Application.Features.Accounts.DTOs;
 using ABP.Application.Common;
 
-namespace ABP.Application.Interfaces.Services;
+namespace ABP.Application.Features.Accounts.Services.Interfaces;
 
 
 public interface IMoneyTransferService

@@ -1,4 +1,4 @@
-namespace ABP.Application.DTOs.CreditCards
+namespace ABP.Application.Features.CreditCards.DTOs
 {
     public sealed record CreditCardSummaryDto(
     Guid Id,

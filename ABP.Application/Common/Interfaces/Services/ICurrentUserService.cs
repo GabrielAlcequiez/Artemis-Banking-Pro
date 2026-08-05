@@ -1,4 +1,4 @@
-namespace ABP.Application.Interfaces.Services;
+namespace ABP.Application.Common.Interfaces.Services;
 
 public interface ICurrentUserService
 {

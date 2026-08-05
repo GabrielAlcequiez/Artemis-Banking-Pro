@@ -1,7 +1,7 @@
 using ABP.Application.Common;
 using ABP.Application.Features.CreditCards.DTOs;
 
-namespace ABP.Application.Interfaces.Services
+namespace ABP.Application.Features.CreditCards.Services.Interfaces
 {
     public interface ICardPaymentService
     {

@@ -1,8 +1,7 @@
 using ABP.Application.Features.Accounts.DTOs;
 using ABP.Application.Common;
-using ABP.Application.DTOs.Account;
 
-namespace ABP.Application.Interfaces.Services;
+namespace ABP.Application.Features.Accounts.Services.Interfaces;
 
 public interface IBeneficiaryService
 {

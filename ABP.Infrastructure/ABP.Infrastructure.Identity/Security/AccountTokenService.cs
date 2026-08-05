@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using ABP.Application.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Identity;
 using ABP.Domain.Entities;
 using ABP.Domain.Enums;
 using ABP.Infrastructure.Identity.Context;

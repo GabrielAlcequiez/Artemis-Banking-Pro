@@ -1,4 +1,4 @@
-using ABP.Application.Interfaces.Services;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Domain.Settings;
 using ABP.Shared.Services;
 using Microsoft.Extensions.Configuration;
@@ -13,7 +13,6 @@ namespace ABP.Shared
             services.Configure<EmailSettings>(config.GetSection("EmailSettings"));
 
             services.AddScoped<IEmailService, EmailService>();
-            services.AddScoped<IFileManager, FileManager>();
         }
     }
 }

@@ -1,4 +1,4 @@
-using ABP.Domain.Entities.Cards;
+using ABP.Domain.Entities.CreditCards;
 
 namespace ABP.Domain.Interfaces;
 

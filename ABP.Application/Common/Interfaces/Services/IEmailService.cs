@@ -1,6 +1,6 @@
-using ABP.Application.GeneralDto;
+using ABP.Application.Common.DTOs;
 
-namespace ABP.Application.Interfaces.Services;
+namespace ABP.Application.Common.Interfaces.Services;
 
 public interface IEmailService
 {

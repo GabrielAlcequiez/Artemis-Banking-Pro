@@ -1,7 +1,7 @@
 using ABP.Application.Common;
 using ABP.Application.Features.HermesPay.DTOs;
 
-namespace ABP.Application.Interfaces.Services
+namespace ABP.Application.Features.HermesPay.Services.Interfaces
 {
     public interface IHermesPaymentService
     {
