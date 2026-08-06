@@ -1,0 +1,17 @@
+using ABP.Application.Common.DTOs.Users;
+
+namespace ABP.Application.Common.Interfaces.Identity
+{
+    public interface IBaseAccountService
+    {
+         Task<RegisterResponseDto> CreateUserAsync(CreateUserDto createUserDto, string? origin, bool isApi = false);
+        Task<UserResponseDto> EditUserAsync(EditUserDto editUserDto, string? origin, bool isApi = false);
+        Task<string> ConfirmAccountAsync(string userId, string token);
+        Task<string> ForgotPasswordAsync(string username, string origin);
+        Task<string> ResetPasswordAsync(ResetPasswordDto resetPasswordDto);
+        Task<GetUserDto?> GetUserByIdAsync(string userId);
+        Task<GetUserDto?> GetUserByUsernameAsync(string username);
+        Task<IReadOnlyList<GetUserDto>> GetAllUsersAsync();
+        Task<UserResponseDto> ChangeUserStatusAsync(string userId, bool isActive);
+    }
+}
