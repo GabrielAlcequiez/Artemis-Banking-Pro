@@ -11,7 +11,9 @@ namespace ABP.Application.Common.DTOs.Users
         public required string ConfirmPassword { get; set; }
         public required string Role { get; set; }
 
-        // Si el usuario es cliente
+        // Si el usuario es cliente o comercio
         public decimal? InitialBalance { get; set; }
+        public decimal? InitialAmount { get => InitialBalance; set => InitialBalance = value; }
+        public int? CommerceId { get; set; }
     }
 }

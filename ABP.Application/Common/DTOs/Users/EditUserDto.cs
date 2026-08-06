@@ -8,11 +8,12 @@ namespace ABP.Application.Common.DTOs.Users
         public required string Identification { get; set; }
         public required string Email { get; set; }
         public required string UserName { get; set; }
-        public required string Password { get; set; }
-        public required string ConfirmPassword { get; set; }
-        public required string Role { get; set; }
+        public string? Password { get; set; }
+        public string? ConfirmPassword { get; set; }
+        public string? Role { get; set; }
 
         // Si el usuario es cliente o comercio
-        public decimal? InitialBalance { get; set; }     
+        public decimal? InitialBalance { get; set; }
+        public decimal? AdditionalAmount { get; set; }
     }
 }
