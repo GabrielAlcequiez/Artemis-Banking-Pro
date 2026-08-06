@@ -20,6 +20,7 @@ using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
 using ABP.Application.Common.Interfaces.Identity;
+using ABP.Infrastructure.Identity.Services;
 
 namespace ABP.Infrastructure.Identity
 {
@@ -64,6 +65,7 @@ namespace ABP.Infrastructure.Identity
 
             services.AddSingleton(TimeProvider.System);
             services.AddScoped<IAccountTokenService, AccountTokenService>();
+            services.AddScoped<IBaseAccountService, BaseAccountService>();
             
             services.AddAuthentication(opt =>
             {
@@ -249,6 +251,8 @@ opt.Events = new JwtBearerEvents()
             });
 
             #endregion
+
+            services.AddScoped<IBaseAccountService, BaseAccountService>();
         }
 
         private static void GeneralContextConfiguration(IServiceCollection services, IConfiguration config)

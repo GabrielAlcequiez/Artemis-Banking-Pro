@@ -1,4 +1,6 @@
+using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Infrastructure.Persistence.Context;
+using ABP.Infrastructure.Persistence.Temporary;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +39,14 @@ namespace ABP.Infrastructure.Persistence
                 typeof(GenericRepository<,>));
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<IUserRepository, UserRepository>();
 
+            #endregion
+
+            #region TEMPORAL - Contratos de P2 pendientes de implementación por su propietario.
+            // Al entregar P2: eliminar las siguientes líneas y registrar sus implementaciones reales.
+            services.AddScoped<IFinancialIdentifierGenerator, FinancialIdentifierGenerator>();
+            services.AddScoped<IPrimaryAccountProvisioner, PrimaryAccountProvisioner>();
             #endregion
         }
     }
