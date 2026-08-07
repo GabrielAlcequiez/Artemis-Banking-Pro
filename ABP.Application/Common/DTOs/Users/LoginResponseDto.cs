@@ -10,5 +10,8 @@ namespace ABP.Application.Common.DTOs.Users
         public string LastName { get; set; } = string.Empty;
         public string Identification { get; set; } = string.Empty;
         public List<string>? Roles { get; set; }
+
+        public bool HasError { get; set; }
+        public string? Error { get; set; }
     }
 }

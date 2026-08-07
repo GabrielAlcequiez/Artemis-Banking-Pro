@@ -66,6 +66,7 @@ namespace ABP.Infrastructure.Identity
             services.AddSingleton(TimeProvider.System);
             services.AddScoped<IAccountTokenService, AccountTokenService>();
             services.AddScoped<IBaseAccountService, BaseAccountService>();
+            services.AddScoped<IAccountServiceForWebApp, AccountServiceForWebApp>();
             
             services.AddAuthentication(opt =>
             {
