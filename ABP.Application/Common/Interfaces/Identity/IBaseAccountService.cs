@@ -7,7 +7,7 @@ namespace ABP.Application.Common.Interfaces.Identity
          Task<RegisterResponseDto> RegisterUserAsync(CreateUserDto createUserDto, string? origin, bool isApi = false);
         Task<UserResponseDto> EditUserAsync(EditUserDto editUserDto, string currentUserId, string? origin = null, bool isApi = false);
         Task<string> ConfirmAccountAsync(string userId, string token);
-        Task<string> ForgotPasswordAsync(string username, string? origin = null, bool isApi = false);
+        Task<string> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto, string? origin = null, bool isApi = false);
         Task<string> ResetPasswordAsync(ResetPasswordDto resetPasswordDto);
         Task<GetUserDto?> GetUserByIdAsync(string userId);
         Task<GetUserDto?> GetUserByUsernameAsync(string username);

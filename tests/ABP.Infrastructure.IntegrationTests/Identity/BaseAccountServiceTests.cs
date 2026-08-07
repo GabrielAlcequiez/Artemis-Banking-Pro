@@ -49,6 +49,7 @@ public class BaseAccountServiceTests
             _emailService,
             new RegisterUserValidator(),
             new UpdateUserValidator(),
+            new ResetPasswordValidator(),
             _userRepository,
             new FakeUnitOfWork(),
             new FakeAccountTokenService(),

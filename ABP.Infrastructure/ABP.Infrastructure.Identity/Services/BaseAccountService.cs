@@ -1,6 +1,4 @@
 using System.Transactions;
-using ABP.Application.Common;
-using ABP.Application.Common.DTOs;
 using ABP.Application.Common.DTOs.Common;
 using ABP.Application.Common.DTOs.Users;
 using ABP.Application.Common.Interfaces.Identity;
@@ -18,13 +16,14 @@ using Microsoft.Extensions.Logging;
 
 namespace ABP.Infrastructure.Identity.Services
 {
-    public class BaseAccountService : IBaseAccountService
+    public partial class BaseAccountService : IBaseAccountService
     {
         private readonly IMapper _mapper;
         private readonly UserManager<AppUser> _userManager;
         private readonly IEmailService _emailService;
         private readonly IValidator<CreateUserDto> _createUserValidator;
         private readonly IValidator<EditUserDto> _editUserValidator;
+        private readonly IValidator<ResetPasswordDto> _resetPasswordValidator;
         private readonly IUserRepository _userRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IAccountTokenService _accountTokenService;
@@ -34,13 +33,14 @@ namespace ABP.Infrastructure.Identity.Services
         private readonly IAccountLedger _accountLedger;
         private readonly ILogger<BaseAccountService> _logger;
 
-        public BaseAccountService(IMapper mapper, UserManager<AppUser> userManager, IEmailService emailService, IValidator<CreateUserDto> createUserValidator, IValidator<EditUserDto> editUserValidator, IUserRepository userRepository, IUnitOfWork unitOfWork, IAccountTokenService accountTokenService, IPrimaryAccountProvisioner primaryAccountProvisioner, ISavingsAccountRepository savingsAccountRepository, IAccountBalanceService accountBalanceService, IAccountLedger accountLedger, ILogger<BaseAccountService> logger)
+        public BaseAccountService(IMapper mapper, UserManager<AppUser> userManager, IEmailService emailService, IValidator<CreateUserDto> createUserValidator, IValidator<EditUserDto> editUserValidator, IValidator<ResetPasswordDto> resetPasswordValidator, IUserRepository userRepository, IUnitOfWork unitOfWork, IAccountTokenService accountTokenService, IPrimaryAccountProvisioner primaryAccountProvisioner, ISavingsAccountRepository savingsAccountRepository, IAccountBalanceService accountBalanceService, IAccountLedger accountLedger, ILogger<BaseAccountService> logger)
         {
             _mapper = mapper;
             _userManager = userManager;
             _emailService = emailService;
             _createUserValidator = createUserValidator;
             _editUserValidator = editUserValidator;
+            _resetPasswordValidator = resetPasswordValidator;
             _userRepository = userRepository;
             _unitOfWork = unitOfWork;
             _accountTokenService = accountTokenService;
@@ -73,8 +73,6 @@ namespace ABP.Infrastructure.Identity.Services
                 };
             }
 
-            // Normaliza el label del formulario (Administrador/Cajero/Cliente) al nombre del enum,
-            // que es también el nombre del rol sembrado en Identity (Administrator/Cashier/Client).
             var role = NormalizeRole(createUserDto.Role);
             createUserDto.Role = role.ToString();
 
@@ -338,7 +336,7 @@ namespace ABP.Infrastructure.Identity.Services
                     Error = "No puede modificar el estado de su propia cuenta."
                 };
             }
-            
+
             var appUser = await _userManager.FindByIdAsync(userId);
             if (appUser is null)
             {
@@ -387,15 +385,137 @@ namespace ABP.Infrastructure.Identity.Services
             return new UserResponseDto();
         }
 
-        public Task<string> ConfirmAccountAsync(string userId, string token)
+        public async Task<string> ConfirmAccountAsync(string userId, string token)
         {
-            throw new NotImplementedException();
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                _logger.LogWarning("Intento de confirmación de cuenta fallido: el usuario {UserId} no existe.", userId);
+                return "El usuario no existe.";
+            }
+
+            if (await _userManager.IsEmailConfirmedAsync(user))
+            {
+                _logger.LogInformation("El usuario {UserId} ya ha confirmado su cuenta previamente.", userId);
+                return "La cuenta ya ha sido confirmada previamente.";
+            }
+
+            var validationResult = await _accountTokenService.ValidateAsync(userId, token, AccountTokenPurpose.Activation);
+
+            if (validationResult.Status != AccountTokenValidationStatus.Valid)
+            {
+                _logger.LogWarning("Intento de confirmación de cuenta fallido para el usuario {UserId}: Token inválido o expirado.", userId);
+                return validationResult.Status switch
+                {
+                    AccountTokenValidationStatus.NotFound => "El token de activación no fue encontrado.",
+                    AccountTokenValidationStatus.Used => "El token de activación ya ha sido utilizado.",
+                    AccountTokenValidationStatus.Expired => "El token de activación ha expirado.",
+                    AccountTokenValidationStatus.Invalid => "El token de activación es inválido.",
+                    _ => "Error desconocido al validar el token de activación."
+                };
+            }
+
+            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+
+            await _accountTokenService.TryMarkAsUsedAsync(validationResult.AccountTokenId!.Value);
+
+            var result = await _userManager.ConfirmEmailAsync(user, token);
+            if (!result.Succeeded)
+            {
+                return "No fue posible confirmar la cuenta. El token no es válido.";
+            }
+
+            user.IsActive = true;
+            await _userManager.UpdateAsync(user);
+
+            var domainUser = await _userRepository.GetByIdAsync(userId);
+            if (domainUser != null)
+            {
+                domainUser.IsActive = true;
+                await _userRepository.UpdateAsync(userId, domainUser);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            scope.Complete();
+
+            _logger.LogInformation("Cuenta del usuario {UserId} activada exitosamente.", userId);
+            return string.Empty;
         }
 
-
-        public Task<string> ForgotPasswordAsync(string username, string? origin = null, bool isApi = false)
+        public async Task<string> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto, string? origin = null, bool isApi = false)
         {
-            throw new NotImplementedException();
+            _logger.LogInformation("Iniciando solicitud de recuperación de contraseña para el usuario {Username}.", forgotPasswordDto.Username);
+
+            if (string.IsNullOrWhiteSpace(forgotPasswordDto.Username))
+            {
+                _logger.LogWarning("Solicitud de recuperación de contraseña sin nombre de usuario.");
+                return "El nombre de usuario es obligatorio.";
+            }
+
+            var user = await _userManager.FindByNameAsync(forgotPasswordDto.Username);
+            if (user is null)
+            {
+                _logger.LogWarning("Intento de recuperación de contraseña fallido: el usuario {Username} no existe.", forgotPasswordDto.Username);
+                return "No existe un usuario registrado con este nombre de usuario.";
+            }
+
+            if (string.IsNullOrWhiteSpace(user.Email))
+            {
+                _logger.LogWarning("Intento de recuperación de contraseña fallido: el usuario {UserId} no tiene correo electrónico registrado.", user.Id);
+                return "Este usuario no tiene un correo electrónico registrado. No es posible enviar la solicitud de restablecimiento.";
+            }
+
+            var userRoles = await _userManager.GetRolesAsync(user);
+            var allowedRoles = isApi
+                ? new[] { Roles.Administrator.ToString(), Roles.Commerce.ToString() }
+                : new[] { Roles.Administrator.ToString(), Roles.Cashier.ToString(), Roles.Client.ToString() };
+
+            if (!userRoles.Any(role => allowedRoles.Contains(role)))
+            {
+                _logger.LogWarning("Intento de recuperación de contraseña fallido: el usuario {UserId} no tiene un rol permitido (isApi: {IsApi}).", user.Id, isApi);
+                return isApi
+                    ? "El usuario no pertenece a un rol permitido por la API."
+                    : "El usuario no pertenece a un rol permitido para la aplicación web.";
+            }
+
+            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+
+            // Desactivar temporalmente la cuenta (se reactiva al completar el restablecimiento).
+            // Se desactiva también a nivel de correo y se renueva el security stamp para
+            // invalidar sesiones existentes y tokens de Identity emitidos previamente.
+            user.IsActive = false;
+            user.EmailConfirmed = false;
+            var deactivateResult = await _userManager.UpdateSecurityStampAsync(user);
+            if (!deactivateResult.Succeeded)
+            {
+                var identityErrors = deactivateResult.Errors.Select(e => e.Description).ToList();
+                _logger.LogWarning("Error al desactivar temporalmente el usuario {UserId}: {Errors}", user.Id, string.Join("; ", identityErrors));
+                return string.Join("\n", identityErrors);
+            }
+
+            var domainUser = await _userRepository.GetByIdAsync(user.Id);
+            if (domainUser is not null)
+            {
+                domainUser.IsActive = false;
+                await _userRepository.UpdateAsync(user.Id, domainUser);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            // Genera y persiste el token (hash + expiración de 30 min + uso único) asociado al usuario.
+            string token = await _accountTokenService.GenerateAsync(user.Id, AccountTokenPurpose.PasswordReset);
+
+            scope.Complete();
+
+            string? emailError = await SendResetPasswordEmail(user.Id, user.Email, token, origin, isApi);
+            if (emailError is not null)
+            {
+                _logger.LogWarning("No fue posible enviar el correo de restablecimiento al usuario {UserId}: {Error}", user.Id, emailError);
+                return emailError;
+            }
+
+            _logger.LogInformation("Token de restablecimiento de contraseña enviado al correo del usuario {Username}.", forgotPasswordDto.Username);
+
+            return string.Empty;
         }
 
         public async Task<IReadOnlyList<GetUserDto>> GetAllUsersAsync()
@@ -485,110 +605,70 @@ namespace ABP.Infrastructure.Identity.Services
             };
         }
 
-        public Task<string> ResetPasswordAsync(ResetPasswordDto resetPasswordDto)
+        public async Task<string> ResetPasswordAsync(ResetPasswordDto resetPasswordDto)
         {
-            throw new NotImplementedException();
-        }
+            _logger.LogInformation("Iniciando restablecimiento de contraseña para el usuario {UserId}.", resetPasswordDto.UserId);
 
-
-        #region Helpers methods
-
-        private async Task<string?> SendActivationEmailAsync(string userId, CreateUserDto createUserDto, string token, string? origin, bool isApi)
-        {
-            try
+            var validationResult = await _resetPasswordValidator.ValidateAsync(resetPasswordDto);
+            if (!validationResult.IsValid)
             {
-                if (!isApi)
+                var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+                _logger.LogWarning("Error de validación al restablecer contraseña del usuario {UserId}: {Errors}", resetPasswordDto.UserId, string.Join("; ", errors));
+                return string.Join("\n", errors);
+            }
+
+            var tokenValidation = await _accountTokenService.ValidateAsync(resetPasswordDto.UserId, resetPasswordDto.Token, AccountTokenPurpose.PasswordReset);
+
+            if (tokenValidation.Status != AccountTokenValidationStatus.Valid)
+            {
+                _logger.LogWarning("Intento de restablecimiento de contraseña fallido para el usuario {UserId}: Token inválido o expirado.", resetPasswordDto.UserId);
+                return tokenValidation.Status switch
                 {
-                    string verificationUri = $"{origin}/Account/ConfirmAccount?userId={userId}&token={Uri.EscapeDataString(token)}";
-                    await _emailService.SendAsync(new EmailRequestDto
-                    {
-                        ToEmail = createUserDto.Email,
-                        RecipientName = $"{createUserDto.FirstName} {createUserDto.LastName}",
-                        Subject = "Activación de Cuenta - Artemis Banking",
-                        Body = $"Hola {createUserDto.FirstName},<br/><br/>Su cuenta ha sido creada correctamente.<br/>Para activarla, utilice el siguiente enlace:<br/><a href='{verificationUri}'>{verificationUri}</a>"
-                    });
-                }
-                else
-                {
-                    await _emailService.SendAsync(new EmailRequestDto
-                    {
-                        ToEmail = createUserDto.Email,
-                        RecipientName = $"{createUserDto.FirstName} {createUserDto.LastName}",
-                        Subject = "Token de Activación de Cuenta - Artemis Banking",
-                        Body = $"Hola {createUserDto.FirstName},<br/><br/>Su cuenta ha sido creada correctamente.<br/>Utilice el siguiente token para activar su cuenta desde la API:<br/><b>{token}</b>"
-                    });
-                }
+                    AccountTokenValidationStatus.NotFound => "El enlace de restablecimiento no es válido.",
+                    AccountTokenValidationStatus.Invalid => "El enlace de restablecimiento no es válido.",
+                    AccountTokenValidationStatus.Expired => "El enlace de restablecimiento ha expirado. Solicite un nuevo restablecimiento de contraseña.",
+                    AccountTokenValidationStatus.Used => "Este enlace de restablecimiento ya fue utilizado.",
+                    _ => "Error desconocido al validar el token de restablecimiento."
+                };
+            }
 
-                return null;
-            }
-            catch (Exception ex)
+            var user = await _userManager.FindByIdAsync(resetPasswordDto.UserId);
+            if (user is null)
             {
-                _logger.LogError(ex, "No fue posible enviar el correo de activación al usuario {UserId}.", userId);
-                return "No fue posible enviar el correo de activación. Intente nuevamente más tarde.";
+                _logger.LogWarning("Intento de restablecimiento de contraseña fallido: el usuario {UserId} no existe.", resetPasswordDto.UserId);
+                return "El enlace de restablecimiento no es válido.";
             }
+
+            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+
+            await _accountTokenService.TryMarkAsUsedAsync(tokenValidation.AccountTokenId!.Value);
+
+            var resetResult = await _userManager.ResetPasswordAsync(user, resetPasswordDto.Token, resetPasswordDto.Password);
+            if (!resetResult.Succeeded)
+            {
+                var identityErrors = resetResult.Errors.Select(e => e.Description).ToList();
+                _logger.LogWarning("Error al restablecer la contraseña del usuario {UserId}: {Errors}", resetPasswordDto.UserId, string.Join("; ", identityErrors));
+                return string.Join("\n", identityErrors);
+            }
+
+            // Reactivar la cuenta (se desactivó temporalmente al solicitar el restablecimiento).
+            user.IsActive = true;
+            user.EmailConfirmed = true;
+            await _userManager.UpdateAsync(user);
+
+            var domainUser = await _userRepository.GetByIdAsync(resetPasswordDto.UserId);
+            if (domainUser is not null)
+            {
+                domainUser.IsActive = true;
+                await _userRepository.UpdateAsync(resetPasswordDto.UserId, domainUser);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            scope.Complete();
+
+            _logger.LogInformation("Contraseña del usuario {UserId} restablecida exitosamente.", resetPasswordDto.UserId);
+
+            return string.Empty;
         }
-
-        private static Roles NormalizeRole(string role)
-        {
-            return role switch
-            {
-                "Administrador" => Roles.Administrator,
-                "Cajero" => Roles.Cashier,
-                "Cliente" => Roles.Client,
-                _ when Enum.TryParse<Roles>(role, ignoreCase: true, out var parsed) => parsed,
-                _ => throw new InvalidOperationException($"Rol no reconocido: {role}")
-            };
-        }
-
-        private async Task InitializePrincipalAccountAsync(string ownerUserId, decimal? initialBalance)
-        {
-            var result = await _primaryAccountProvisioner.OpenPrincipalAccountAsync(
-                ownerUserId,
-                initialBalance ?? 0m,
-                "system",
-                Roles.Administrator.ToString());
-
-            if (result.IsFailure)
-            {
-                _logger.LogError(
-                    "No fue posible crear la cuenta de ahorro principal del usuario {UserId}: {ErrorCode} - {ErrorDescription}",
-                    ownerUserId, result.Error.Code, result.Error.Description);
-                throw new InvalidOperationException(result.Error.Description);
-            }
-
-            _logger.LogInformation(
-                "Cuenta de ahorro principal creada para el usuario {UserId} con saldo inicial {InitialBalance}.",
-                ownerUserId, initialBalance ?? 0m);
-        }
-
-        // Método privado para acreditar un monto adicional a la cuenta de ahorro principal del usuario usado en EditUserAsync
-        private async Task ApplyAdditionalAmountAsync(User domainUser, decimal amount, string actorUserId, string actorRole)
-        {
-            var principalAccount = await _savingsAccountRepository.GetPrincipalAccountAsync(domainUser.Id);
-            if (principalAccount is null)
-            {
-                _logger.LogError("El usuario {UserId} de tipo Cliente no tiene cuenta de ahorro principal activa.", domainUser.Id);
-                throw new InvalidOperationException("El cliente no tiene una cuenta de ahorro principal activa.");
-            }
-
-            var creditResult = await _accountBalanceService.CreditAsync(principalAccount.Id, amount);
-            if (creditResult.IsFailure)
-            {
-                _logger.LogError("No fue posible acreditar el monto adicional a la cuenta {AccountId}: {ErrorCode} - {ErrorDescription}",
-                    principalAccount.Id, creditResult.Error.Code, creditResult.Error.Description);
-                throw new InvalidOperationException(creditResult.Error.Description);
-            }
-
-            var operationId = Guid.NewGuid();
-            await _accountLedger.RecordApprovedAsync(
-                operationId, principalAccount.Id, amount,
-                TransactionDirection.Credit, FinancialOperationType.AdministrativeCredit,
-                "Monto adicional por edición de usuario", null, actorUserId, actorRole);
-
-            _logger.LogInformation("Monto adicional de {Amount} acreditado a la cuenta principal {AccountNumber} del usuario {UserId}.",
-                amount, principalAccount.AccountNumber, domainUser.Id);
-        }
-
-        #endregion
     }
 }
