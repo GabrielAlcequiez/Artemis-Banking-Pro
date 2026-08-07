@@ -47,6 +47,9 @@ namespace ABP.Infrastructure.Persistence
             // Al entregar P2: eliminar las siguientes líneas y registrar sus implementaciones reales.
             services.AddScoped<IFinancialIdentifierGenerator, FinancialIdentifierGenerator>();
             services.AddScoped<IPrimaryAccountProvisioner, PrimaryAccountProvisioner>();
+            services.AddScoped<ISavingsAccountRepository, SavingsAccountRepository>();
+            services.AddScoped<IAccountBalanceService, AccountBalanceService>();
+            services.AddScoped<IAccountLedger, AccountLedger>();
             #endregion
         }
     }

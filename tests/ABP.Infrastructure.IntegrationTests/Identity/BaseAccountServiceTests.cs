@@ -6,6 +6,7 @@ using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Common.Validation.Users;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Mappings;
+using ABP.Domain.Common;
 using ABP.Domain.Entities;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -52,6 +53,9 @@ public class BaseAccountServiceTests
             new FakeUnitOfWork(),
             new FakeAccountTokenService(),
             _primaryAccountProvisioner,
+            null!,
+            null!,
+            null!,
             NullLogger<BaseAccountService>.Instance);
     }
 
@@ -283,8 +287,13 @@ public class BaseAccountServiceTests
 
         public List<User> Added { get; } = [];
 
-        public Task<bool> GetByIdentificationAsync(string identification) =>
-            Task.FromResult(string.Equals(identification, DuplicateIdentification));
+        public Task<User?> FindByIdentificationAsync(string identification) =>
+            string.Equals(identification, DuplicateIdentification)
+                ? Task.FromResult<User?>(new User("dup") { Identification = identification })
+                : Task.FromResult<User?>(null);
+
+        public Task<PagedResult<User>> GetPagedAsync(PagedRequest request, bool commerceOnly = false, Roles? role = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PagedResult<User>(new List<User>(), request.Page, request.PageSize, 0));
 
         public IQueryable<User> GetAllQueryable(bool trackChanges = false) => new List<User>().AsQueryable();
 
