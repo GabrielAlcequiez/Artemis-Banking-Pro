@@ -15,6 +15,8 @@ public static class ServicesRegistration
     {
         services.Configure<EmailSettings>(config.GetSection("EmailSettings"));
 
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmailService, EmailService>();
         services.TryAddSingleton(TimeProvider.System);
 

@@ -18,14 +18,14 @@ namespace ABP.Infrastructure.Persistence
             #region Context
             string connectionString = config.GetConnectionString("DefaultConnection") ?? string.Empty;
 
-            services.AddScoped<AuditTimestampInterceptor>();
+            services.AddScoped<AuditableEntityInterceptor>();
             services.AddDbContext<AppDbContext>((serviceProvider, opt) =>
             {
                 opt.UseSqlServer(
                     connectionString,
                     m => m.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
                 opt.AddInterceptors(
-                    serviceProvider.GetRequiredService<AuditTimestampInterceptor>());
+                    serviceProvider.GetRequiredService<AuditableEntityInterceptor>());
             },
             contextLifetime: ServiceLifetime.Scoped,
             optionsLifetime: ServiceLifetime.Scoped);
