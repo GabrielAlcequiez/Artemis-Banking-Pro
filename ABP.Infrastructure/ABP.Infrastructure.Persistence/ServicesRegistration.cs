@@ -38,7 +38,7 @@ namespace ABP.Infrastructure.Persistence
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<ICreditCardRepository, CreditCardRepository>();
-            services.AddScoped<ICvcHasherService, CvcHasherService>();
+            services.AddScoped<ICvcService, CvcService>();
             #endregion
 
             services.AddSingleton<IValidateOptions<CvcHasherOptions>, CvcHasherOptionsValidator>();

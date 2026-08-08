@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
@@ -5,14 +6,14 @@ using Microsoft.Extensions.Options;
 
 namespace ABP.Infrastructure.Persistence.Security;
 
-public sealed class CvcHasherService : ICvcHasherService
+public sealed class CvcService : ICvcService
 {
     private const int MinimumSecretLength = 32;
     private const int CvcLength = 3;
     private const int HashLength = 32;
     private readonly byte[] secretKey;
 
-    public CvcHasherService(IOptions<CvcHasherOptions> options)
+    public CvcService(IOptions<CvcHasherOptions> options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -37,6 +38,11 @@ public sealed class CvcHasherService : ICvcHasherService
         }
 
         secretKey = decodedSecret;
+    }
+    public string Generate()
+    {
+        var value = RandomNumberGenerator.GetInt32(0, 1000);
+        return value.ToString("D3", CultureInfo.InvariantCulture);
     }
 
     public string Hash(string cvc)
@@ -85,4 +91,5 @@ public sealed class CvcHasherService : ICvcHasherService
         cvc is not null &&
         cvc.Length == CvcLength &&
         cvc.All(character => character is >= '0' and <= '9');
+
 }
