@@ -1,4 +1,4 @@
-using ABP.Application.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Identity;
 using ABP.Domain.Entities;
 using ABP.Infrastructure.Identity;
 using ABP.Infrastructure.Identity.Context;

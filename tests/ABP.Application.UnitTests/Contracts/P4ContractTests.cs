@@ -1,9 +1,12 @@
 using System.Reflection;
 using ABP.Application.Common;
+using ABP.Application.Common.DTOs.Users;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.Commerce.DTOs;
 using ABP.Application.Features.HermesPay.DTOs;
-using ABP.Application.Interfaces.Services;
+using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Application.Features.Commerce.Services.Interfaces;
+using ABP.Application.Features.HermesPay.Services.Interfaces;
 using ABP.TestDoubles;
 using Xunit;
 
@@ -84,13 +87,13 @@ namespace ABP.Application.UnitTests.Contracts
             var rawPan = "4532012345678901";
             var rawCvc = "999";
             var hermesRequest = new ProcessHermesPaymentRequest(
-                Guid.NewGuid(),
+                Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 rawPan,
                 11,
                 2028,
                 rawCvc,
                 250m,
-                Guid.NewGuid());
+                Guid.Parse("22222222-2222-2222-2222-222222222222"));
 
             // Act
             var str = hermesRequest.ToString();
@@ -185,6 +188,12 @@ namespace ABP.Application.UnitTests.Contracts
             AssertProperty<ProcessHermesPaymentRequest>("Cvc", typeof(string));
             AssertProperty<ProcessHermesPaymentRequest>("TransactionAmount", typeof(decimal));
             AssertProperty<ProcessHermesPaymentRequest>("OperationId", typeof(Guid));
+
+            // GetUserDto (CommerceId: Guid?)
+            AssertProperty<GetUserDto>("CommerceId", typeof(Guid?));
+
+            // CreateUserDto (CommerceId: Guid?)
+            AssertProperty<CreateUserDto>("CommerceId", typeof(Guid?));
         }
 
         private static void AssertProperty<T>(string propertyName, Type expectedType)

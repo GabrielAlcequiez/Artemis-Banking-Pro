@@ -1,8 +1,6 @@
 using System.Text;
 using ABP.Infrastructure.Identity.Context;
 using ABP.Infrastructure.Identity.Security;
-using ABP.Application.Interfaces.Identity;
-using ABP.Application.DTOs;
 using ABP.Domain.Enums;
 using ABP.Domain.Settings;
 using Microsoft.AspNetCore.Mvc;
@@ -18,10 +16,11 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
-using Newtonsoft.Json;
 using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
+using ABP.Application.Common.Interfaces.Identity;
+using ABP.Infrastructure.Identity.Services;
 
 namespace ABP.Infrastructure.Identity
 {
@@ -66,6 +65,8 @@ namespace ABP.Infrastructure.Identity
 
             services.AddSingleton(TimeProvider.System);
             services.AddScoped<IAccountTokenService, AccountTokenService>();
+            services.AddScoped<IBaseAccountService, BaseAccountService>();
+            services.AddScoped<IAccountServiceForWebApp, AccountServiceForWebApp>();
             
             services.AddAuthentication(opt =>
             {
@@ -251,6 +252,8 @@ opt.Events = new JwtBearerEvents()
             });
 
             #endregion
+
+            services.AddScoped<IBaseAccountService, BaseAccountService>();
         }
 
         private static void GeneralContextConfiguration(IServiceCollection services, IConfiguration config)

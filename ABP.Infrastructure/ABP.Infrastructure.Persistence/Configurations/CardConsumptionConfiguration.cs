@@ -1,4 +1,4 @@
-using ABP.Domain.Entities.Cards;
+using ABP.Domain.Entities.CreditCards;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
