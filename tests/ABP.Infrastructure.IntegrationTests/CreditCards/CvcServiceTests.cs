@@ -5,8 +5,21 @@ using Microsoft.Extensions.Options;
 
 namespace ABP.Infrastructure.IntegrationTests.CreditCards;
 
-public sealed class CvcHasherServiceTests
+public sealed class CvcServiceTests
 {
+    [Fact]
+    public void Generate_returns_exactly_three_digits_that_can_be_hashed_and_verified()
+    {
+        var service = CreateService();
+
+        var cvc = service.Generate();
+        var hash = service.Hash(cvc);
+
+        Assert.Equal(3, cvc.Length);
+        Assert.All(cvc, character => Assert.InRange(character, '0', '9'));
+        Assert.True(service.Verify(cvc, hash));
+    }
+
     [Fact]
     public void Hash_and_verify_use_a_keyed_sha256_digest()
     {
@@ -56,7 +69,7 @@ public sealed class CvcHasherServiceTests
         var shortSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(31));
 
         Assert.Throws<InvalidOperationException>(() =>
-            new CvcHasherService(Options.Create(new CvcHasherOptions
+            new CvcService(Options.Create(new CvcHasherOptions
             {
                 SecretBase64 = shortSecret
             })));
@@ -66,14 +79,14 @@ public sealed class CvcHasherServiceTests
     public void Constructor_rejects_an_invalid_base64_secret()
     {
         Assert.Throws<InvalidOperationException>(() =>
-            new CvcHasherService(Options.Create(new CvcHasherOptions
+            new CvcService(Options.Create(new CvcHasherOptions
             {
                 SecretBase64 = "not-base64"
             })));
     }
 
-    private static ICvcHasherService CreateService() =>
-        new CvcHasherService(Options.Create(new CvcHasherOptions
+    private static ICvcService CreateService() =>
+        new CvcService(Options.Create(new CvcHasherOptions
         {
             SecretBase64 = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
         }));
