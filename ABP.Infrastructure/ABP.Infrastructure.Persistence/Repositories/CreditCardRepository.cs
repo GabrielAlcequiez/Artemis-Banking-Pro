@@ -12,6 +12,8 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
 {
     private const string MaskPrefix = "************";
 
+    #region Card persistence
+
     public Task<CreditCard?> GetByCardNumberAsync(string cardNumber, CancellationToken cancellationToken = default)
     {
         return Entities
@@ -35,6 +37,10 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
     {
         await _context.CardPayments.AddAsync(payment, cancellationToken);
     }
+
+    #endregion
+
+    #region Administrative card queries
 
     public Task<string?> FindClientIdByIdentificationAsync(
         string identification,
@@ -200,6 +206,10 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
             consumptions);
     }
 
+    #endregion
+
+    #region Debt and lifecycle queries
+
     public async Task<decimal> GetActiveDebtByClientIdAsync(
         string clientId,
         CancellationToken cancellationToken = default)
@@ -212,4 +222,25 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
 
         return debt ?? 0m;
     }
+
+    public Task<bool> IsActiveClientAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        return _context.Users
+            .AsNoTracking()
+            .AnyAsync(
+                user =>
+                    user.Id == clientId &&
+                    user.Role == Roles.Client &&
+                    user.IsActive,
+                cancellationToken);
+    }
+
+    public Task<CreditCard?> GetForUpdateAsync(Guid creditCardId, CancellationToken cancellationToken = default)
+    {
+        return Entities.SingleOrDefaultAsync(
+            card => card.Id == creditCardId,
+            cancellationToken);
+    }
+
+    #endregion
 }

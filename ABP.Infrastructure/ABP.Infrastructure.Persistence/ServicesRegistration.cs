@@ -1,5 +1,6 @@
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Interfaces;
+using ABP.Infrastructure.Persistence.Auditing;
 using ABP.Infrastructure.Persistence.Context;
 using ABP.Infrastructure.Persistence.Repositories;
 using ABP.Infrastructure.Persistence.Security;
@@ -17,11 +18,14 @@ namespace ABP.Infrastructure.Persistence
             #region Context
             string connectionString = config.GetConnectionString("DefaultConnection") ?? string.Empty;
 
+            services.AddScoped<AuditTimestampInterceptor>();
             services.AddDbContext<AppDbContext>((serviceProvider, opt) =>
             {
                 opt.UseSqlServer(
                     connectionString,
                     m => m.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
+                opt.AddInterceptors(
+                    serviceProvider.GetRequiredService<AuditTimestampInterceptor>());
             },
             contextLifetime: ServiceLifetime.Scoped,
             optionsLifetime: ServiceLifetime.Scoped);
