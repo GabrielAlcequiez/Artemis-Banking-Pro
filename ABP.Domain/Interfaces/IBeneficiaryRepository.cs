@@ -1,8 +1,8 @@
-using ABP.Domain.Entities;
+using ABP.Domain.Entities.Accounts;
 
 namespace ABP.Domain.Interfaces;
 
-public interface IBeneficiaryRepository
+public interface IBeneficiaryRepository : IGenericRepository<Beneficiary, Guid>
 {
     Task<IReadOnlyCollection<Beneficiary>> GetByOwnerAsync(string ownerUserId, CancellationToken cancellationToken = default);
 
@@ -10,7 +10,5 @@ public interface IBeneficiaryRepository
 
     Task<bool> ExistsAsync(string ownerUserId, Guid beneficiaryAccountId, CancellationToken cancellationToken = default);
 
-    Task AddAsync(Beneficiary beneficiary, CancellationToken cancellationToken = default);
-
-    void Remove(Beneficiary beneficiary);
+   
 }

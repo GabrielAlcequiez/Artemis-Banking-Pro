@@ -37,6 +37,9 @@ namespace ABP.Infrastructure.Persistence
                 typeof(GenericRepository<,>));
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<ISavingsAccountRepository, SavingsAccountRepository>();
+            services.AddScoped<IAccountTransactionRepository, AccountTransactionRepository>();
+            services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
 
             #endregion
         }

@@ -7,7 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Entities\Accounts\NewFolder\" />
+    <Compile Remove="Entities\Accounts\NewFolder\**" />
+    <EmbeddedResource Remove="Entities\Accounts\NewFolder\**" />
+    <None Remove="Entities\Accounts\NewFolder\**" />
   </ItemGroup>
 
 </Project>

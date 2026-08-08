@@ -14,6 +14,15 @@ namespace ABP.Application
 
             services.AddScoped(typeof(IGenericService<,,>), typeof(GenericService<,,>));
 
+
+            //services.AddScoped<Features.Accounts.Services.Interfaces.IAccountBalanceService, Features.Accounts.Services.AccountBalanceService>();
+            //services.AddScoped<Features.Accounts.Services.Interfaces.IAccountLedger, Features.Accounts.Services.AccountLedger>();
+            //services.AddScoped<Features.Accounts.Services.Interfaces.IMoneyTransferService, Features.Accounts.Services.MoneyTransferService>();
+            //services.AddScoped<Features.Accounts.Services.Interfaces.IPrimaryAccountProvisioner, Features.Accounts.Services.PrimaryAccountProvisioner>();
+            //services.AddScoped<Features.Accounts.Services.Interfaces.IBeneficiaryService, Features.Accounts.Services.BeneficiaryService>();
+            //services.AddScoped<Features.Accounts.Services.Interfaces.IAccountsMetricsReader, Features.Accounts.Services.AccountsMetricsReader>();
+            //services.AddScoped<Features.Accounts.Services.Interfaces.ITransactionsMetricsReader, Features.Accounts.Services.TransactionsMetricsReader>();
+
             // Other services here
 
             #endregion
