@@ -3,10 +3,10 @@ using System.Text;
 using ABP.Application.Common.Interfaces.Identity;
 using ABP.Domain.Entities;
 using ABP.Domain.Enums;
+using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Identity.Context;
 using ABP.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace ABP.Infrastructure.Identity.Security;
@@ -19,6 +19,7 @@ public sealed class AccountTokenService : IAccountTokenService
     private readonly DataProtectionTokenProviderOptions activationTokenOptions;
     private readonly PasswordResetTokenProviderOptions passwordResetTokenOptions;
     private readonly TimeProvider timeProvider;
+    private readonly IAccountTokenRepository _accountTokenRepository;
 
     public AccountTokenService(
         IdentityContext identityContext,
@@ -26,7 +27,8 @@ public sealed class AccountTokenService : IAccountTokenService
         IOptions<IdentityOptions> identityOptions,
         IOptions<DataProtectionTokenProviderOptions> activationTokenOptions,
         IOptions<PasswordResetTokenProviderOptions> passwordResetTokenOptions,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IAccountTokenRepository accountTokenRepository)
     {
         this.identityContext = identityContext;
         this.userManager = userManager;
@@ -34,6 +36,7 @@ public sealed class AccountTokenService : IAccountTokenService
         this.activationTokenOptions = activationTokenOptions.Value;
         this.passwordResetTokenOptions = passwordResetTokenOptions.Value;
         this.timeProvider = timeProvider;
+        _accountTokenRepository = accountTokenRepository;
     }
 
     public async Task<string> GenerateAsync(
@@ -81,14 +84,7 @@ public sealed class AccountTokenService : IAccountTokenService
     {
         var tokenHash = ComputeTokenHash(token);
 
-        var accountToken = await identityContext.AccountTokens
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                candidate =>
-                    candidate.UserId == userId &&
-                    candidate.Purpose == purpose &&
-                    candidate.TokenHash == tokenHash,
-                cancellationToken);
+        var accountToken = await _accountTokenRepository.ExistsAsync(userId, purpose, tokenHash, cancellationToken);
 
         if (accountToken is null)
         {
@@ -147,13 +143,7 @@ public sealed class AccountTokenService : IAccountTokenService
     {
         var usedAtUtc = timeProvider.GetUtcNow();
 
-        var affectedRows = await identityContext.AccountTokens
-            .Where(token => token.Id == accountTokenId && token.UsedAtUtc == null)
-            .ExecuteUpdateAsync(
-                setters => setters.SetProperty(
-                    token => token.UsedAtUtc,
-                    usedAtUtc),
-                cancellationToken);
+        var affectedRows = await _accountTokenRepository.MarkAsUsedAsync(accountTokenId, usedAtUtc, cancellationToken);
 
         return affectedRows == 1;
     }

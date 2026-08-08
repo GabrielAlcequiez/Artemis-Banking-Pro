@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ABP.Application;
 using ABP.Infrastructure.Identity;
 using ABP.Infrastructure.Persistence;
 using ABP.Shared;
@@ -21,6 +22,7 @@ builder.Host.UseSerilog();
 
 builder.Services.AddInfrastructureServicesWebApp(builder.Configuration);
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
+builder.Services.AddApplicationServices();
 builder.Services.AddSharedServices(builder.Configuration);
 builder.Services.AddControllersWithViews();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

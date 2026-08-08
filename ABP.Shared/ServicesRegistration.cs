@@ -12,6 +12,8 @@ namespace ABP.Shared
         {
             services.Configure<EmailSettings>(config.GetSection("EmailSettings"));
 
+            services.AddHttpContextAccessor();
+            services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IEmailService, EmailService>();
         }
     }
