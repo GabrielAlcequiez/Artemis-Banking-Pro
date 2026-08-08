@@ -20,6 +20,7 @@ builder.Host.UseSerilog();
 
 #endregion
 
+builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServicesWebApp(builder.Configuration);
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
 builder.Services.AddApplicationServices();

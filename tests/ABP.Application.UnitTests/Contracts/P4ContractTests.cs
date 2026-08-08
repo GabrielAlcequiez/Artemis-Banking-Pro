@@ -87,13 +87,13 @@ namespace ABP.Application.UnitTests.Contracts
             var rawPan = "4532012345678901";
             var rawCvc = "999";
             var hermesRequest = new ProcessHermesPaymentRequest(
-                Guid.NewGuid(),
+                Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 rawPan,
                 11,
                 2028,
                 rawCvc,
                 250m,
-                Guid.NewGuid());
+                Guid.Parse("22222222-2222-2222-2222-222222222222"));
 
             // Act
             var str = hermesRequest.ToString();
