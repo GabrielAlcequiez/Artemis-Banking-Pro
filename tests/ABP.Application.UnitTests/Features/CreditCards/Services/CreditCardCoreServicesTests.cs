@@ -1,4 +1,4 @@
-using ABP.Application;
+using ABP.Application.Features.CreditCards;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Implementations;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
@@ -17,6 +17,8 @@ namespace ABP.Application.UnitTests.Features.CreditCards.Services;
 
 public sealed class CreditCardCoreServicesTests
 {
+    #region Administrative read service tests
+
     [Fact]
     public async Task List_without_filters_returns_no_search_and_maps_safe_summary()
     {
@@ -158,6 +160,137 @@ public sealed class CreditCardCoreServicesTests
         mapper.ConfigurationProvider.AssertConfigurationIsValid();
     }
 
+    #endregion
+
+    #region Lifecycle service tests
+
+    [Fact]
+    public async Task UpdateLimit_updates_active_card_and_commits_once()
+    {
+        var card = CreateCard(CreditCardStatus.Active, debt: 150m, limit: 500m);
+        var repository = new FakeCreditCardRepository { CardForUpdate = card };
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(repository, unitOfWork);
+
+        var result = await service.UpdateLimitAsync(
+            new UpdateCreditLimitRequest(Guid.NewGuid(), 750m));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(750m, card.Limit);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task UpdateLimit_rejects_limit_below_debt_without_committing()
+    {
+        var card = CreateCard(CreditCardStatus.Active, debt: 500m, limit: 700m);
+        var repository = new FakeCreditCardRepository { CardForUpdate = card };
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(repository, unitOfWork);
+
+        var result = await service.UpdateLimitAsync(
+            new UpdateCreditLimitRequest(Guid.NewGuid(), 499m));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.LimitBelowDebt, result.Error);
+        Assert.Equal(700m, card.Limit);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task UpdateLimit_rejects_cancelled_card_without_committing()
+    {
+        var card = CreateCard(CreditCardStatus.Cancelled, debt: 0m, limit: 500m);
+        var repository = new FakeCreditCardRepository { CardForUpdate = card };
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(repository, unitOfWork);
+
+        var result = await service.UpdateLimitAsync(
+            new UpdateCreditLimitRequest(Guid.NewGuid(), 750m));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.Cancelled, result.Error);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task UpdateLimit_returns_not_found_without_committing()
+    {
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(new FakeCreditCardRepository(), unitOfWork);
+
+        var result = await service.UpdateLimitAsync(
+            new UpdateCreditLimitRequest(Guid.NewGuid(), 750m));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.NotFound, result.Error);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Cancel_changes_active_debt_free_card_and_commits_once()
+    {
+        var card = CreateCard(CreditCardStatus.Active, debt: 0m, limit: 500m);
+        var repository = new FakeCreditCardRepository { CardForUpdate = card };
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(repository, unitOfWork);
+
+        var result = await service.CancelAsync(new CancelCreditCardRequest(Guid.NewGuid()));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(CreditCardStatus.Cancelled, card.Status);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Cancel_rejects_card_with_debt_without_committing()
+    {
+        var card = CreateCard(CreditCardStatus.Active, debt: 0.01m, limit: 500m);
+        var repository = new FakeCreditCardRepository { CardForUpdate = card };
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(repository, unitOfWork);
+
+        var result = await service.CancelAsync(new CancelCreditCardRequest(Guid.NewGuid()));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.OutstandingDebt, result.Error);
+        Assert.Equal(CreditCardStatus.Active, card.Status);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Cancel_rejects_already_cancelled_card_without_committing()
+    {
+        var card = CreateCard(CreditCardStatus.Cancelled, debt: 0m, limit: 500m);
+        var repository = new FakeCreditCardRepository { CardForUpdate = card };
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(repository, unitOfWork);
+
+        var result = await service.CancelAsync(new CancelCreditCardRequest(Guid.NewGuid()));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.Cancelled, result.Error);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Cancel_returns_not_found_without_committing()
+    {
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(new FakeCreditCardRepository(), unitOfWork);
+
+        var result = await service.CancelAsync(
+            new CancelCreditCardRequest(Guid.NewGuid()));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.NotFound, result.Error);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    #endregion
+
+    #region Supporting credit card service tests
+
     [Fact]
     public void Card_number_generator_returns_exactly_sixteen_digits()
     {
@@ -180,17 +313,37 @@ public sealed class CreditCardCoreServicesTests
         Assert.Equal(150.25m, debt);
     }
 
-    private static ICreditCardService CreateService(FakeCreditCardRepository repository) =>
-        CreateProvider(repository).GetRequiredService<ICreditCardService>();
+    #endregion
 
-    private static IServiceProvider CreateProvider(FakeCreditCardRepository repository)
+    #region Test helpers
+
+    private static ICreditCardService CreateService(
+        FakeCreditCardRepository repository,
+        FakeUnitOfWork? unitOfWork = null) =>
+        CreateProvider(repository, unitOfWork).GetRequiredService<ICreditCardService>();
+
+    private static IServiceProvider CreateProvider(
+        FakeCreditCardRepository repository,
+        FakeUnitOfWork? unitOfWork = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddApplicationServices();
         services.AddSingleton<ICreditCardRepository>(repository);
+        services.AddSingleton<IUnitOfWork>(unitOfWork ?? new FakeUnitOfWork());
         return services.BuildServiceProvider();
     }
+
+    private static CreditCard CreateCard(
+        CreditCardStatus status,
+        decimal debt,
+        decimal limit) =>
+        new()
+        {
+            Status = status,
+            Debt = debt,
+            Limit = limit
+        };
 
     private static PagedResult<CreditCardSummaryReadModel> CreatePage(
         params CreditCardSummaryReadModel[] data) =>
@@ -225,6 +378,8 @@ public sealed class CreditCardCoreServicesTests
         public bool SearchWasCalled { get; private set; }
 
         public string? ReceivedIdentification { get; private set; }
+        public bool IsActiveClient { get; init; }
+        public CreditCard? CardForUpdate { get; init; }
 
         public Task<CreditCard?> GetByCardNumberAsync(string cardNumber, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
@@ -289,5 +444,12 @@ public sealed class CreditCardCoreServicesTests
 
         public Task<CreditCard?> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+
+        public Task<bool> IsActiveClientAsync(string clientId, CancellationToken cancellationToken = default) => Task.FromResult(IsActiveClient);
+
+        public Task<CreditCard?> GetForUpdateAsync(Guid creditCardId, CancellationToken cancellationToken = default) => Task.FromResult(CardForUpdate);
+
     }
+
+    #endregion
 }

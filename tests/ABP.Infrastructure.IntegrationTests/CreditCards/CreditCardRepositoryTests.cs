@@ -5,12 +5,13 @@ using ABP.Domain.Enums;
 using ABP.Infrastructure.Persistence.Context;
 using ABP.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace ABP.Infrastructure.IntegrationTests.CreditCards;
 
 public sealed class CreditCardRepositoryTests : IAsyncLifetime
 {
+    #region Test setup
+
     private readonly string _databaseName = $"ABP_CreditCardRepoTests_{Guid.NewGuid():N}";
     private readonly string _connectionString;
     private AppDbContext _context = null!;
@@ -41,6 +42,10 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
             await _context.DisposeAsync();
         }
     }
+
+    #endregion
+
+    #region Administrative read tests
 
     [Fact]
     public async Task Default_search_returns_only_active_cards_in_descending_created_order()
@@ -232,6 +237,10 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
         Assert.Null(result);
     }
 
+    #endregion
+
+    #region Debt and lifecycle tests
+
     [Fact]
     public async Task Active_debt_reader_excludes_cancelled_cards()
     {
@@ -271,6 +280,77 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
 
         Assert.Equal(0m, debt);
     }
+
+    [Fact]
+    public async Task IsActiveClient_returns_true_only_for_an_existing_active_client()
+    {
+        // Arrange
+        await SeedAsync(_context);
+
+        var inactiveClient = new User("inactive-client")
+        {
+            Name = "Cliente",
+            LastName = "Inactivo",
+            Identification = "99999999999",
+            Email = "inactive@example.test",
+            UserName = "inactive-client",
+            IsActive = false,
+            Role = Roles.Client
+        };
+
+        _context.Users.Add(inactiveClient);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var activeResult =
+            await _repository.IsActiveClientAsync("client-1");
+
+        var inactiveResult =
+            await _repository.IsActiveClientAsync("inactive-client");
+
+        var administratorResult =
+            await _repository.IsActiveClientAsync("admin");
+
+        var missingResult =
+            await _repository.IsActiveClientAsync("missing-client");
+
+        // Assert
+        Assert.True(activeResult);
+        Assert.False(inactiveResult);
+        Assert.False(administratorResult);
+        Assert.False(missingResult);
+    }
+
+    [Fact]
+    public async Task GetForUpdate_tracks_card_and_persists_changes()
+    {
+        // Arrange
+        var seeded = await SeedAsync(_context);
+        var unitOfWork = new UnitOfWork(_context);
+
+        // Act
+        var card = await _repository.GetForUpdateAsync(
+            seeded.ActiveNew.Id);
+
+        Assert.NotNull(card);
+
+        card.Limit = 750m;
+
+        await unitOfWork.SaveChangesAsync();
+
+        _context.ChangeTracker.Clear();
+
+        var persistedCard = await _repository.GetByIdAsync(
+            seeded.ActiveNew.Id);
+
+        // Assert
+        Assert.NotNull(persistedCard);
+        Assert.Equal(750m, persistedCard.Limit);
+    }
+
+    #endregion
+
+    #region Test data builders
 
     private static async Task<SeededCards> SeedAsync(AppDbContext context)
     {
@@ -428,4 +508,6 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
         CreditCard ActiveNew,
         CreditCard Cancelled,
         CreditCard OtherActive);
+
+    #endregion
 }

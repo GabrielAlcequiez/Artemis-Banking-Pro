@@ -1,3 +1,4 @@
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence;
@@ -26,6 +27,7 @@ public sealed class PersistenceRegistrationTests
         var services = new ServiceCollection();
 
         services.AddLogging();
+        services.AddSingleton<IClock>(new StubClock());
         services.AddInfrastructurePersistence(configuration);
 
         using var provider = services.BuildServiceProvider();
@@ -78,8 +80,18 @@ public sealed class PersistenceRegistrationTests
         var services = new ServiceCollection();
 
         services.AddLogging();
+        services.AddSingleton<IClock>(new StubClock());
         services.AddInfrastructurePersistence(configuration);
 
         return services.BuildServiceProvider();
+    }
+
+    private sealed class StubClock : IClock
+    {
+        public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
+
+        public DateTimeOffset Now => UtcNow;
+
+        public DateOnly Today => DateOnly.FromDateTime(UtcNow.UtcDateTime);
     }
 }
