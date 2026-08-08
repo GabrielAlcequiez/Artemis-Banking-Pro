@@ -10,7 +10,7 @@ namespace ABP.Application.Common.DTOs.Users
         public string UserName { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public bool IsActive { get; set; }
-        public int? CommerceId { get; set; }
+        public Guid? CommerceId { get; set; }
         public string? CommerceName { get; set; }
     }
 }

@@ -14,6 +14,6 @@ namespace ABP.Application.Common.DTOs.Users
         // Si el usuario es cliente o comercio
         public decimal? InitialBalance { get; set; }
         public decimal? InitialAmount { get => InitialBalance; set => InitialBalance = value; }
-        public int? CommerceId { get; set; }
+        public Guid? CommerceId { get; set; }
     }
 }
