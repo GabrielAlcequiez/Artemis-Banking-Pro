@@ -43,10 +43,6 @@ namespace ABP.Infrastructure.Persistence
             services.AddScoped<ICvcHasherService, CvcHasherService>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IAccountTokenRepository, AccountTokenRepository>();
-
-            #endregion
-
-            #region TEMPORAL - Contratos de P2 pendientes de implementación por su propietario.
             services.AddScoped<ISavingsAccountRepository, SavingsAccountRepository>();
             services.AddScoped<IAccountTransactionRepository, AccountTransactionRepository>();
             services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
