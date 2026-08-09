@@ -1,7 +1,9 @@
 using System.Reflection;
+using ABP.Application.Behaviors;
 using ABP.Application.Common.Services.Interfaces;
 using ABP.Application.Common.Services.Implementations;
 using FluentValidation;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ABP.Application
@@ -21,6 +23,9 @@ namespace ABP.Application
             #region Validators
 
             services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+
+            // pipeline behaviors
+            services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
             #endregion
 
