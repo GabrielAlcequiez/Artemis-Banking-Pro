@@ -1,9 +1,11 @@
 using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence.Auditing;
 using ABP.Infrastructure.Persistence.Context;
 using ABP.Infrastructure.Persistence.Repositories;
 using ABP.Infrastructure.Persistence.Security;
+using ABP.Infrastructure.Persistence.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +50,7 @@ namespace ABP.Infrastructure.Persistence
             services.AddScoped<ISavingsAccountRepository, SavingsAccountRepository>();
             services.AddScoped<IAccountTransactionRepository, AccountTransactionRepository>();
             services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
+            services.AddScoped<IFinancialIdentifierGenerator, FinancialIdentifierGenerator>();
 
             #endregion
 

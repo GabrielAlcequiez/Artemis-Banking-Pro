@@ -4,11 +4,8 @@ using ABP.Domain.Enums;
 using ABP.Infrastructure.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
-namespace ABP.Infrastructure.Persistence.Temporary
+namespace ABP.Infrastructure.Persistence.Services
 {
-    // TEMPORAL - Implementación provisional para que P1/P3/P4 puedan ejecutar antes de que P2 entregue
-    // la suya (plan: "P2 debe proveer una implementación fake/in-memory desde Sprint 0").
-    // Al entregar P2: eliminar esta carpeta y cambiar el registro DI en ServicesRegistration.cs.
     public sealed class FinancialIdentifierGenerator : IFinancialIdentifierGenerator
     {
         private static readonly Random Random = new();
