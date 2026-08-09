@@ -88,8 +88,10 @@ Tests        -> proyecto bajo prueba
 ## Contratos, persistencia y verificación
 
 - Trata `Application/Common/Contracts` como contrato compartido: un cambio
-  incompatible requiere revisar sus consumidores. Conserva `errorCode` estable,
-  respuestas paginadas uniformes y rutas de endpoint documentadas.
+  incompatible requiere revisar sus consumidores. Conserva respuestas paginadas
+  uniformes, Problem Details (RFC 7807) con status HTTP + mensaje según
+  `ABP_Document` (sin `errorCode` como mecanismo de control) y rutas de endpoint
+  documentadas.
 - Cada vertical aporta sus configuraciones EF (`IEntityTypeConfiguration<T>`);
   las migraciones consolidadas se integran de forma centralizada. No edites una
   migración compartida sin coordinación.

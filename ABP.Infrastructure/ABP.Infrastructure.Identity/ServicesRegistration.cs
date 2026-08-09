@@ -254,6 +254,8 @@ opt.Events = new JwtBearerEvents()
             #endregion
 
             services.AddScoped<IBaseAccountService, BaseAccountService>();
+            services.AddScoped<IAccountServiceForWebApi, AccountServiceForWebApi>();
+            services.AddScoped<IJwtTokenService, JwtTokenService>();
         }
 
         private static void GeneralContextConfiguration(IServiceCollection services, IConfiguration config)
