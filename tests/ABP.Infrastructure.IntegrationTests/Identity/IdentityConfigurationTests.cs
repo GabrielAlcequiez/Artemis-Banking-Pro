@@ -53,8 +53,8 @@ public class IdentityConfigurationTests
             .Get(IdentityConstants.ApplicationScheme);
 
         Assert.True(cookieOptions.Cookie.HttpOnly);
-        Assert.Equal("/Account/Login", cookieOptions.LoginPath.Value);
-        Assert.Equal("/Account/AccessDenied", cookieOptions.AccessDeniedPath.Value);
+        Assert.Equal("/Auth/Login", cookieOptions.LoginPath.Value);
+        Assert.Equal("/Auth/AccessDenied", cookieOptions.AccessDeniedPath.Value);
 
         Assert.Contains(
             services,

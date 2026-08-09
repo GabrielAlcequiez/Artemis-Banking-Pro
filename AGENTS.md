@@ -32,7 +32,16 @@
   tokens, CVC, hashes de CVC, números completos de tarjeta ni cadenas de
   conexión.
 - Tailwind CSS 4 es el estándar actual de la WebApp. `wwwroot/css/output.css`
-  es generado: modifica las fuentes CSS, no el archivo generado manualmente.
+  es generado: modifica las fuentes CSS (`wwwroot/css/site.css`: `@theme` +
+  `@layer components`), no el archivo generado manualmente. `dotnet build` lo
+  regenera (target `Tailwind` del csproj); en desarrollo usa `npm run css:watch`
+  o `npm run css:build` desde la raíz.
+- Layouts MVC anidados: `_Layout` (público: Login, recuperación de contraseña,
+  Acceso denegado, Error) ← `_AppLayout` (rail vertical oscuro + topbar;
+  renderiza la sección `SidebarItems`) ← `_AdminLayout` / `_CashierLayout` /
+  `_ClientLayout`, cada uno con los items de menú de su rol. Las vistas por rol
+  viven en `Areas/{Admin,Cashier,Client}` con su propio `_ViewStart.cshtml`.
+  Los iconos SVG se agregan en `Views/Shared/Partials/_Icon.cshtml`.
 - Azure Functions para `LoanDelinquency` es parte del alcance obligatorio; si
   aún falta integración, trátala como pendiente y no la sustituyas
   silenciosamente por otro mecanismo.

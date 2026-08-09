@@ -1,0 +1,43 @@
+@model ABP.WebApp.ViewModels.LoginViewModel
+@{
+    ViewData["Title"] = "Iniciar sesión";
+}
+
+<div class="flex min-h-screen items-center justify-center bg-surface-muted px-4">
+    <div class="w-full max-w-sm">
+        <div class="mb-6 flex items-center gap-3">
+            <span class="flex h-10 w-10 items-center justify-center rounded-lg bg-ink text-white">
+                <partial name="Partials/_Icon" model='"landmark"' />
+            </span>
+            <div>
+                <h1 class="text-lg font-semibold text-ink">Artemis Banking</h1>
+                <p class="text-sm text-ink-muted">Inicie sesión en su cuenta</p>
+            </div>
+        </div>
+
+        <form class="card space-y-4 p-6" asp-controller="Auth" asp-action="Login" method="post" novalidate>
+            @if (!string.IsNullOrEmpty(Model.Error))
+            {
+                <div class="alert alert-danger" role="alert">@Model.Error</div>
+            }
+
+            <div>
+                <label asp-for="Username" class="mb-1 block text-sm font-medium text-ink-soft">Nombre de usuario</label>
+                <input asp-for="Username" class="input" autocomplete="username" autofocus />
+                <span asp-validation-for="Username" class="mt-1 block text-sm text-danger"></span>
+            </div>
+
+            <div>
+                <label asp-for="Password" class="mb-1 block text-sm font-medium text-ink-soft">Contraseña</label>
+                <input asp-for="Password" class="input" type="password" autocomplete="current-password" />
+                <span asp-validation-for="Password" class="mt-1 block text-sm text-danger"></span>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full">Iniciar sesión</button>
+
+            <p class="text-center text-sm">
+                <a asp-controller="Auth" asp-action="ForgotPassword" class="text-ink-soft underline-offset-4 hover:underline">Restablecer contraseña</a>
+            </p>
+        </form>
+    </div>
+</div>

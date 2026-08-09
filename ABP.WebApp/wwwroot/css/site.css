@@ -1,1 +1,128 @@
 @import "tailwindcss";
+
+@theme {
+  /* Superficies */
+  --color-surface: #ffffff;
+  --color-surface-muted: #fafafa;
+  --color-surface-sunken: #f5f5f5;
+  --color-border: #e5e5e5;
+  --color-border-strong: #d4d4d4;
+  --color-input: #b3b3b3;
+
+  /* Texto */
+  --color-ink: #171717;
+  --color-ink-soft: #404040;
+  --color-ink-muted: #737373;
+  --color-ink-faint: #a3a3a3;
+
+  /* Rail vertical oscuro */
+  --color-sidebar: #171717;
+  --color-sidebar-hover: #262626;
+  --color-sidebar-ink: #a3a3a3;
+
+  /* Semánticos apagados: solo badges de estado, nunca branding */
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer components {
+  /* ---------- Componentes base ---------- */
+
+  .card {
+    @apply rounded-lg border border-border bg-surface;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-ink text-white hover:bg-ink-soft;
+  }
+
+  .btn-ghost {
+    @apply text-ink-soft hover:bg-surface-sunken;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink-muted focus:outline-none;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-success/10 text-success;
+  }
+
+  .badge-warning {
+    @apply bg-warning/10 text-warning;
+  }
+
+  .badge-danger {
+    @apply bg-danger/10 text-danger;
+  }
+
+  .badge-neutral {
+    @apply bg-surface-sunken text-ink-muted;
+  }
+
+  .alert {
+    @apply rounded-lg border px-4 py-3 text-sm;
+  }
+
+  .alert-danger {
+    @apply border-danger/30 bg-danger/10 text-danger;
+  }
+
+  /* Montos y números financieros */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Chrome de la app (sidebar + topbar) ---------- */
+
+  .app-sidebar {
+    @apply fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-x-hidden bg-sidebar transition-[width] duration-200 ease-in-out;
+  }
+
+  [data-sidebar="collapsed"] .app-sidebar {
+    width: 4rem;
+  }
+
+  .app-main {
+    @apply ml-64 flex min-h-screen flex-col transition-[margin] duration-200 ease-in-out;
+  }
+
+  [data-sidebar="collapsed"] .app-main {
+    margin-left: 4rem;
+  }
+
+  .app-topbar {
+    @apply sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-surface px-6;
+  }
+
+  .sidebar-label {
+    @apply min-w-0 truncate;
+  }
+
+  [data-sidebar="collapsed"] .sidebar-label {
+    display: none;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-ink transition-colors hover:bg-sidebar-hover hover:text-white;
+  }
+
+  .sidebar-item.active {
+    @apply bg-sidebar-hover text-white;
+  }
+
+  [data-sidebar="collapsed"] .sidebar-item {
+    @apply justify-center px-0;
+  }
+}
