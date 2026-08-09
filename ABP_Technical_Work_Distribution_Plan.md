@@ -378,9 +378,9 @@ Los DTOs consumidos tanto por los servicios tradicionales como por los casos CQR
 - `PagedRequest(Page, PageSize)`.
 - `PagedResult<T>(Page, PageSize, TotalRecords, TotalPages, Data)`.
 - `CurrentUserContext(UserId, UserName, Role, CommerceId?)`.
-- `OperationResult<T>` con código de negocio estable, no con mensajes como mecanismo de control.
+- `OperationResult<T>` para resultados de servicios; los errores de la API se reportan con `ApiException` (status HTTP + mensaje), fieles a `ABP_Document`.
 - `Money` o política central de decimal: persistencia `decimal(18,2)`; cálculos de amortización con mayor precisión antes del redondeo final.
-- `ProblemDetails` con `traceId`, `errorCode` y errores de validación.
+- `ProblemDetails` (RFC 7807) con `traceId` y errores de validación; sin `errorCode` como mecanismo de control (fidelidad a `ABP_Document`).
 - `FinancialOperationReceipt` con `OperationId`, monto efectivo y fecha.
 
 #### Identity y usuarios
@@ -1159,7 +1159,7 @@ Nadie edita una migración ya compartida. Los cambios de modelo se entregan como
 
 - La carpeta `Application/Common/Contracts` queda congelada al final del Sprint 0.
 - Un cambio incompatible requiere revisión de los consumidores afectados.
-- Los mensajes de error usan `errorCode` estable; el texto puede localizarse en Presentation.
+- Los errores siguen el contrato de `ABP_Document`: status HTTP + mensaje; no se usa `errorCode` como mecanismo de control.
 - Las respuestas paginadas y Problem Details son uniformes.
 - Los nombres/rutas de endpoints del documento no se cambian sin decisión explícita.
 
