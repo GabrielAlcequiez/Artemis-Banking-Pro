@@ -23,6 +23,7 @@ builder.Host.UseSerilog();
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServicesWebApp(builder.Configuration);
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
+builder.Services.AddApplicationServices();
 builder.Services.AddSharedServices(builder.Configuration);
 builder.Services.AddControllersWithViews();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

@@ -1,5 +1,6 @@
 using System.Reflection;
 using ABP.Application.Common;
+using ABP.Application.Common.DTOs.Users;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.Commerce.DTOs;
 using ABP.Application.Features.HermesPay.DTOs;
@@ -187,6 +188,12 @@ namespace ABP.Application.UnitTests.Contracts
             AssertProperty<ProcessHermesPaymentRequest>("Cvc", typeof(string));
             AssertProperty<ProcessHermesPaymentRequest>("TransactionAmount", typeof(decimal));
             AssertProperty<ProcessHermesPaymentRequest>("OperationId", typeof(Guid));
+
+            // GetUserDto (CommerceId: Guid?)
+            AssertProperty<GetUserDto>("CommerceId", typeof(Guid?));
+
+            // CreateUserDto (CommerceId: Guid?)
+            AssertProperty<CreateUserDto>("CommerceId", typeof(Guid?));
         }
 
         private static void AssertProperty<T>(string propertyName, Type expectedType)
