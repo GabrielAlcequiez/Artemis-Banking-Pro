@@ -35,7 +35,7 @@ namespace ABP.Infrastructure.Persistence.Temporary
                 }
 
                 account.Balance += amount;
-                _savingsAccountRepository.Update(account);
+                await _savingsAccountRepository.UpdateAsync(account.Id, account, cancellationToken);
 
                 try
                 {

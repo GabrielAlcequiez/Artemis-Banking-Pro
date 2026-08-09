@@ -3,7 +3,6 @@ using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence.Auditing;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Infrastructure.Persistence.Context;
-using ABP.Infrastructure.Persistence.Temporary;
 using ABP.Infrastructure.Persistence.Repositories;
 using ABP.Infrastructure.Persistence.Security;
 using Microsoft.EntityFrameworkCore;
@@ -40,17 +39,13 @@ namespace ABP.Infrastructure.Persistence
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<ICreditCardRepository, CreditCardRepository>();
-            services.AddScoped<ICvcHasherService, CvcHasherService>();            services.AddScoped<IUserRepository, UserRepository>();
-
-            #endregion
-
-            #region TEMPORAL - Contratos de P2 pendientes de implementación por su propietario.
-            // Al entregar P2: eliminar las siguientes líneas y registrar sus implementaciones reales.
-            services.AddScoped<IFinancialIdentifierGenerator, FinancialIdentifierGenerator>();
-            services.AddScoped<IPrimaryAccountProvisioner, PrimaryAccountProvisioner>();
+            services.AddScoped<ICvcHasherService, CvcHasherService>();
+            services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<ISavingsAccountRepository, SavingsAccountRepository>();
-            services.AddScoped<IAccountBalanceService, AccountBalanceService>();
-            services.AddScoped<IAccountLedger, AccountLedger>();
+            services.AddScoped<IAccountTransactionRepository, AccountTransactionRepository>();
+            services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
+            services.AddScoped<IFinancialIdentifierGenerator, ABP.Infrastructure.Persistence.Temporary.FinancialIdentifierGenerator>();
+
             #endregion
 
             services.AddSingleton<IValidateOptions<CvcHasherOptions>, CvcHasherOptionsValidator>();

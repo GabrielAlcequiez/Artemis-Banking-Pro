@@ -7,6 +7,8 @@ using ABP.Application.Features.CreditCards.Services.Interfaces;
 using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using ABP.Application.Features.Accounts.Services.Interfaces;
+using ABP.Application.Features.Accounts.Services;
 
 namespace ABP.Application
 {
@@ -20,6 +22,15 @@ namespace ABP.Application
             services.AddScoped<ICreditCardService, CreditCardService>();
             services.AddScoped<ICardDebtReaderService, CardDebtReaderService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
+
+
+            services.AddScoped<IAccountBalanceService, AccountBalanceService>();
+            services.AddScoped<IAccountLedger, AccountLedger>();
+            services.AddScoped<IMoneyTransferService, MoneyTransferService>();
+            services.AddScoped<IPrimaryAccountProvisioner, PrimaryAccountProvisioner>();
+            services.AddScoped<IBeneficiaryService, BeneficiaryService>();
+            services.AddScoped<IAccountsMetricsReader, AccountsMetricsReader>();
+            services.AddScoped<ITransactionsMetricsReader, TransactionsMetricsReader>();
 
             // Other services here
 
