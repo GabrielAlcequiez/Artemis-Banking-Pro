@@ -254,6 +254,7 @@ opt.Events = new JwtBearerEvents()
             #endregion
 
             services.AddScoped<IBaseAccountService, BaseAccountService>();
+            services.AddScoped<IAccountTokenService, AccountTokenService>();
             services.AddScoped<IAccountServiceForWebApi, AccountServiceForWebApi>();
             services.AddScoped<IJwtTokenService, JwtTokenService>();
         }

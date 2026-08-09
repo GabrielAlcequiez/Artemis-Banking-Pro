@@ -40,6 +40,7 @@ namespace ABP.Infrastructure.Persistence
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IAccountTokenRepository, AccountTokenRepository>();
 
             #endregion
 
