@@ -5,6 +5,8 @@ using ABP.Application.Features.CreditCards.Services.Implementations;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using ABP.Application.Features.Accounts.Services.Interfaces;
+using ABP.Application.Features.Accounts.Services;
 
 namespace ABP.Application
 {
