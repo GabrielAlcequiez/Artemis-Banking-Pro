@@ -604,7 +604,14 @@ Construir la plataforma compartida y los flujos de identidad para que los demás
 - `PATCH /api/users/{id}/status`
 - `GET /api/users/{id}`
 
-Todos los casos de API se implementan como Commands/Queries con MediatR y validators FluentValidation.
+> **Excepción CQRS (requisito académico):** el API de gestión de usuarios y seguridad
+> (P1: `AccountController` y `UsersController`) NO usa Commands/Queries MediatR.
+> Se implementa con Controllers delgados que despachan hacia `IBaseAccountService`
+> (servicios tradicionales de Application), usando los DTOs compartidos de
+> `ABP.Application/Common/DTOs/Users` como modelos de request/response y
+> FluentValidation ejecutada dentro del servicio. Los módulos P2-P4 conservan CQRS + MediatR.
+
+Todos los demás casos de API (P2-P4) se implementan como Commands/Queries con MediatR y validators FluentValidation.
 
 ### Integraciones que debe coordinar
 

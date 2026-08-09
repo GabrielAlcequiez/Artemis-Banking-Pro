@@ -1,0 +1,37 @@
+using System;
+using System.Collections.Generic;
+using ABP.Application.Common.DTOs.Users;
+using ABP.Domain.Entities;
+using ABP.Domain.Enums;
+using AutoMapper;
+
+namespace ABP.Application.Mappings
+{
+    public class UserProfile : Profile
+    {
+        public UserProfile()
+        {
+            // 1. CreateUserDto -> User
+            CreateMap<CreateUserDto, User>()
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.FirstName))
+                .ForMember(dest => dest.Role, opt => opt.MapFrom(src => Enum.Parse<Roles>(src.Role)));
+
+            // 2. EditUserDto -> User
+            CreateMap<EditUserDto, User>()
+                .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.FirstName));
+
+            // 3. User -> GetUserDto
+            CreateMap<User, GetUserDto>()
+                .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.Name))
+                .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.Role.ToString()));
+
+            // 4. User -> LoginResponseDto
+            CreateMap<User, LoginResponseDto>()
+                .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.UserName))
+                .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.Name))
+                .ForMember(dest => dest.IsVerified, opt => opt.MapFrom(src => src.IsActive))
+                .ForMember(dest => dest.Roles, opt => opt.MapFrom(src => new List<string> { src.Role.ToString() }));
+
+        }
+    }
+}

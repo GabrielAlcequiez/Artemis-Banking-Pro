@@ -1,9 +1,15 @@
+using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Domain.Interfaces;
+using ABP.Infrastructure.Persistence.Auditing;
+using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Infrastructure.Persistence.Context;
+using ABP.Infrastructure.Persistence.Temporary;
+using ABP.Infrastructure.Persistence.Repositories;
+using ABP.Infrastructure.Persistence.Security;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
-using ABP.Domain.Interfaces;
-using ABP.Infrastructure.Persistence.Repositories;
+using Microsoft.Extensions.Options;
 
 namespace ABP.Infrastructure.Persistence
 {
@@ -12,20 +18,16 @@ namespace ABP.Infrastructure.Persistence
         public static void AddInfrastructurePersistence(this IServiceCollection services, IConfiguration config)
         {
             #region Context
-            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            var isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
-
             string connectionString = config.GetConnectionString("DefaultConnection") ?? string.Empty;
 
+            services.AddScoped<AuditTimestampInterceptor>();
             services.AddDbContext<AppDbContext>((serviceProvider, opt) =>
             {
-                if (isDevelopment)
-                {
-                    opt.EnableSensitiveDataLogging();
-                }
                 opt.UseSqlServer(
                     connectionString,
                     m => m.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
+                opt.AddInterceptors(
+                    serviceProvider.GetRequiredService<AuditTimestampInterceptor>());
             },
             contextLifetime: ServiceLifetime.Scoped,
             optionsLifetime: ServiceLifetime.Scoped);
@@ -37,11 +39,20 @@ namespace ABP.Infrastructure.Persistence
                 typeof(GenericRepository<,>));
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<ICreditCardRepository, CreditCardRepository>();
+            services.AddScoped<ICvcHasherService, CvcHasherService>();            services.AddScoped<IUserRepository, UserRepository>();
+
+            #endregion
             services.AddScoped<ISavingsAccountRepository, SavingsAccountRepository>();
             services.AddScoped<IAccountTransactionRepository, AccountTransactionRepository>();
             services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
 
             #endregion
+
+            services.AddSingleton<IValidateOptions<CvcHasherOptions>, CvcHasherOptionsValidator>();
+            services.AddOptions<CvcHasherOptions>()
+                .Bind(config.GetSection(CvcHasherOptions.SectionName))
+                .ValidateOnStart();
         }
     }
 }
