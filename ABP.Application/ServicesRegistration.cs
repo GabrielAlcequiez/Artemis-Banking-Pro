@@ -1,9 +1,11 @@
 using System.Reflection;
+using ABP.Application.Behaviors;
 using ABP.Application.Common.Services.Interfaces;
 using ABP.Application.Common.Services.Implementations;
 using ABP.Application.Features.CreditCards.Services.Implementations;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using FluentValidation;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.Accounts.Services;
@@ -28,6 +30,9 @@ namespace ABP.Application
             #region Validators
 
             services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+
+            // pipeline behaviors
+            services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
             #endregion
 
