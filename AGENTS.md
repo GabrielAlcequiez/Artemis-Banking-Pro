@@ -26,6 +26,10 @@
   mediante `ISender`. FluentValidation se ejecuta mediante MediatR Behaviors.
 - WebApp MVC: servicios tradicionales de Application y ViewModels; no debe
   despachar Commands/Queries mediante MediatR.
+- **Doble Orquestación por Requisito Académico**: Coexisten dos formas de implementar los casos de uso en `ABP.Application`:
+  - **`ABP.WebApi` (CQRS + MediatR)**: Controllers delgados despachan `Commands`/`Queries` mediante `ISender`. FluentValidation se ejecuta mediante MediatR `ValidationBehavior`.
+  - **`ABP.WebApp` (Servicios Tradicionales MVC)**: Controllers consumen exclusivamente servicios de aplicación tradicional (`Features/{Feature}/Services/`) y ViewModels. Está estrictamente prohibido usar MediatR o despachar Commands/Queries en WebApp.
+  - **Independencia**: Servicios MVC y Handlers CQRS son implementaciones paralelas. Comparten DTOs y reglas de Dominio, pero no se llaman entre sí.
 - AutoMapper mediante Profiles, con prueba de configuración.
 - Swagger/OpenAPI, Problem Details y manejo global de excepciones.
 - Serilog para diagnóstico y auditoría; nunca registrar secretos, contraseñas,
@@ -51,11 +55,17 @@ Tests        -> proyecto bajo prueba
 
 - `ABP.Domain` no depende de ASP.NET Identity, EF Core, JWT, SMTP, Serilog ni
   detalles de infraestructura.
-- Organiza Application por vertical en `Features/{Feature}` con `Commands`,
-  `Queries`, `Services`, `DTOs` y `Validation` cuando correspondan.
-- Reutiliza validadores DTO entre servicios MVC y Commands; no dupliques reglas
-  de validación. Usa repositorios/servicios genéricos solo para CRUD sencillo;
-  los flujos financieros requieren servicios especializados.
+- **Estructura Interna por Vertical en `ABP.Application/Features/{Feature}/`**:
+  - `Commands/`: Command, CommandHandlers y CommandValidators (CQRS para WebApi).
+  - `Queries/`: Query y QueryHandlers (CQRS para WebApi).
+  - `Services/`: Interfaces (`Interfaces/`) e Implementaciones (`Implementations/`) para Servicios Tradicionales (exclusivo para WebApp MVC).
+  - `DTOs/`: Data Transfer Objects compartidos.
+  - `Validation/`: Validadores base de FluentValidation para DTOs (`{Dto}Validator.cs`). Nombre estandarizado (no usar `Validators/`).
+- **Estrategia de Validación Compartida (Sin duplicar reglas)**:
+  - Las reglas de validación residen en los validadores DTO dentro de `Validation/`.
+  - **En CQRS (WebApi)**: El `CommandValidator` reutiliza el validador del DTO mediante `SetValidator(...)` y MediatR `ValidationBehavior` lo ejecuta automáticamente.
+  - **En Servicios Tradicionales (WebApp MVC)**: El servicio inyecta `IValidator<TDto>` y ejecuta `await _validator.ValidateAndThrowAsync(dto, cancellationToken)`.
+- Usa repositorios/servicios genéricos solo para CRUD sencillo; los flujos financieros requieren servicios y handlers especializados.
 - Mantén las reglas de negocio en Domain/Application, no en Controllers ni
   Views. Respeta la propiedad vertical y usa contratos/fakes para integraciones
   entre módulos.
