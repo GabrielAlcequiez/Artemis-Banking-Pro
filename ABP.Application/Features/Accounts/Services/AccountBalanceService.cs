@@ -1,5 +1,4 @@
 using ABP.Application.Common;
-using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -7,26 +6,20 @@ using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.Accounts.Services
 {
-    /// <summary>
-    /// Applies a single debit or credit to one savings account. The entity is a
-    /// plain data model, so the balance/status rules live here, not on the entity.
-    /// </summary>
+    
     public sealed class AccountBalanceService : IAccountBalanceService
     {
         private readonly ISavingsAccountRepository _accounts;
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IClock _clock;
         private readonly ILogger<AccountBalanceService> _logger;
 
         public AccountBalanceService(
             ISavingsAccountRepository accounts,
             IUnitOfWork unitOfWork,
-            IClock clock,
             ILogger<AccountBalanceService> logger)
         {
             _accounts = accounts;
             _unitOfWork = unitOfWork;
-            _clock = clock;
             _logger = logger;
         }
 
@@ -57,7 +50,6 @@ namespace ABP.Application.Features.Accounts.Services
             }
 
             account.Balance += amount;
-            account.ApplyModification(_clock.UtcNow, null);
 
             await _accounts.UpdateAsync(account.Id, account, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -106,7 +98,6 @@ namespace ABP.Application.Features.Accounts.Services
             }
 
             account.Balance -= amount;
-            account.ApplyModification(_clock.UtcNow, null);
 
             await _accounts.UpdateAsync(account.Id, account, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

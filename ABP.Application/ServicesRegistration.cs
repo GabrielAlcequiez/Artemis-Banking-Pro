@@ -24,13 +24,13 @@ namespace ABP.Application
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
 
 
-            //services.AddScoped<Features.Accounts.Services.Interfaces.IAccountBalanceService, Features.Accounts.Services.AccountBalanceService>();
-            //services.AddScoped<Features.Accounts.Services.Interfaces.IAccountLedger, Features.Accounts.Services.AccountLedger>();
-            //services.AddScoped<Features.Accounts.Services.Interfaces.IMoneyTransferService, Features.Accounts.Services.MoneyTransferService>();
-            //services.AddScoped<Features.Accounts.Services.Interfaces.IPrimaryAccountProvisioner, Features.Accounts.Services.PrimaryAccountProvisioner>();
-            //services.AddScoped<Features.Accounts.Services.Interfaces.IBeneficiaryService, Features.Accounts.Services.BeneficiaryService>();
-            //services.AddScoped<Features.Accounts.Services.Interfaces.IAccountsMetricsReader, Features.Accounts.Services.AccountsMetricsReader>();
-            //services.AddScoped<Features.Accounts.Services.Interfaces.ITransactionsMetricsReader, Features.Accounts.Services.TransactionsMetricsReader>();
+            services.AddScoped<IAccountBalanceService, AccountBalanceService>();
+            services.AddScoped<IAccountLedger, AccountLedger>();
+            services.AddScoped<IMoneyTransferService, MoneyTransferService>();
+            services.AddScoped<IPrimaryAccountProvisioner, PrimaryAccountProvisioner>();
+            services.AddScoped<IBeneficiaryService, BeneficiaryService>();
+            services.AddScoped<IAccountsMetricsReader, AccountsMetricsReader>();
+            services.AddScoped<ITransactionsMetricsReader, TransactionsMetricsReader>();
 
             // Other services here
 

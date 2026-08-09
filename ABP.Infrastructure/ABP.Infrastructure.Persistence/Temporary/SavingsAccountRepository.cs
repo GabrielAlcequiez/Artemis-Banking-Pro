@@ -24,6 +24,26 @@ namespace ABP.Infrastructure.Persistence.Temporary
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
+        public IQueryable<SavingsAccount> GetAllQueryable(bool trackChanges = false)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IReadOnlyList<SavingsAccount>> GetAllAsync(bool trackChanges = false, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<SavingsAccount?> UpdateAsync(Guid id, SavingsAccount value, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<SavingsAccount?> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<SavingsAccount?> GetByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
@@ -51,7 +71,7 @@ namespace ABP.Infrastructure.Persistence.Temporary
             throw new NotImplementedException();
         }
 
-        public Task AddAsync(SavingsAccount account, CancellationToken cancellationToken = default)
+        public Task<SavingsAccount> AddAsync(SavingsAccount account, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }

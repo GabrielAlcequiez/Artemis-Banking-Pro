@@ -1,4 +1,3 @@
-using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Entities.Accounts;
 using ABP.Domain.Enums;
@@ -12,18 +11,15 @@ namespace ABP.Application.Features.Accounts.Services
     {
         private readonly IAccountTransactionRepository _transactions;
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IClock _clock;
         private readonly ILogger<AccountLedger> _logger;
 
         public AccountLedger(
             IAccountTransactionRepository transactions,
             IUnitOfWork unitOfWork,
-            IClock clock,
             ILogger<AccountLedger> logger)
         {
             _transactions = transactions;
             _unitOfWork = unitOfWork;
-            _clock = clock;
             _logger = logger;
         }
 
@@ -45,7 +41,6 @@ namespace ABP.Application.Features.Accounts.Services
                 ActorUserId = actorUserId,
                 ActorRole = actorRole
             };
-            entry.ApplyAudit(_clock.UtcNow, actorUserId);
 
             await _transactions.AddAsync(entry, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -72,7 +67,6 @@ namespace ABP.Application.Features.Accounts.Services
                 ActorUserId = actorUserId,
                 ActorRole = actorRole
             };
-            entry.ApplyAudit(_clock.UtcNow, actorUserId);
 
             await _transactions.AddAsync(entry, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -1,5 +1,4 @@
 using ABP.Application.Common;
-using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.DTOs;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Entities;
@@ -15,7 +14,6 @@ namespace ABP.Application.Features.Accounts.Services
         private readonly ISavingsAccountRepository _accounts;
         private readonly IGenericRepository<User, string> _users;
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IClock _clock;
         private readonly ILogger<BeneficiaryService> _logger;
 
         public BeneficiaryService(
@@ -23,14 +21,12 @@ namespace ABP.Application.Features.Accounts.Services
             ISavingsAccountRepository accounts,
             IGenericRepository<User, string> users,
             IUnitOfWork unitOfWork,
-            IClock clock,
             ILogger<BeneficiaryService> logger)
         {
             _beneficiaries = beneficiaries;
             _accounts = accounts;
             _users = users;
             _unitOfWork = unitOfWork;
-            _clock = clock;
             _logger = logger;
         }
 
@@ -91,7 +87,6 @@ namespace ABP.Application.Features.Accounts.Services
                 OwnerUserId = request.OwnerUserId,
                 BeneficiaryAccountId = account.Id
             };
-            beneficiary.ApplyAudit(_clock.UtcNow, request.OwnerUserId);
 
             await _beneficiaries.AddAsync(beneficiary, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -8,6 +8,7 @@
     <Project Path="tests/ABP.Domain.UnitTests/ABP.Domain.UnitTests.csproj" />
     <Project Path="tests/ABP.Infrastructure.IntegrationTests/ABP.Infrastructure.IntegrationTests.csproj" />
     <Project Path="tests/ABP.Shared.UnitTests/ABP.Shared.UnitTests.csproj" />
+    <Project Path="tests/ABP.TestDoubles/ABP.TestDoubles.csproj" />
     <Project Path="tests/ABP.WebApi.IntegrationTests/ABP.WebApi.IntegrationTests.csproj" />
     <Project Path="tests/ABP.WebApp.IntegrationTests/ABP.WebApp.IntegrationTests.csproj" />
   </Folder>

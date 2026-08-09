@@ -1,5 +1,4 @@
 using ABP.Application.Common;
-using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Entities.Accounts;
 using ABP.Domain.Enums;
@@ -15,7 +14,6 @@ namespace ABP.Application.Features.Accounts.Services
         private readonly IFinancialIdentifierGenerator _identifierGenerator;
         private readonly IAccountLedger _ledger;
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IClock _clock;
         private readonly ILogger<PrimaryAccountProvisioner> _logger;
 
         public PrimaryAccountProvisioner(
@@ -23,14 +21,12 @@ namespace ABP.Application.Features.Accounts.Services
             IFinancialIdentifierGenerator identifierGenerator,
             IAccountLedger ledger,
             IUnitOfWork unitOfWork,
-            IClock clock,
             ILogger<PrimaryAccountProvisioner> logger)
         {
             _accounts = accounts;
             _identifierGenerator = identifierGenerator;
             _ledger = ledger;
             _unitOfWork = unitOfWork;
-            _clock = clock;
             _logger = logger;
         }
 
@@ -64,8 +60,6 @@ namespace ABP.Application.Features.Accounts.Services
                 Status = SavingsAccountStatus.Active,
                 Balance = initialBalance
             };
-            // No hay interceptor global de auditoría: hay que setear CreatedAtUtc a mano.
-            account.ApplyAudit(_clock.UtcNow, actorUserId);
 
             await _accounts.AddAsync(account, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
