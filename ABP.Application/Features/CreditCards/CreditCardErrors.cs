@@ -27,5 +27,9 @@ namespace ABP.Application.Features.CreditCards
         public static readonly Error NumberGenerationFailed = new(
             "CreditCards.NumberGenerationFailed",
             "A unique credit card number could not be generated.");
+
+        public static readonly Error AdministratorRequired = new(
+            "CreditCards.AdministratorRequired",
+            "An authenticated administrator is required to assign a credit card.");
     }
 }

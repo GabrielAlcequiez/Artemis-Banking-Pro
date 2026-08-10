@@ -478,7 +478,7 @@ ILoansMetricsReader
 
 ```csharp
 ICreditCardRepository
-ICvcHasherService
+ICvcService
 ICardPaymentService
 ICashAdvanceService
 ICardDebtReaderService
@@ -511,7 +511,7 @@ Estas interfaces se ubican en Application. Cada consumidor puede usar mocks hast
 6. **Concurrencia:** `rowversion`/optimistic concurrency en cuentas, préstamos, tarjetas y comercios; revalidar saldo/deuda dentro de la transacción.
 7. **Notificaciones:** Gmail SMTP con App Password almacenado en .NET User Secrets; el envío se implementará mediante Outbox para que un fallo de correo nunca revierta la operación financiera.
 8. **Identificadores de 9 dígitos:** registro central con índice único para impedir colisiones entre cuentas y préstamos.
-9. **CVC:** `ICvcHasherService`; usar HMAC-SHA-256 con secreto externo o mecanismo equivalente seguro, sin retornar ni registrar dato/hash.
+9. **CVC:** `ICvcService` centraliza la generación, el hash y la verificación del CVC mediante `Generate`, `Hash` y `Verify`. Debe usar HMAC-SHA-256 con secreto externo o un mecanismo equivalente seguro, sin retornar ni registrar el CVC ni su hash. El nombre sustituye al contrato preliminar `ICvcHasherService`, ya que la responsabilidad acordada también incluye generar y verificar el CVC.
 10. **Tokens:** su implementación y persistencia se abordarán en el Sprint de Identity; deben cumplir activación de un solo uso y reset con vigencia máxima de 30 minutos.
 11. **Idempotencia:** POST financieros y confirmaciones MVC reciben un `OperationId`/`Idempotency-Key` para impedir doble cargo por reintentos o doble clic.
 12. **Transacciones rechazadas:** registrar intento solo cuando existe un producto origen identificable, sin cambiar balances/deudas.

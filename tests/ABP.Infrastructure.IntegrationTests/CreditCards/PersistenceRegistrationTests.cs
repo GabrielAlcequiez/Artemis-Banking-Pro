@@ -13,7 +13,7 @@ namespace ABP.Infrastructure.IntegrationTests.CreditCards;
 public sealed class PersistenceRegistrationTests
 {
     [Fact]
-    public void Persistence_registers_the_credit_card_repository_and_cvc_hasher()
+    public void Persistence_registers_the_credit_card_repository_and_cvc_service()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -36,8 +36,8 @@ public sealed class PersistenceRegistrationTests
 
         Assert.IsType<CreditCardRepository>(
             provider.GetRequiredService<ICreditCardRepository>());
-        Assert.IsType<CvcHasherService>(
-            provider.GetRequiredService<ICvcHasherService>());
+        Assert.IsType<CvcService>(
+            provider.GetRequiredService<ICvcService>());
     }
 
     [Theory]
