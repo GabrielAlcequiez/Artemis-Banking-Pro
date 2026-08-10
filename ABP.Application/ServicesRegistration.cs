@@ -22,6 +22,7 @@ namespace ABP.Application
 
             services.AddScoped(typeof(IGenericService<,,>), typeof(GenericService<,,>));
             services.AddScoped<ICreditCardService, CreditCardService>();
+            services.AddScoped<ICreditCardClientSelectionService, CreditCardClientSelectionService>();
             services.AddScoped<ICardDebtReaderService, CardDebtReaderService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
             services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
