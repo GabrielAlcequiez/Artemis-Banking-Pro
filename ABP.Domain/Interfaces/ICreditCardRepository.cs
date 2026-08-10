@@ -27,6 +27,10 @@ public interface ICreditCardRepository : IGenericRepository<CreditCard, Guid>
         string clientId,
         CancellationToken cancellationToken = default);
 
+    Task<bool> ClientExistsAsync(
+        string clientId,
+        CancellationToken cancellationToken = default);
+
     Task<CreditCard?> GetForUpdateAsync(
         Guid creditCardId,
         CancellationToken cancellationToken = default);

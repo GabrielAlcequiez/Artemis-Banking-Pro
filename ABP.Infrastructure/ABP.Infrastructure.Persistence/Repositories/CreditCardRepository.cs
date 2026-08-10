@@ -203,6 +203,7 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
             summary.CurrentDebt,
             summary.ExpirationDate,
             summary.Status,
+            summary.CreatedAt,
             consumptions);
     }
 
@@ -232,6 +233,17 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
                     user.Id == clientId &&
                     user.Role == Roles.Client &&
                     user.IsActive,
+                cancellationToken);
+    }
+
+    public Task<bool> ClientExistsAsync(
+        string clientId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.Users
+            .AsNoTracking()
+            .AnyAsync(
+                user => user.Id == clientId && user.Role == Roles.Client,
                 cancellationToken);
     }
 
