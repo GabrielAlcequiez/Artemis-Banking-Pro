@@ -1,0 +1,44 @@
+@{
+    Layout = "_Layout";
+}
+
+<div class="min-h-screen bg-surface-muted">
+    <aside class="app-sidebar" aria-label="Navegación principal">
+        <div class="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-hover px-4">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-sidebar">
+                <partial name="Partials/_Icon" model='"landmark"' />
+            </span>
+            <span class="sidebar-label text-sm font-semibold text-white">Artemis Banking</span>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto px-3 py-4">
+            <ul class="flex flex-col gap-1">
+                @RenderSection("SidebarItems", required: false)
+            </ul>
+        </nav>
+
+        <div class="shrink-0 space-y-1 border-t border-sidebar-hover px-3 py-3">
+            <button type="button" class="sidebar-item w-full" data-sidebar-toggle title="Contraer menú"
+                    aria-expanded="true">
+                <partial name="Partials/_Icon" model='"panel-left-close"' />
+                <span class="sidebar-label">Contraer menú</span>
+            </button>
+            @* Pendiente: apuntar al endpoint real de logout cuando exista el módulo de autenticación. *@
+            <a asp-controller="Account" asp-action="Logout" class="sidebar-item" title="Cerrar sesión">
+                <partial name="Partials/_Icon" model='"log-out"' />
+                <span class="sidebar-label">Cerrar sesión</span>
+            </a>
+        </div>
+    </aside>
+
+    <div class="app-main">
+        <partial name="Partials/_Topbar" />
+        <main class="flex-1 p-6">
+            @RenderBody()
+        </main>
+    </div>
+</div>
+
+@section Scripts {
+    @await RenderSectionAsync("Scripts", required: false)
+}
