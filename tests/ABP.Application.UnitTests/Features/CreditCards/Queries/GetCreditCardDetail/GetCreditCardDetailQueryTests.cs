@@ -81,6 +81,7 @@ public sealed class GetCreditCardDetailQueryTests
             150m,
             new DateOnly(2029, 8, 31),
             CreditCardStatus.Active,
+            new DateTimeOffset(2026, 8, 5, 10, 0, 0, TimeSpan.Zero),
             [new CardConsumptionReadModel(
                 Guid.NewGuid(),
                 new DateTimeOffset(2026, 8, 5, 12, 0, 0, TimeSpan.Zero),
@@ -93,6 +94,11 @@ public sealed class GetCreditCardDetailQueryTests
         public CreditCardDetailReadModel? Detail { get; init; }
 
         public Guid? ReceivedCreditCardId { get; private set; }
+
+        public Task<bool> ClientExistsAsync(
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
 
         public Task<CreditCardDetailReadModel?> GetDetailsAsync(
             Guid creditCardId,
