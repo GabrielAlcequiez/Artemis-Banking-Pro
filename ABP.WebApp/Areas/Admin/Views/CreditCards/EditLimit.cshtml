@@ -1,0 +1,37 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.CreditCards.EditCreditLimitViewModel
+@{
+    ViewData["Title"] = "Editar límite de tarjeta";
+}
+
+<div class="mx-auto max-w-2xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Details" asp-route-id="@Model.CreditCardId">← Volver al detalle</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Editar límite de crédito</h1>
+        <p class="mt-1 font-mono text-sm text-ink-muted">@Model.MaskedCardNumber</p>
+    </div>
+
+    <div class="alert border-warning/30 bg-warning/10 text-warning" role="note">
+        El nuevo límite debe ser mayor que cero y no puede ser inferior a la deuda actual de
+        <strong class="tnum">RD$ @Model.CurrentDebt.ToString("N2")</strong>.
+    </div>
+
+    <form asp-action="EditLimit" method="post" class="card space-y-5 p-5" novalidate>
+        @Html.AntiForgeryToken()
+        <input asp-for="CreditCardId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger empty:hidden" role="alert"></div>
+
+        <div>
+            <label asp-for="CreditLimit" class="mb-1 block text-sm font-medium text-ink-soft">Nuevo límite de crédito</label>
+            <div class="relative">
+                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-ink-muted">RD$</span>
+                <input asp-for="CreditLimit" class="input pl-12 tnum" type="number" min="0.01" step="0.01" inputmode="decimal" />
+            </div>
+            <span asp-validation-for="CreditLimit" class="mt-1 block text-sm text-danger"></span>
+        </div>
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <a class="btn btn-ghost" asp-action="Details" asp-route-id="@Model.CreditCardId">Volver atrás</a>
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+    </form>
+</div>

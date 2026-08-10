@@ -8,11 +8,11 @@ namespace ABP.Application.Features.CreditCards.Validation
         {
             RuleFor(request => request.ClientId)
                 .NotEmpty()
-                .WithMessage("ClientId is required.");
+                .WithMessage("El cliente seleccionado es requerido.");
 
             RuleFor(request => request.CreditLimit)
                 .GreaterThan(0m)
-                .WithMessage("CreditLimit must be greater than zero.");
+                .WithMessage("El límite de crédito debe ser mayor que cero.");
         }
     }
 }

@@ -1,0 +1,30 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.CreditCards.CancelCreditCardViewModel
+@{
+    ViewData["Title"] = "Cancelar tarjeta";
+}
+
+<div class="mx-auto max-w-xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Details" asp-route-id="@Model.CreditCardId">← Volver al detalle</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Cancelar tarjeta de crédito</h1>
+    </div>
+
+    <section class="card space-y-5 p-6">
+        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-danger/10 text-danger" aria-hidden="true">!</div>
+        <div>
+            <h2 class="text-lg font-semibold text-ink">¿Está seguro que desea cancelar la tarjeta @Model.LastFourDigits?</h2>
+            <p class="mt-2 text-sm text-ink-muted">
+                La tarjeta permanecerá en el historial, pero no podrá utilizarse para nuevos consumos o avances.
+            </p>
+        </div>
+
+        <div asp-validation-summary="All" class="alert alert-danger empty:hidden" role="alert"></div>
+
+        <form asp-action="Cancel" method="post" class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            @Html.AntiForgeryToken()
+            <input asp-for="CreditCardId" type="hidden" />
+            <a class="btn btn-ghost" asp-action="Details" asp-route-id="@Model.CreditCardId">No, volver atrás</a>
+            <button type="submit" class="btn border border-danger bg-danger text-white hover:opacity-90">Sí, cancelar tarjeta</button>
+        </form>
+    </section>
+</div>
