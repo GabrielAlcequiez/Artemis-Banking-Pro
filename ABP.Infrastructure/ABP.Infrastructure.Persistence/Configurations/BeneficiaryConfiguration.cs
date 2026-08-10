@@ -1,4 +1,3 @@
-using ABP.Domain.Entities;
 using ABP.Domain.Entities.Accounts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

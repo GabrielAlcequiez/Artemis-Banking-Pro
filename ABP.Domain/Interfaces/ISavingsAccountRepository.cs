@@ -3,9 +3,8 @@ using ABP.Domain.Entities.Accounts;
 
 namespace ABP.Domain.Interfaces;
 
-public interface ISavingsAccountRepository
+public interface ISavingsAccountRepository : IGenericRepository<SavingsAccount, Guid>
 {
-    Task<SavingsAccount?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<SavingsAccount?> GetByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken = default);
 
@@ -17,7 +16,5 @@ public interface ISavingsAccountRepository
         Domain.Enums.SavingsAccountType? type = null,
         CancellationToken cancellationToken = default);
 
-    Task AddAsync(SavingsAccount account, CancellationToken cancellationToken = default);
-
-    void Update(SavingsAccount account);
+  
 }

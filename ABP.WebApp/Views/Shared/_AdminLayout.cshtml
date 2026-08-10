@@ -1,0 +1,17 @@
+@{
+    Layout = "_AppLayout";
+}
+
+@section SidebarItems {
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Home", Icon = "home", Area = "Admin", Controller = "Home", Action = "Index" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Gestión de usuarios", Icon = "users", Area = "Admin", Controller = "Users", Action = "Index" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Gestión de préstamos", Icon = "landmark", Area = "Admin", Controller = "Loans", Action = "Index" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Gestión de tarjetas de crédito", Icon = "credit-card", Area = "Admin", Controller = "CreditCards", Action = "Index" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Gestión de cuentas de ahorro", Icon = "piggy-bank", Area = "Admin", Controller = "SavingsAccounts", Action = "Index" }' />
+}
+
+@RenderBody()
+
+@section Scripts {
+    @await RenderSectionAsync("Scripts", required: false)
+}

@@ -28,6 +28,7 @@ public sealed class PersistenceRegistrationTests
 
         services.AddLogging();
         services.AddSingleton<IClock>(new StubClock());
+        services.AddSingleton<ICurrentUserService>(new StubCurrentUser());
         services.AddInfrastructurePersistence(configuration);
 
         using var provider = services.BuildServiceProvider();
@@ -81,6 +82,7 @@ public sealed class PersistenceRegistrationTests
 
         services.AddLogging();
         services.AddSingleton<IClock>(new StubClock());
+        services.AddSingleton<ICurrentUserService>(new StubCurrentUser());
         services.AddInfrastructurePersistence(configuration);
 
         return services.BuildServiceProvider();
@@ -93,5 +95,20 @@ public sealed class PersistenceRegistrationTests
         public DateTimeOffset Now => UtcNow;
 
         public DateOnly Today => DateOnly.FromDateTime(UtcNow.UtcDateTime);
+    }
+
+    private sealed class StubCurrentUser : ICurrentUserService
+    {
+        public bool IsAuthenticated => false;
+
+        public string? UserId => null;
+
+        public string? UserName => null;
+
+        public Guid? CommerceId => null;
+
+        public IReadOnlyCollection<string> Roles => [];
+
+        public bool IsInRole(string role) => false;
     }
 }

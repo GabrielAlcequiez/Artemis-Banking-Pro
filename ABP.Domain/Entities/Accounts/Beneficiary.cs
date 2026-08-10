@@ -1,6 +1,6 @@
 ﻿using ABP.Domain.Common;
 
-namespace ABP.Domain.Entities;
+namespace ABP.Domain.Entities.Accounts;
 
 public class Beneficiary : AuditableEntity<Guid>
 {

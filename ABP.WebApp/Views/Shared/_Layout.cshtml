@@ -1,13 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@ViewBag.Title</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(ViewData["Title"] is null ? "Artemis Banking" : $"{ViewData["Title"]} · Artemis Banking")</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/output.css" asp-append-version="true" />
+    <script>
+        // Restaura el estado del sidebar antes del primer paint para evitar parpadeo.
+        if (localStorage.getItem("abp-sidebar") === "collapsed") {
+            document.documentElement.dataset.sidebar = "collapsed";
+        }
+    </script>
 </head>
-<body>
-    <div>
-        @RenderBody()
-    </div>
+<body class="bg-surface font-sans text-ink antialiased">
+    @RenderBody()
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

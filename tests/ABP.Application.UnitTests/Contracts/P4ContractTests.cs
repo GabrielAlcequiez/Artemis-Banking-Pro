@@ -194,6 +194,12 @@ namespace ABP.Application.UnitTests.Contracts
 
             // CreateUserDto (CommerceId: Guid?)
             AssertProperty<CreateUserDto>("CommerceId", typeof(Guid?));
+
+            // TokenGenerationRequest (UserId: string, UserName: string, Role: string, CommerceId: Guid?)
+            AssertProperty<TokenGenerationRequest>("UserId", typeof(string));
+            AssertProperty<TokenGenerationRequest>("UserName", typeof(string));
+            AssertProperty<TokenGenerationRequest>("Role", typeof(string));
+            AssertProperty<TokenGenerationRequest>("CommerceId", typeof(Guid?));
         }
 
         private static void AssertProperty<T>(string propertyName, Type expectedType)

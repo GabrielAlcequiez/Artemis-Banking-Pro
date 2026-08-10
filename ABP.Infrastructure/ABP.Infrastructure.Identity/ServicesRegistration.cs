@@ -79,8 +79,8 @@ namespace ABP.Infrastructure.Identity
                 opt.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 opt.Cookie.SameSite = SameSiteMode.Lax;
                 opt.ExpireTimeSpan = TimeSpan.FromHours(2);
-                opt.LoginPath = "/Account/Login";
-                opt.AccessDeniedPath = "/Account/AccessDenied";
+                opt.LoginPath = "/Auth/Login";
+                opt.AccessDeniedPath = "/Auth/AccessDenied";
                 opt.SlidingExpiration = true;
 
                 opt.Events = new CookieAuthenticationEvents
@@ -254,6 +254,9 @@ opt.Events = new JwtBearerEvents()
             #endregion
 
             services.AddScoped<IBaseAccountService, BaseAccountService>();
+            services.AddScoped<IAccountTokenService, AccountTokenService>();
+            services.AddScoped<IAccountServiceForWebApi, AccountServiceForWebApi>();
+            services.AddScoped<IJwtTokenService, JwtTokenService>();
         }
 
         private static void GeneralContextConfiguration(IServiceCollection services, IConfiguration config)
