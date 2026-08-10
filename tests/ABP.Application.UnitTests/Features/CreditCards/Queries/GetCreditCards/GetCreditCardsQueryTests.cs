@@ -181,6 +181,11 @@ public sealed class GetCreditCardsQueryTests
 
         public string? ReceivedIdentification { get; private set; }
 
+        public Task<bool> ClientExistsAsync(
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<string?> FindClientIdByIdentificationAsync(
             string identification,
             CancellationToken cancellationToken = default)

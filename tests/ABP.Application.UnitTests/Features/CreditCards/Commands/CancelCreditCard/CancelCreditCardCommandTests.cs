@@ -128,6 +128,11 @@ public sealed class CancelCreditCardCommandTests
 
         public Guid? RequestedCreditCardId { get; private set; }
 
+        public Task<bool> ClientExistsAsync(
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<CreditCard?> GetForUpdateAsync(
             Guid creditCardId,
             CancellationToken cancellationToken = default)

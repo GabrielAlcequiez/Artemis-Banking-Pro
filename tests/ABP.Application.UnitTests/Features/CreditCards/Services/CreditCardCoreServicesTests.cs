@@ -125,6 +125,7 @@ public sealed class CreditCardCoreServicesTests
                 150m,
                 new DateOnly(2029, 8, 31),
                 CreditCardStatus.Active,
+                new DateTimeOffset(2026, 8, 5, 10, 0, 0, TimeSpan.Zero),
                 [new CardConsumptionReadModel(
                     Guid.NewGuid(),
                     new DateTimeOffset(2026, 8, 5, 12, 0, 0, TimeSpan.Zero),
@@ -221,8 +222,29 @@ public sealed class CreditCardCoreServicesTests
             new CreateCreditCardRequest("client-1", 5_000m));
 
         Assert.True(result.IsFailure);
-        Assert.Equal(CreditCardErrors.ClientNotEligible, result.Error);
+        Assert.Equal(CreditCardErrors.ClientInactive, result.Error);
         Assert.Equal(0, numberGenerator.GenerateCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Create_distinguishes_missing_client_from_inactive_client()
+    {
+        var repository = new FakeCreditCardRepository
+        {
+            ClientExists = false,
+            IsActiveClient = false
+        };
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(repository, unitOfWork);
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("missing-client", 5_000m));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.ClientNotFound, result.Error);
+        Assert.Equal(0, repository.IsActiveClientCalls);
         Assert.Equal(0, repository.AddCalls);
         Assert.Equal(0, unitOfWork.SaveCalls);
     }
@@ -505,6 +527,8 @@ public sealed class CreditCardCoreServicesTests
 
     private sealed class FakeCreditCardRepository : ICreditCardRepository
     {
+        public bool ClientExists { get; init; } = true;
+
         public string? ClientIdByIdentification { get; init; }
 
         public bool HasCards { get; init; } = true;
@@ -525,6 +549,11 @@ public sealed class CreditCardCoreServicesTests
         public int IsActiveClientCalls { get; private set; }
         public int AddCalls { get; private set; }
         public CreditCard? AddedCard { get; private set; }
+
+        public Task<bool> ClientExistsAsync(
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ClientExists);
 
         public Task<CreditCard?> GetByCardNumberAsync(string cardNumber, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
