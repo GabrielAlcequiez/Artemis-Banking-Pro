@@ -4,6 +4,8 @@ using ABP.Application.Common.Services.Interfaces;
 using ABP.Application.Common.Services.Implementations;
 using ABP.Application.Features.CreditCards.Services.Implementations;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Application.Features.Loans.Services.Implementations;
+using ABP.Application.Features.Loans.Services.Interfaces;
 using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +24,10 @@ namespace ABP.Application
             services.AddScoped<ICreditCardService, CreditCardService>();
             services.AddScoped<ICardDebtReaderService, CardDebtReaderService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
+            services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
+            services.AddScoped<ILoanDebtReader, LoanDebtReader>();
+            services.AddScoped<ILoanRateService, LoanRateService>();
+            services.AddScoped<ILoanDelinquencyService, LoanDelinquencyService>();
 
 
             services.AddScoped<IAccountBalanceService, AccountBalanceService>();
