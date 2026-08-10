@@ -1,0 +1,20 @@
+@{
+    Layout = "_AppLayout";
+}
+
+@section SidebarItems {
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Home", Icon = "home", Area = "Client", Controller = "Home", Action = "Index" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transacciones Express", Icon = "zap", Area = "Client", Controller = "Transactions", Action = "Express" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Pago tarjeta de crédito", Icon = "credit-card", Area = "Client", Controller = "Transactions", Action = "CreditCard" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Pago préstamo", Icon = "landmark", Area = "Client", Controller = "Transactions", Action = "Loan" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transacciones a beneficiarios", Icon = "send", Area = "Client", Controller = "Transactions", Action = "Beneficiary" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Beneficiarios", Icon = "users", Area = "Client", Controller = "Beneficiaries", Action = "Index" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Avance de efectivo", Icon = "banknote", Area = "Client", Controller = "CashAdvance", Action = "Index" }' />
+    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transferencia", Icon = "arrow-left-right", Area = "Client", Controller = "Transfers", Action = "Index" }' />
+}
+
+@RenderBody()
+
+@section Scripts {
+    @await RenderSectionAsync("Scripts", required: false)
+}

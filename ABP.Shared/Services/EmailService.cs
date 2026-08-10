@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using ABP.Application.GeneralDto;
-using ABP.Application.Interfaces.Services;
+using ABP.Application.Common.DTOs;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Domain.Settings;
 using MailKit.Net.Smtp;
 using MailKit.Security;

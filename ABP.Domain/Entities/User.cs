@@ -1,6 +1,6 @@
 using ABP.Domain.Common;
 using ABP.Domain.Entities.Accounts;
-using ABP.Domain.Entities.Cards;
+using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
 

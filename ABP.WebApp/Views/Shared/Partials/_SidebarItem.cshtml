@@ -1,0 +1,16 @@
+@model SidebarItemViewModel
+@{
+    var route = ViewContext.RouteData.Values;
+    var isActive =
+        string.Equals(route["controller"]?.ToString(), Model.Controller, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(route["action"]?.ToString(), Model.Action, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(route["area"]?.ToString(), Model.Area, StringComparison.OrdinalIgnoreCase);
+}
+<li>
+    <a asp-area="@Model.Area" asp-controller="@Model.Controller" asp-action="@Model.Action"
+       class="sidebar-item @(isActive ? "active" : null)" title="@Model.Text"
+       aria-current="@(isActive ? "page" : null)">
+        <partial name="Partials/_Icon" model="Model.Icon" />
+        <span class="sidebar-label">@Model.Text</span>
+    </a>
+</li>

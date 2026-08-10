@@ -1,8 +1,6 @@
 using System.Text;
 using ABP.Infrastructure.Identity.Context;
 using ABP.Infrastructure.Identity.Security;
-using ABP.Application.Interfaces.Identity;
-using ABP.Application.DTOs;
 using ABP.Domain.Enums;
 using ABP.Domain.Settings;
 using Microsoft.AspNetCore.Mvc;
@@ -18,10 +16,11 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
-using Newtonsoft.Json;
 using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
+using ABP.Application.Common.Interfaces.Identity;
+using ABP.Infrastructure.Identity.Services;
 
 namespace ABP.Infrastructure.Identity
 {
@@ -66,6 +65,8 @@ namespace ABP.Infrastructure.Identity
 
             services.AddSingleton(TimeProvider.System);
             services.AddScoped<IAccountTokenService, AccountTokenService>();
+            services.AddScoped<IBaseAccountService, BaseAccountService>();
+            services.AddScoped<IAccountServiceForWebApp, AccountServiceForWebApp>();
             
             services.AddAuthentication(opt =>
             {
@@ -78,8 +79,8 @@ namespace ABP.Infrastructure.Identity
                 opt.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 opt.Cookie.SameSite = SameSiteMode.Lax;
                 opt.ExpireTimeSpan = TimeSpan.FromHours(2);
-                opt.LoginPath = "/Account/Login";
-                opt.AccessDeniedPath = "/Account/AccessDenied";
+                opt.LoginPath = "/Auth/Login";
+                opt.AccessDeniedPath = "/Auth/AccessDenied";
                 opt.SlidingExpiration = true;
 
                 opt.Events = new CookieAuthenticationEvents
@@ -251,6 +252,11 @@ opt.Events = new JwtBearerEvents()
             });
 
             #endregion
+
+            services.AddScoped<IBaseAccountService, BaseAccountService>();
+            services.AddScoped<IAccountTokenService, AccountTokenService>();
+            services.AddScoped<IAccountServiceForWebApi, AccountServiceForWebApi>();
+            services.AddScoped<IJwtTokenService, JwtTokenService>();
         }
 
         private static void GeneralContextConfiguration(IServiceCollection services, IConfiguration config)
