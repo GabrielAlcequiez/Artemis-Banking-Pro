@@ -38,6 +38,16 @@ public sealed class CreateCreditCardCommandHandler(
                 CreditCardErrors.AdministratorRequired);
         }
 
+        var clientExists = await repository.ClientExistsAsync(
+            request.ClientId,
+            cancellationToken);
+
+        if (!clientExists)
+        {
+            return OperationResult<Guid>.Failure(
+                CreditCardErrors.ClientNotFound);
+        }
+
         var isActiveClient = await repository.IsActiveClientAsync(
             request.ClientId,
             cancellationToken);
@@ -45,7 +55,7 @@ public sealed class CreateCreditCardCommandHandler(
         if (!isActiveClient)
         {
             return OperationResult<Guid>.Failure(
-                CreditCardErrors.ClientNotEligible);
+                CreditCardErrors.ClientInactive);
         }
 
         var cardNumber = await GenerateUniqueCardNumberAsync(

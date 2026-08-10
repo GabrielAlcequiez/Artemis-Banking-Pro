@@ -8,6 +8,14 @@ namespace ABP.Application.Features.CreditCards
             "CreditCards.ClientNotEligible",
             "The selected client does not exist or is not active.");
 
+        public static readonly Error ClientNotFound = new(
+            "CreditCards.ClientNotFound",
+            "The selected client does not exist.");
+
+        public static readonly Error ClientInactive = new(
+            "CreditCards.ClientInactive",
+            "The selected client is not active.");
+
         public static readonly Error NotFound = new(
             "CreditCards.NotFound",
             "The selected credit card does not exist.");
