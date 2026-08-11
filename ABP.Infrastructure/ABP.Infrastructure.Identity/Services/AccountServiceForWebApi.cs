@@ -1,9 +1,12 @@
 using ABP.Application.Common.DTOs.Users;
 using ABP.Application.Common.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Exceptions;
+using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Identity.Entities;
+using AutoMapper;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -11,7 +14,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ABP.Infrastructure.Identity.Services
 {
-    public class AccountServiceForWebApi : IAccountServiceForWebApi
+    public class AccountServiceForWebApi : BaseAccountService, IAccountServiceForWebApi
     {
         private const string InvalidCredentialsMessage = "No tiene autorización para acceder a este recurso.";
         private const string InactiveAccountMessage = "Su cuenta se encuentra inactiva. Debe activar su cuenta antes de iniciar sesión.";
@@ -23,26 +26,46 @@ namespace ABP.Infrastructure.Identity.Services
             Roles.Commerce.ToString()
         ];
 
-        private readonly ILogger<AccountServiceForWebApi> _logger;
         private readonly SignInManager<AppUser> _signInManager;
-        private readonly UserManager<AppUser> _userManager;
         private readonly IValidator<LoginDto> _loginDtoValidator;
-        private readonly IUserRepository _userRepository;
         private readonly IJwtTokenService _jwtTokenService;
 
         public AccountServiceForWebApi(
-            ILogger<AccountServiceForWebApi> logger,
             SignInManager<AppUser> signInManager,
-            UserManager<AppUser> userManager,
             IValidator<LoginDto> loginDtoValidator,
+            IJwtTokenService jwtTokenService,
+            IMapper mapper,
+            UserManager<AppUser> userManager,
+            IEmailService emailService,
+            IValidator<CreateUserDto> createUserValidator,
+            IValidator<EditUserDto> editUserValidator,
+            IValidator<ResetPasswordDto> resetPasswordValidator,
             IUserRepository userRepository,
-            IJwtTokenService jwtTokenService)
+            IUnitOfWork unitOfWork,
+            IAccountTokenService accountTokenService,
+            IPrimaryAccountProvisioner primaryAccountProvisioner,
+            ISavingsAccountRepository savingsAccountRepository,
+            IAccountBalanceService accountBalanceService,
+            IAccountLedger accountLedger,
+            ILogger<BaseAccountService> logger)
+            : base(
+                mapper,
+                userManager,
+                emailService,
+                createUserValidator,
+                editUserValidator,
+                resetPasswordValidator,
+                userRepository,
+                unitOfWork,
+                accountTokenService,
+                primaryAccountProvisioner,
+                savingsAccountRepository,
+                accountBalanceService,
+                accountLedger,
+                logger)
         {
-            _logger = logger;
             _signInManager = signInManager;
-            _userManager = userManager;
             _loginDtoValidator = loginDtoValidator;
-            _userRepository = userRepository;
             _jwtTokenService = jwtTokenService;
         }
 
