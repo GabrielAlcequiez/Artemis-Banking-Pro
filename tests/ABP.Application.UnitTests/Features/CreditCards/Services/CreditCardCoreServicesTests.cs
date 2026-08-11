@@ -145,6 +145,52 @@ public sealed class CreditCardCoreServicesTests
     }
 
     [Fact]
+    public async Task Client_detail_filters_by_authenticated_client_id()
+    {
+        var cardId = Guid.NewGuid();
+        var repository = new FakeCreditCardRepository
+        {
+            Detail = CreateDetail(cardId, "client-1")
+        };
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = "client-1",
+            Roles = [Roles.Client.ToString()]
+        };
+        var service = CreateService(
+            repository,
+            currentUser: currentUser);
+
+        var result = await service.GetClientDetailAsync(cardId);
+
+        Assert.NotNull(result);
+        Assert.Equal("client-1", repository.ReceivedDetailClientId);
+        Assert.Equal("************1234", result.MaskedCardNumber);
+    }
+
+    [Fact]
+    public async Task Client_detail_returns_null_for_another_clients_card()
+    {
+        var repository = new FakeCreditCardRepository
+        {
+            Detail = CreateDetail(Guid.NewGuid(), "client-1")
+        };
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = "client-2",
+            Roles = [Roles.Client.ToString()]
+        };
+        var service = CreateService(
+            repository,
+            currentUser: currentUser);
+
+        var result = await service.GetClientDetailAsync(repository.Detail.Id);
+
+        Assert.Null(result);
+        Assert.Equal("client-2", repository.ReceivedDetailClientId);
+    }
+
+    [Fact]
     public async Task List_rejects_invalid_request_through_shared_validator()
     {
         var service = CreateService(new FakeCreditCardRepository());
@@ -514,6 +560,23 @@ public sealed class CreditCardCoreServicesTests
             CreditCardStatus.Active,
             new DateTimeOffset(2026, 8, 5, 12, 0, 0, TimeSpan.Zero));
 
+    private static CreditCardDetailReadModel CreateDetail(
+        Guid cardId,
+        string clientId) =>
+        new(
+            cardId,
+            "************1234",
+            "1234",
+            clientId,
+            "María Gómez",
+            500m,
+            350m,
+            150m,
+            new DateOnly(2029, 8, 31),
+            CreditCardStatus.Active,
+            new DateTimeOffset(2026, 8, 5, 10, 0, 0, TimeSpan.Zero),
+            Array.Empty<CardConsumptionReadModel>());
+
     private sealed class FakeCreditCardRepository : ICreditCardRepository
     {
         public bool ClientExists { get; init; } = true;
@@ -525,6 +588,8 @@ public sealed class CreditCardCoreServicesTests
         public PagedResult<CreditCardSummaryReadModel> Page { get; init; } = CreatePage();
 
         public CreditCardDetailReadModel? Detail { get; init; }
+
+        public string? ReceivedDetailClientId { get; private set; }
 
         public decimal ActiveDebt { get; init; }
 
@@ -561,6 +626,10 @@ public sealed class CreditCardCoreServicesTests
         public Task AddPaymentAsync(CardPayment payment, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<CardPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CardPayment?>(null);
+        public Task<CardConsumption?> GetConsumptionByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CardConsumption?>(null);
+        public Task<IReadOnlyCollection<CreditCard>> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<CreditCard>>(Array.Empty<CreditCard>());
+
         public Task<string?> FindClientIdByIdentificationAsync(
             string identification,
             CancellationToken cancellationToken = default)
@@ -589,6 +658,16 @@ public sealed class CreditCardCoreServicesTests
             Guid creditCardId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
+
+        public Task<CreditCardDetailReadModel?> GetDetailsForClientAsync(
+            Guid creditCardId,
+            string clientId,
+            CancellationToken cancellationToken = default)
+        {
+            ReceivedDetailClientId = clientId;
+            return Task.FromResult(
+                Detail?.ClientId == clientId ? Detail : null);
+        }
 
         public Task<decimal> GetActiveDebtByClientIdAsync(
             string clientId,
