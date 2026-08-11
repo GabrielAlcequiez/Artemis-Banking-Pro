@@ -3,6 +3,14 @@
 }
 
 <div class="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-border p-10 text-center">
+    @if (TempData["SuccessMessage"] is string successMessage)
+    {
+        <div class="alert mb-6 border-success/30 bg-success/10 text-success" role="status">@successMessage</div>
+    }
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger mb-6" role="alert">@errorMessage</div>
+    }
     <h1 class="text-lg font-semibold text-ink">Home del cliente</h1>
     <p class="mt-2 text-sm text-ink-muted">Su portafolio de productos financieros se mostrará aquí próximamente.</p>
 </div>
