@@ -121,6 +121,20 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
         Assert.Equal(EntityState.Unchanged, _context.Entry(result).State);
     }
 
+    [Fact]
+    public async Task GetDetails_returns_ordered_installments_without_tracking()
+    {
+        var seeded = await SeedAsync(_context);
+        _context.ChangeTracker.Clear();
+
+        var result = await _repository.GetDetailsAsync(seeded.ActiveNew.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal("María", result.Client.Name);
+        Assert.Equal([1, 2], result.Installments.Select(x => x.Number).ToArray());
+        Assert.Empty(_context.ChangeTracker.Entries());
+    }
+
     #endregion
 
     #region Paged query tests

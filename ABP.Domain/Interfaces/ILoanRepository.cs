@@ -8,6 +8,7 @@ public interface ILoanRepository : IGenericRepository<Loan, Guid>
 {
     Task<Loan?> GetByLoanNumberAsync(string loanNumber, CancellationToken cancellationToken = default);
     Task<Loan?> GetWithInstallmentsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Loan?> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default);
     Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default);
     Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default);

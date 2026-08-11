@@ -24,6 +24,15 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
             .SingleOrDefaultAsync(loan => loan.Id == id, cancellationToken);
     }
 
+    public Task<Loan?> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Entities
+            .AsNoTracking()
+            .Include(loan => loan.Client)
+            .Include(loan => loan.Installments.OrderBy(installment => installment.Number))
+            .SingleOrDefaultAsync(loan => loan.Id == id, cancellationToken);
+    }
+
     public Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default)
     {
         return Entities.AsNoTracking().FirstOrDefaultAsync(
