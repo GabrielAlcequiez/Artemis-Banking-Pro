@@ -1,7 +1,9 @@
 using ABP.Application.Common;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Common;
+using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Domain.ReadModels.CreditCards;
@@ -12,10 +14,15 @@ using FluentValidation;
 namespace ABP.Application.Features.CreditCards.Services.Implementations;
 
 public sealed class CreditCardService(
+    ICvcService cvcService,
+    ICardNumberGeneratorService numberGeneratorService,
     ICreditCardRepository repository,
     IUnitOfWork unitOfWork,
     IMapper mapper,
+    IClock clock,
+    ICurrentUserService currentUser,
     IValidator<CreditCardListRequest> listValidator,
+    IValidator<CreateCreditCardRequest> createValidator,
     IValidator<UpdateCreditLimitRequest> updateLimitValidator,
     IValidator<CancelCreditCardRequest> cancelValidator) : ICreditCardService
 {
@@ -91,12 +98,82 @@ public sealed class CreditCardService(
             ? null
             : identification.Trim();
 
-    public Task<OperationResult<Guid>> CreateAsync(
+    public async Task<OperationResult<Guid>> CreateAsync(
         CreateCreditCardRequest request,
         CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException(
-            "Credit card creation is pending the shared auditing infrastructure.");
+        ArgumentNullException.ThrowIfNull(request);
+
+        await createValidator.ValidateAndThrowAsync(
+            request,
+            cancellationToken);
+
+        var assignedByUserId =
+            currentUser.IsAuthenticated &&
+            currentUser.IsInRole(Roles.Administrator.ToString())
+                ? currentUser.UserId
+                : null;
+
+        if (string.IsNullOrWhiteSpace(assignedByUserId))
+        {
+            return OperationResult<Guid>.Failure(
+                CreditCardErrors.AdministratorRequired);
+        }
+
+        var clientExists = await repository.ClientExistsAsync(
+            request.ClientId,
+            cancellationToken);
+
+        if (!clientExists)
+        {
+            return OperationResult<Guid>.Failure(
+                CreditCardErrors.ClientNotFound);
+        }
+
+        var isActiveClient = await repository.IsActiveClientAsync(
+            request.ClientId,
+            cancellationToken);
+
+        if (!isActiveClient)
+        {
+            return OperationResult<Guid>.Failure(
+                CreditCardErrors.ClientInactive);
+        }
+
+        var cardNumber = await GenerateUniqueCardNumberAsync(
+            cancellationToken);
+
+        if (cardNumber is null)
+        {
+            return OperationResult<Guid>.Failure(
+                CreditCardErrors.NumberGenerationFailed);
+        }
+
+        var cvc = cvcService.Generate();
+        var hashedCvc = cvcService.Hash(cvc);
+        var expirationDate = CalculateExpirationDate();
+
+        var card = new CreditCard
+        {
+            ClientId = request.ClientId,
+            CardNumber = cardNumber,
+            CvcHash = hashedCvc,
+            Limit = request.CreditLimit,
+            Debt = 0m,
+            ExpirationDate = expirationDate,
+            Status = CreditCardStatus.Active,
+            AssignedByUserId = assignedByUserId
+        };
+
+        var createdCard = await repository.AddAsync(
+            card,
+            cancellationToken);
+
+        // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
+        // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return OperationResult<Guid>.Success(createdCard.Id);
     }
 
     public async Task<OperationResult> UpdateLimitAsync(
@@ -127,6 +204,9 @@ public sealed class CreditCardService(
         }
 
         card.Limit = request.CreditLimit;
+
+        // TODO(P1 Outbox): enqueue the limit-change email in this transaction so it is
+        // dispatched only after commit. Include only the last four digits, never the PAN.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return OperationResult.Success();
@@ -164,4 +244,44 @@ public sealed class CreditCardService(
 
         return OperationResult.Success();
     }
+
+    #region Helpers
+    private const int MaxCardNumberGenerationAttempts = 10;
+
+    private async Task<string?> GenerateUniqueCardNumberAsync(
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0;
+             attempt < MaxCardNumberGenerationAttempts;
+             attempt++)
+        {
+            var candidate = numberGeneratorService.Generate();
+
+            var alreadyExists = await repository.CardNumberExistsAsync(
+                candidate,
+                cancellationToken);
+
+            if (!alreadyExists)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private DateOnly CalculateExpirationDate()
+    {
+        var expirationMonth = clock.Today.AddYears(3);
+
+        var lastDayOfMonth = DateTime.DaysInMonth(
+            expirationMonth.Year,
+            expirationMonth.Month);
+
+        return new DateOnly(
+            expirationMonth.Year,
+            expirationMonth.Month,
+            lastDayOfMonth);
+    }
+    #endregion
 }

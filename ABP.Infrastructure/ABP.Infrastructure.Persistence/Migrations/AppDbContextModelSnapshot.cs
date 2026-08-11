@@ -549,10 +549,6 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("ClientId1")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -597,8 +593,6 @@ namespace ABP.Infrastructure.Persistence.Migrations
                     b.HasIndex("ClientId")
                         .IsUnique()
                         .HasFilter("[Status] = 'Active'");
-
-                    b.HasIndex("ClientId1");
 
                     b.HasIndex("LoanNumber")
                         .IsUnique();
@@ -911,16 +905,10 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.HasOne("ABP.Domain.Entities.User", null)
+                    b.HasOne("ABP.Domain.Entities.User", "Client")
                         .WithMany("Loans")
                         .HasForeignKey("ClientId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ABP.Domain.Entities.User", "Client")
-                        .WithMany()
-                        .HasForeignKey("ClientId1")
-                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("AssignedByUser");

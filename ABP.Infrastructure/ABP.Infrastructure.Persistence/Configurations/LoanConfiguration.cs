@@ -58,11 +58,6 @@ namespace ABP.Infrastructure.Persistence.Configurations
             builder.Property(x => x.RowVersion)
                 .IsRowVersion();
 
-            builder.HasOne(x => x.Client)
-                .WithMany()
-                .HasForeignKey(x => x.ClientId)
-                .OnDelete(DeleteBehavior.NoAction);
-
             builder.HasOne(x => x.AssignedByUser)
                 .WithMany()
                 .HasForeignKey(x => x.AssignedByUserId)

@@ -356,6 +356,17 @@ public class AccountServiceForWebApiTests
         public Task<PagedResult<User>> GetPagedAsync(PagedRequest request, bool commerceOnly = false, Roles? role = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PagedResult<User>(new List<User>(), request.Page, request.PageSize, 0));
 
+        public Task<PagedResult<User>> GetActiveClientsPagedAsync(PagedRequest request, string? identification = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PagedResult<User>(new List<User>(), request.Page, request.PageSize, 0));
+
+        public Task<User?> GetActiveClientByIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_usersById.Values.FirstOrDefault(user =>
+                user.Id == clientId && user.Role == Roles.Client && user.IsActive));
+
+        public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(_usersById.Values.Count(user =>
+                user.Role == Roles.Client && user.IsActive));
+
         public IQueryable<User> GetAllQueryable(bool trackChanges = false) => new List<User>().AsQueryable();
 
         public Task<User?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>

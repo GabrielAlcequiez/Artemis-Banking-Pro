@@ -446,7 +446,15 @@ IJwtTokenService
 IAccountTokenService
 IUserDirectory
 IUserManagementService
+IUserRepository
 ```
+
+`IUserRepository` concentra las consultas de persistencia que necesita la
+selección administrativa de clientes: página uniforme de Clientes activos,
+búsqueda por cédula, consulta por Id para revalidar que siga activo y conteo de
+Clientes activos para el promedio.
+No calcula productos, deudas ni promedios; esas son reglas transversales de
+Application.
 
 #### Cuentas y ledger
 
@@ -470,7 +478,6 @@ ILoanOriginationService
 ILoanPaymentService
 ILoanRateService
 ILoanDelinquencyService
-ILoanDebtReader
 ILoansMetricsReader
 ```
 
@@ -478,26 +485,43 @@ ILoansMetricsReader
 
 ```csharp
 ICreditCardRepository
-ICvcHasherService
+ICvcService
 ICardPaymentService
 ICashAdvanceService
-ICardDebtReaderService
 ICardsMetricsReaderService
 ICommerceRepository
 ICommerceAuthorizationResolverService
 IHermesPaymentService
 ```
 
-#### Lecturas transversales
+#### Consultas y servicios transversales
 
 ```csharp
-ICustomerDebtSnapshotReader
+ICustomerDebtService
 IAdminDashboardQuery
 ICashierDashboardQuery
 IClientPortfolioQuery
 IPaymentsMetricsReader
 ITransactionsMetricsReader
 ```
+
+`ICustomerDebtService` compone la deuda total individual y el promedio de
+deuda de los Clientes activos. Usa `IUserRepository` para determinar los
+Clientes activos, `ILoanRepository.GetActiveDebtByClientIdAsync(...)` e
+`ICreditCardRepository.GetActiveDebtByClientIdAsync(...)` para el caso
+individual, y sus operaciones `GetTotalActiveDebtForActiveClientsAsync(...)`
+para el promedio. No crea adapters denominados *Reader* ni lleva cálculos de
+productos financieros a `IUserRepository`.
+
+Para listados paginados, los repositorios de préstamos y tarjetas exponen una
+consulta de deuda activa por lote de ClientIds; `ICustomerDebtService` combina
+ambos diccionarios sin ejecutar consultas EF concurrentes sobre el mismo
+`DbContext` y sin incurrir en N+1 consultas.
+
+Esta decisión no modifica los `Queries` ni los `QueryHandlers` de CQRS: estos
+siguen siendo casos de uso de Web API. Las consultas de clientes activos son
+operaciones de persistencia del repositorio, y la composición de deuda es un
+servicio de Application.
 
 Estas interfaces se ubican en Application. Cada consumidor puede usar mocks hasta que el proveedor real esté integrado.
 
@@ -511,7 +535,7 @@ Estas interfaces se ubican en Application. Cada consumidor puede usar mocks hast
 6. **Concurrencia:** `rowversion`/optimistic concurrency en cuentas, préstamos, tarjetas y comercios; revalidar saldo/deuda dentro de la transacción.
 7. **Notificaciones:** Gmail SMTP con App Password almacenado en .NET User Secrets; el envío se implementará mediante Outbox para que un fallo de correo nunca revierta la operación financiera.
 8. **Identificadores de 9 dígitos:** registro central con índice único para impedir colisiones entre cuentas y préstamos.
-9. **CVC:** `ICvcHasherService`; usar HMAC-SHA-256 con secreto externo o mecanismo equivalente seguro, sin retornar ni registrar dato/hash.
+9. **CVC:** `ICvcService` centraliza la generación, el hash y la verificación del CVC mediante `Generate`, `Hash` y `Verify`. Debe usar HMAC-SHA-256 con secreto externo o un mecanismo equivalente seguro, sin retornar ni registrar el CVC ni su hash. El nombre sustituye al contrato preliminar `ICvcHasherService`, ya que la responsabilidad acordada también incluye generar y verificar el CVC.
 10. **Tokens:** su implementación y persistencia se abordarán en el Sprint de Identity; deben cumplir activación de un solo uso y reset con vigencia máxima de 30 minutos.
 11. **Idempotencia:** POST financieros y confirmaciones MVC reciben un `OperationId`/`Idempotency-Key` para impedir doble cargo por reintentos o doble clic.
 12. **Transacciones rechazadas:** registrar intento solo cuando existe un producto origen identificable, sin cambiar balances/deudas.
@@ -519,7 +543,7 @@ Estas interfaces se ubican en Application. Cada consumidor puede usar mocks hast
 14. **Migraciones:** cada programador entrega configuraciones EF de su vertical; solo P1 genera/integra la migración consolidada.
 15. **Identificadores de Entidad y Comercio:** `CommerceId` (y todos los demás identificadores de entidades del dominio) utilizan `Guid`. La única excepción es `User.Id`, que es `string` por integración con ASP.NET Core Identity.
 16. **Destino de Avance de Efectivo:** El avance de efectivo acredita una cuenta de ahorro activa seleccionada por el cliente (no únicamente la cuenta principal).
-17. **Fakes Obligatorios de Sprint 0:** Los fakes exportados en Sprint 0 son los puertos interverticales requeridos para trabajo en paralelo (por ejemplo, `FakeCardDebtReaderService` para P3 e `FakeCommerceAuthorizationResolverService` para P1).
+17. **Fakes Obligatorios de Sprint 0:** Los fakes exportados en Sprint 0 son los puertos interverticales requeridos para trabajo en paralelo (por ejemplo, `FakeCustomerDebtService` para P3 e `FakeCommerceAuthorizationResolverService` para P1).
 18. **Expiración de Tarjetas:** `CreditCard.ExpirationDate` representa el último día calendario del mes indicado por el formato MM/AA y la tarjeta permanece válida durante todo ese día según la fecha bancaria/UTC.
 
 ---
@@ -617,7 +641,7 @@ Todos los demás casos de API (P2-P4) se implementan como Commands/Queries con M
 
 - Para crear Cliente o Comercio llama a `IPrimaryAccountProvisioner` de P2.
 - Para validar comercio y asociación 1:1 llama a un reader de P4.
-- Para Home Admin consume métricas de P2/P3/P4.
+- Para Home Admin consume métricas de P2/P3/P4 y `ICustomerDebtService` para el promedio de deuda.
 - Para Home Cliente consume `IClientPortfolioQuery` con adaptadores de P2/P3/P4.
 - Publica notificaciones en Outbox; no llama SMTP dentro de una transacción financiera.
 
@@ -822,7 +846,7 @@ Ser dueño del ciclo de vida completo del préstamo: originación, riesgo, tabla
 | Capa | Responsabilidad |
 |---|---|
 | Domain | `Loan`, `LoanInstallment`, `LoanPayment`, amortización, aplicación de pagos, riesgo y mora |
-| Application | Commands/Queries, servicios MVC, debt readers y métricas de préstamos |
+| Application | Commands/Queries, servicios MVC, riesgo y métricas de préstamos |
 | Infrastructure | Repositorios/configuraciones EF de préstamos/cuotas/pagos y adaptador de la Function |
 | Presentation | Admin Loans, detalle Cliente, pago Cliente/Cajero, API Loan y Azure Function |
 
@@ -875,7 +899,7 @@ El `POST /api/loan` retorna 409 con `riskType`, currentDebt, projectedDebt y ave
 ### Integraciones que consume
 
 - `IAccountBalanceService`/`IAccountLedger` de P2 para desembolso y pagos.
-- `ICustomerDebtSnapshotReader` con deuda de préstamos y tarjetas.
+- `ICustomerDebtService` con deuda de préstamos y tarjetas.
 - `IFinancialIdentifierGenerator` de P1.
 - Email Outbox de P1.
 
@@ -972,6 +996,15 @@ Ser dueño del ciclo de vida de tarjetas y del procesamiento de consumos, incluy
 - EditLimit.
 - ConfirmCancel/Cancel.
 
+**Servicio de selección administrativa de tarjetas**
+
+`ICreditCardClientSelectionService` es el servicio de Application de P4 para
+`SelectClient`. Obtiene los Clientes activos paginados, la búsqueda por cédula y
+la revalidación por Id mediante `IUserRepository`; solicita a
+`ICustomerDebtService` la deuda total de cada Cliente y el promedio global. No
+usa adapters de lectura de Clientes ni accede a tablas de Identity desde el
+Controller.
+
 **Área Client — `CreditCardsController`**
 
 - Details de tarjetas propias.
@@ -1016,9 +1049,11 @@ Ser dueño del ciclo de vida de tarjetas y del procesamiento de consumos, incluy
 ### Integraciones que consume
 
 - `IAccountBalanceService`, `IAccountLedger` e `IPrimaryAccountProvisioner` de P2.
+- `IUserRepository` de P1 para la selección administrativa de Clientes activos.
+- `ILoanRepository` de P3 para la composición de deuda; la tarjeta aporta su propio `ICreditCardRepository`.
 - Identity/User inactivation de P1 al desactivar Comercio.
 - Outbox y current user de P1.
-- Publica `ICardDebtReaderService` para riesgo de P3.
+- Implementa y publica `ICustomerDebtService` para selección de tarjetas, riesgo de P3 y promedio de deuda del Home Admin. Su composición usa directamente `IUserRepository`, `ILoanRepository` e `ICreditCardRepository`.
 
 ### Reglas críticas bajo su propiedad
 
@@ -1101,14 +1136,15 @@ flowchart LR
 
     P1 -->|"IIdentityService, ICurrentUserService,<br/>Outbox, IdentifierGenerator"| P2
     P1 -->|"Identity, Outbox,<br/>IdentifierGenerator"| P3
-    P1 -->|"Identity, Outbox,<br/>ICurrentUserService"| P4
+    P1 -->|"Identity, Outbox, ICurrentUserService,<br/>IUserRepository"| P4
 
     P2 -->|"IPrimaryAccountProvisioner,<br/>IAccountBalanceService, IAccountLedger"| P1
     P2 -->|"Desembolso y débito de pagos"| P3
     P2 -->|"Pago, avance y crédito a Comercio"| P4
 
-    P4 -->|"ICardDebtReaderService"| P3
-    P3 -->|"ILoanDebtReader"| P1
+    P4 -->|"ICustomerDebtService"| P3
+    P4 -->|"ICustomerDebtService"| P1
+    P3 -->|"ILoansMetricsReader"| P1
     P4 -->|"ICardsMetricsReaderService"| P1
     P2 -->|"Accounts/Transaction metrics"| P1
 
@@ -1133,9 +1169,9 @@ Las flechas representan contratos, no referencias entre Presentation ni acceso d
 
 ### 6.1 Mocks y adaptadores preliminares
 
-- Cada puerto intervertical obligatorio del Sprint 0 incluye un fake simple en `tests/ABP.TestDoubles` (por ejemplo `FakeCardDebtReaderService` e `FakeCommerceAuthorizationResolverService`).
+- Cada puerto intervertical obligatorio del Sprint 0 incluye un fake simple en `tests/ABP.TestDoubles` (por ejemplo `FakeCustomerDebtService` e `FakeCommerceAuthorizationResolverService`).
 - P1 crea usuario Cliente con `IPrimaryAccountProvisioner` mock mientras P2 termina la implementación.
-- P3 prueba originación con `IAccountBalanceService` fake y deuda de tarjetas fake.
+- P3 prueba originación con `IAccountBalanceService` fake y `ICustomerDebtService` fake.
 - P4 prueba Hermes con ledger/cuenta fake.
 - P1 desarrolla dashboards con readers fake de cada vertical.
 - Cada proveedor entrega contract tests que también deben superar sus fakes.
@@ -1179,7 +1215,10 @@ Nadie edita una migración ya compartida. Los cambios de modelo se entregan como
 | P1 Users | P2 Accounts | `IPrimaryAccountProvisioner` | Sprint 0 fake, Sprint 1 real |
 | P1 Users Commerce | P4 Commerce | `ICommerceAuthorizationResolverService` | Sprint 0 fake, Sprint 2 real |
 | P3 Loans | P2 Accounts | `IAccountBalanceService`, `IAccountLedger` | Sprint 0 fake, Sprint 2 real |
-| P3 Risk | P4 Cards | `ICardDebtReaderService` | Sprint 0 fake, Sprint 2 real |
+| P4 Cards SelectClient | P1 Users | `IUserRepository` (Clientes activos paginados, búsqueda por cédula y lectura por Id) | Sprint 0 fake, Sprint 2 real |
+| P4 `CustomerDebtService` | P3 Loans | `ILoanRepository` (deuda activa individual y total de Clientes activos) | Sprint 0 fake, Sprint 2 real |
+| P3 Risk | P4 Cards | `ICustomerDebtService` | Sprint 0 fake, Sprint 2 real |
+| P1 Home Admin | P4 Cards | `ICustomerDebtService` (promedio de deuda) | Sprint 0 fake, Sprint 3 real |
 | P4 Cards/Hermes | P2 Accounts | Balance, ledger, primary account | Sprint 0 fake, Sprint 2 real |
 | P4 Commerce status | P1 Identity | User inactivation service | Sprint 0 fake, Sprint 2 real |
 | P1 Dashboards | P2/P3/P4 | Metrics readers | Sprint 1 fake, Sprint 3 real |
@@ -1278,7 +1317,7 @@ Una tarea no está terminada solo porque la vista o endpoint responde.
 
 1. **El documento exige servicios genéricos, pero la banca no puede descansar en CRUD genérico.** Cumplir el requisito para mantenimiento simple y usar servicios especializados para dinero, deuda y cuotas.
 2. **Identity y dominio bancario tienen ciclos distintos.** Las entidades financieras guardan `UserId`; Domain no hereda de `IdentityUser`.
-3. **Los indicadores cruzan verticales.** Resolver con readers, no con acceso de un Controller a cuatro DbSets.
+3. **Los indicadores cruzan verticales.** Resolver con contratos de Application, no con acceso de un Controller a cuatro DbSets. Para deuda de Clientes se usa `ICustomerDebtService`; los readers de métricas/dashboard permanecen para esos módulos.
 4. **Crear Cliente/Comercio cruza Identity y Accounts.** Debe ser un caso de uso orquestado y transaccional; el correo ocurre después del commit.
 5. **Hermes Pay y doble clic pueden duplicar cargos.** Definir idempotency key desde Sprint 0.
 6. **Saldo/crédito disponible puede cambiar entre validar y confirmar.** Revalidar dentro de la transacción y usar control de concurrencia.

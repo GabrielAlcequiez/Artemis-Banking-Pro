@@ -68,7 +68,7 @@ namespace ABP.Infrastructure.Persistence.Configurations
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasMany(u => u.Loans)
-                .WithOne()
+                .WithOne(l => l.Client)
                 .HasForeignKey(l => l.ClientId)
                 .OnDelete(DeleteBehavior.Restrict);
 

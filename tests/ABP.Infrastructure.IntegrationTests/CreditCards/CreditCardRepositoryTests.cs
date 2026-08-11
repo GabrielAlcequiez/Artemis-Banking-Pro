@@ -201,6 +201,9 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
         Assert.Equal("1234", result.LastFourDigits);
         Assert.Equal(350m, result.AvailableCredit);
         Assert.Equal(
+            new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero),
+            result.CreatedAt);
+        Assert.Equal(
             ["AVANCE", "Supermercado"],
             result.Consumptions.Select(consumption => consumption.CommerceName).ToArray());
         Assert.Equal(
@@ -242,7 +245,7 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
     #region Debt and lifecycle tests
 
     [Fact]
-    public async Task Active_debt_reader_excludes_cancelled_cards()
+    public async Task Active_debt_query_excludes_cancelled_cards()
     {
         await SeedAsync(_context);
 
@@ -252,7 +255,7 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Active_debt_reader_returns_zero_when_client_has_no_active_cards()
+    public async Task Active_debt_query_returns_zero_when_client_has_no_active_cards()
     {
         await SeedAsync(_context);
         var clientWithoutActiveCards = new User("client-without-active-cards")
@@ -319,6 +322,30 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
         Assert.False(inactiveResult);
         Assert.False(administratorResult);
         Assert.False(missingResult);
+    }
+
+    [Fact]
+    public async Task ClientExists_includes_inactive_clients_but_excludes_other_roles()
+    {
+        await SeedAsync(_context);
+
+        var inactiveClient = new User("inactive-client")
+        {
+            Name = "Cliente",
+            LastName = "Inactivo",
+            Identification = "99999999999",
+            Email = "inactive@example.test",
+            UserName = "inactive-client",
+            IsActive = false,
+            Role = Roles.Client
+        };
+        _context.Users.Add(inactiveClient);
+        await _context.SaveChangesAsync();
+
+        Assert.True(await _repository.ClientExistsAsync("client-1"));
+        Assert.True(await _repository.ClientExistsAsync("inactive-client"));
+        Assert.False(await _repository.ClientExistsAsync("admin"));
+        Assert.False(await _repository.ClientExistsAsync("missing-client"));
     }
 
     [Fact]

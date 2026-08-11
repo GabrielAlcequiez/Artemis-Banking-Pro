@@ -10,20 +10,20 @@ public sealed class CreditCardListRequestValidator : AbstractValidator<CreditCar
     {
         RuleFor(request => request.Page)
             .GreaterThan(0)
-            .WithMessage("Page must be greater than zero.");
+            .WithMessage("La página debe ser mayor que cero.");
 
         RuleFor(request => request.PageSize)
             .InclusiveBetween(1, 20)
-            .WithMessage("PageSize must be between 1 and 20.");
+            .WithMessage("La cantidad de registros por página debe estar entre 1 y 20.");
 
         RuleFor(request => request.Identification)
             .Must(HasValidLengthAfterTrim)
-            .WithMessage("Identification must contain at most 11 characters after trimming.");
+            .WithMessage("La cédula debe contener como máximo 11 caracteres.");
 
         RuleFor(request => request.Status)
             .Must(status => !status.HasValue
                 || Enum.IsDefined(typeof(CreditCardStatusFilter), status.Value))
-            .WithMessage("Status must be null or a defined credit card status.");
+            .WithMessage("El estado de la tarjeta no es válido.");
     }
 
     private static bool HasValidLengthAfterTrim(string? identification) =>
