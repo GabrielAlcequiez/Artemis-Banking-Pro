@@ -192,7 +192,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
-                        Title = "Unauthorized",
+                        Title = "No autorizado",
                         Status = StatusCodes.Status401Unauthorized,
                         Detail = "No tiene autorización para acceder a este recurso.",
                         Instance = context.Request.Path
@@ -216,7 +216,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
-                        Title = "Unauthorized",
+                        Title = "No autorizado",
                         Status = StatusCodes.Status401Unauthorized,
                         Detail = "No tiene autorización para acceder a este recurso.",
                         Instance = context.Request.Path
@@ -235,7 +235,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7231#section-6.5.3",
-                        Title = "Forbidden",
+                        Title = "Acceso denegado",
                         Status = StatusCodes.Status403Forbidden,
                         Detail = "Acceso denegado. No tiene permisos para utilizar este recurso.",
                         Instance = context.Request.Path

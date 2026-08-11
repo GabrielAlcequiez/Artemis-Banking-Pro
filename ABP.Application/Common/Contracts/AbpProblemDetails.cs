@@ -14,7 +14,5 @@ public sealed class AbpProblemDetails
 
     public string? TraceId { get; set; }
 
-    public string? ErrorCode { get; set; }
-
     public IReadOnlyDictionary<string, string[]>? Errors { get; set; }
 }
