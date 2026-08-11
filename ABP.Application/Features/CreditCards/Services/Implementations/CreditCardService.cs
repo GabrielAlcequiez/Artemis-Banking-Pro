@@ -81,6 +81,31 @@ public sealed class CreditCardService(
             : mapper.Map<CreditCardDetailDto>(readModel);
     }
 
+    public async Task<CreditCardDetailDto?> GetClientDetailAsync(
+        Guid creditCardId,
+        CancellationToken cancellationToken = default)
+    {
+        var clientId =
+            currentUser.IsAuthenticated &&
+            currentUser.IsInRole(Roles.Client.ToString())
+                ? currentUser.UserId
+                : null;
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return null;
+        }
+
+        var readModel = await repository.GetDetailsForClientAsync(
+            creditCardId,
+            clientId,
+            cancellationToken);
+
+        return readModel is null
+            ? null
+            : mapper.Map<CreditCardDetailDto>(readModel);
+    }
+
     private PagedResult<CreditCardSummaryDto> MapPage(
         PagedResult<CreditCardSummaryReadModel> page)
     {

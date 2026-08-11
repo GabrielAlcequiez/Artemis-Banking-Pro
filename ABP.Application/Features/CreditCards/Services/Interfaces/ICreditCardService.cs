@@ -13,6 +13,10 @@ public interface ICreditCardService
         Guid creditCardId,
         CancellationToken cancellationToken = default);
 
+    Task<CreditCardDetailDto?> GetClientDetailAsync(
+        Guid creditCardId,
+        CancellationToken cancellationToken = default);
+
     Task<OperationResult<Guid>> CreateAsync(
         CreateCreditCardRequest request,
         CancellationToken cancellationToken = default);

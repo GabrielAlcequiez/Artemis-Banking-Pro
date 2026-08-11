@@ -5,6 +5,16 @@ namespace ABP.Application.Features.CreditCards.Services.Interfaces
 {
     public interface ICardPaymentService
     {
+        Task<ClientCardOperationOptions> GetClientOptionsAsync(
+            CancellationToken cancellationToken = default);
+
+        Task<OperationResult<CashierCardPaymentPreview>> PrepareCashierPaymentAsync(
+            string sourceAccountNumber,
+            string creditCardNumber,
+            decimal amount,
+            Guid operationId,
+            CancellationToken cancellationToken = default);
+
         Task<OperationResult<FinancialOperationReceipt>> ProcessPaymentAsync(
             CreditCardPaymentRequest request,
             CancellationToken cancellationToken = default);
