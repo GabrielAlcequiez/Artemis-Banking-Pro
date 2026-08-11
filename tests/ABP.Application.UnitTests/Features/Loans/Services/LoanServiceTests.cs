@@ -1,0 +1,203 @@
+using ABP.Application.Features.Loans.DTOs;
+using ABP.Application.Features.Loans.Mapping;
+using ABP.Application.Features.Loans.Services.Implementations;
+using ABP.Application.Features.Loans.Services.Interfaces;
+using ABP.Application.Features.Loans.Validation;
+using ABP.Domain.Common;
+using ABP.Domain.Entities;
+using ABP.Domain.Entities.Lending;
+using ABP.Domain.Enums;
+using ABP.Domain.Interfaces;
+using AutoMapper;
+using FluentValidation;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace ABP.Application.UnitTests.Features.Loans.Services;
+
+public sealed class LoanServiceTests
+{
+    private readonly IMapper mapper = new MapperConfiguration(
+        configuration => configuration.AddProfile<LoanProfile>(),
+        NullLoggerFactory.Instance).CreateMapper();
+
+    [Fact]
+    public async Task List_normalizes_identification_and_maps_page()
+    {
+        var repository = new FakeLoanRepository
+        {
+            Page = new PagedResult<Loan>([CreateLoan()], 2, 5, 6)
+        };
+        var service = CreateService(repository);
+
+        var result = await service.ListAsync(
+            new LoanListRequest(2, 5, " 00123456789 ", LoanStatus.Active));
+
+        Assert.Single(result.Data);
+        Assert.Equal(2, result.Page);
+        Assert.Equal(5, result.PageSize);
+        Assert.Equal(6, result.TotalRecords);
+        Assert.Equal("00123456789", repository.ReceivedIdentification);
+        Assert.Equal(LoanStatus.Active, repository.ReceivedStatus);
+        Assert.Equal("123456789", result.Data.Single().LoanNumber);
+        Assert.Equal("Ana P?rez", result.Data.Single().ClientFullName);
+    }
+
+    [Fact]
+    public async Task List_converts_blank_identification_to_null()
+    {
+        var repository = new FakeLoanRepository();
+        var service = CreateService(repository);
+
+        await service.ListAsync(new LoanListRequest(Identification: "   "));
+
+        Assert.Null(repository.ReceivedIdentification);
+    }
+
+    [Fact]
+    public async Task List_rejects_invalid_request_before_querying_repository()
+    {
+        var repository = new FakeLoanRepository();
+        var service = CreateService(repository);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.ListAsync(new LoanListRequest(PageSize: 21)));
+
+        Assert.Equal(0, repository.GetPagedCalls);
+    }
+
+    [Fact]
+    public async Task Get_detail_maps_loan_and_amortization()
+    {
+        var loan = CreateLoan();
+        loan.Installments =
+        [
+            new LoanInstallment
+            {
+                Number = 1,
+                DueDate = new DateOnly(2026, 9, 10),
+                InstallmentAmount = 100m,
+                InterestAmount = 10m,
+                CapitalAmount = 90m,
+                PendingAmount = 100m,
+                PaymentStatus = InstallmentPaymentStatus.Pending
+            }
+        ];
+        var repository = new FakeLoanRepository { Detail = loan };
+        var service = CreateService(repository);
+
+        var result = await service.GetDetailAsync(Guid.NewGuid());
+
+        Assert.NotNull(result);
+        Assert.Equal("Ana P?rez", result.ClientFullName);
+        Assert.Equal(100m, result.MonthlyInstallment);
+        Assert.Single(result.Amortization);
+        Assert.Equal("Pendiente", result.Amortization.Single().PaymentStatus);
+    }
+
+    [Fact]
+    public async Task Get_detail_returns_null_when_loan_does_not_exist()
+    {
+        var service = CreateService(new FakeLoanRepository());
+
+        var result = await service.GetDetailAsync(Guid.NewGuid());
+
+        Assert.Null(result);
+    }
+
+    private ILoanService CreateService(FakeLoanRepository repository) =>
+        new LoanService(repository, mapper, new LoanListRequestValidator());
+
+    private static Loan CreateLoan() => new()
+    {
+        ClientId = "client-1",
+        Client = new User("client-1")
+        {
+            Name = "Ana",
+            LastName = "P?rez"
+        },
+        LoanNumber = "123456789",
+        Capital = 1_000m,
+        PendingAmount = 1_000m,
+        AnnualInterestRate = 12m,
+        TermInMonths = 12,
+        Status = LoanStatus.Active,
+        AssignedByUserId = "admin-1"
+    };
+
+    private sealed class FakeLoanRepository : ILoanRepository
+    {
+        public PagedResult<Loan> Page { get; init; } = new([], 1, 20, 0);
+
+        public Loan? Detail { get; init; }
+
+        public int GetPagedCalls { get; private set; }
+
+        public string? ReceivedIdentification { get; private set; }
+
+        public LoanStatus? ReceivedStatus { get; private set; }
+
+        public Task<PagedResult<Loan>> GetPagedAsync(
+            PagedRequest request,
+            string? clientIdentification = null,
+            LoanStatus? status = null,
+            CancellationToken cancellationToken = default)
+        {
+            GetPagedCalls++;
+            ReceivedIdentification = clientIdentification;
+            ReceivedStatus = status;
+            return Task.FromResult(Page);
+        }
+
+        public Task<Loan?> GetWithInstallmentsAsync(
+            Guid id,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<Loan?> GetDetailsAsync(
+            Guid id,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Detail);
+
+        public Task<Loan?> GetByLoanNumberAsync(string loanNumber, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(DateOnly bankingDate, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task AddInstallmentsAsync(IReadOnlyCollection<LoanInstallment> installments, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task AddPaymentAsync(LoanPayment payment, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public IQueryable<Loan> GetAllQueryable(bool trackChanges = false) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyList<Loan>> GetAllAsync(bool trackChanges = false, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<Loan?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<Loan> AddAsync(Loan entity, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<Loan?> UpdateAsync(Guid id, Loan value, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<Loan?> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+    }
+}
