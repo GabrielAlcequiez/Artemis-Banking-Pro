@@ -120,6 +120,16 @@ public sealed class CreditCardService(
                 CreditCardErrors.AdministratorRequired);
         }
 
+        var clientExists = await repository.ClientExistsAsync(
+            request.ClientId,
+            cancellationToken);
+
+        if (!clientExists)
+        {
+            return OperationResult<Guid>.Failure(
+                CreditCardErrors.ClientNotFound);
+        }
+
         var isActiveClient = await repository.IsActiveClientAsync(
             request.ClientId,
             cancellationToken);
@@ -127,7 +137,7 @@ public sealed class CreditCardService(
         if (!isActiveClient)
         {
             return OperationResult<Guid>.Failure(
-                CreditCardErrors.ClientNotEligible);
+                CreditCardErrors.ClientInactive);
         }
 
         var cardNumber = await GenerateUniqueCardNumberAsync(

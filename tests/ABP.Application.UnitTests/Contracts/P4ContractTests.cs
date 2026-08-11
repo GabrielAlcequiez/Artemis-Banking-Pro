@@ -1,10 +1,11 @@
 using System.Reflection;
 using ABP.Application.Common;
 using ABP.Application.Common.DTOs.Users;
+using ABP.Application.Common.Services.Interfaces;
 using ABP.Application.Features.CreditCards.DTOs;
+using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Application.Features.Commerce.DTOs;
 using ABP.Application.Features.HermesPay.DTOs;
-using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Application.Features.Commerce.Services.Interfaces;
 using ABP.Application.Features.HermesPay.Services.Interfaces;
 using ABP.TestDoubles;
@@ -15,20 +16,23 @@ namespace ABP.Application.UnitTests.Contracts
     public class P4ContractTests
     {
         [Fact]
-        public async Task FakeCardDebtReaderService_ShouldReturnConfiguredAndDefaultDebt()
+        public async Task FakeCustomerDebtService_returns_configured_total_and_average_debt()
         {
-            // Arrange
-            var fakeDebtReader = new FakeCardDebtReaderService { DefaultDebt = 100m };
-            fakeDebtReader.SetDebtForClient("CLIENT-123", 500.50m);
+            var fakeDebtService = new FakeCustomerDebtService
+            {
+                DefaultDebt = 100m,
+                AverageDebt = 275m
+            };
+            fakeDebtService.SetDebtForClient("CLIENT-123", 500.50m);
 
-            // Act
-            var configuredDebt = await fakeDebtReader.GetActiveCardDebtByClientIdAsync("CLIENT-123");
-            var defaultDebt = await fakeDebtReader.GetActiveCardDebtByClientIdAsync("UNKNOWN-CLIENT");
+            var configuredDebt = await fakeDebtService.GetTotalDebtAsync("CLIENT-123");
+            var defaultDebt = await fakeDebtService.GetTotalDebtAsync("UNKNOWN-CLIENT");
+            var averageDebt = await fakeDebtService.GetAverageActiveClientDebtAsync();
 
-            // Assert
             Assert.Equal(500.50m, configuredDebt);
             Assert.Equal(100m, defaultDebt);
-            Assert.IsAssignableFrom<ICardDebtReaderService>(fakeDebtReader);
+            Assert.Equal(275m, averageDebt);
+            Assert.IsAssignableFrom<ICustomerDebtService>(fakeDebtService);
         }
 
         [Fact]

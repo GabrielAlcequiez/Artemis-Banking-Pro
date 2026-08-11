@@ -203,6 +203,7 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
             summary.CurrentDebt,
             summary.ExpirationDate,
             summary.Status,
+            summary.CreatedAt,
             consumptions);
     }
 
@@ -223,6 +224,52 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
         return debt ?? 0m;
     }
 
+    public async Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+        IReadOnlyCollection<string> clientIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (clientIds.Count == 0)
+        {
+            return new Dictionary<string, decimal>();
+        }
+
+        return await _context.CreditCards
+            .AsNoTracking()
+            .Where(card =>
+                clientIds.Contains(card.ClientId)
+                && card.Status == CreditCardStatus.Active)
+            .GroupBy(card => card.ClientId)
+            .Select(group => new
+            {
+                ClientId = group.Key,
+                Debt = group.Sum(card => card.Debt)
+            })
+            .ToDictionaryAsync(
+                item => item.ClientId,
+                item => item.Debt,
+                cancellationToken);
+    }
+
+    public async Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var activeClients = _context.Users
+            .AsNoTracking()
+            .Where(client => client.Role == Roles.Client && client.IsActive);
+
+        var debt = await _context.CreditCards
+            .AsNoTracking()
+            .Where(card => card.Status == CreditCardStatus.Active)
+            .Join(
+                activeClients,
+                card => card.ClientId,
+                client => client.Id,
+                (card, _) => (decimal?)card.Debt)
+            .SumAsync(cancellationToken);
+
+        return debt ?? 0m;
+    }
+
     public Task<bool> IsActiveClientAsync(string clientId, CancellationToken cancellationToken = default)
     {
         return _context.Users
@@ -232,6 +279,17 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
                     user.Id == clientId &&
                     user.Role == Roles.Client &&
                     user.IsActive,
+                cancellationToken);
+    }
+
+    public Task<bool> ClientExistsAsync(
+        string clientId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.Users
+            .AsNoTracking()
+            .AnyAsync(
+                user => user.Id == clientId && user.Role == Roles.Client,
                 cancellationToken);
     }
 

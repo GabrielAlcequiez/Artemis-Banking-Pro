@@ -181,6 +181,11 @@ public sealed class GetCreditCardsQueryTests
 
         public string? ReceivedIdentification { get; private set; }
 
+        public Task<bool> ClientExistsAsync(
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<string?> FindClientIdByIdentificationAsync(
             string identification,
             CancellationToken cancellationToken = default)
@@ -212,6 +217,15 @@ public sealed class GetCreditCardsQueryTests
 
         public Task<decimal> GetActiveDebtByClientIdAsync(
             string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+            IReadOnlyCollection<string> clientIds,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 

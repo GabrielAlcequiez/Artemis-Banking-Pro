@@ -22,8 +22,14 @@ public interface ICreditCardRepository : IGenericRepository<CreditCard, Guid>
         CancellationToken cancellationToken = default);
     Task<CreditCardDetailReadModel?> GetDetailsAsync(Guid creditCardId, CancellationToken cancellationToken = default);
     Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(IReadOnlyCollection<string> clientIds, CancellationToken cancellationToken = default);
+    Task<decimal> GetTotalActiveDebtForActiveClientsAsync(CancellationToken cancellationToken = default);
 
     Task<bool> IsActiveClientAsync(
+        string clientId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> ClientExistsAsync(
         string clientId,
         CancellationToken cancellationToken = default);
 

@@ -92,8 +92,28 @@ public sealed class CreateCreditCardCommandTests
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(CreditCardErrors.ClientNotEligible, result.Error);
+        Assert.Equal(CreditCardErrors.ClientInactive, result.Error);
         Assert.Equal(0, numberGenerator.GenerateCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Handler_distinguishes_missing_client_from_inactive_client()
+    {
+        var repository = new StubCreditCardRepository
+        {
+            ClientExists = false,
+            IsActiveClient = false
+        };
+        var unitOfWork = new StubUnitOfWork();
+        var handler = CreateHandler(repository, unitOfWork);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.ClientNotFound, result.Error);
+        Assert.Equal(0, repository.IsActiveClientCalls);
         Assert.Equal(0, repository.AddCalls);
         Assert.Equal(0, unitOfWork.SaveCalls);
     }
@@ -255,6 +275,8 @@ public sealed class CreateCreditCardCommandTests
 
     private sealed class StubCreditCardRepository : ICreditCardRepository
     {
+        public bool ClientExists { get; init; } = true;
+
         public bool IsActiveClient { get; init; }
 
         public bool CardNumberExists { get; init; }
@@ -266,6 +288,11 @@ public sealed class CreateCreditCardCommandTests
         public int AddCalls { get; private set; }
 
         public CreditCard? AddedCard { get; private set; }
+
+        public Task<bool> ClientExistsAsync(
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ClientExists);
 
         public Task<bool> IsActiveClientAsync(
             string clientId,
@@ -332,6 +359,15 @@ public sealed class CreateCreditCardCommandTests
 
         public Task<decimal> GetActiveDebtByClientIdAsync(
             string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+            IReadOnlyCollection<string> clientIds,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 

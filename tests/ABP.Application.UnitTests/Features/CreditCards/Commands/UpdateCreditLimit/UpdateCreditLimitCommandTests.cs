@@ -152,6 +152,11 @@ public sealed class UpdateCreditLimitCommandTests
 
         public Guid? ReceivedCreditCardId { get; private set; }
 
+        public Task<bool> ClientExistsAsync(
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<CreditCard?> GetForUpdateAsync(
             Guid creditCardId,
             CancellationToken cancellationToken = default)
@@ -205,6 +210,15 @@ public sealed class UpdateCreditLimitCommandTests
 
         public Task<decimal> GetActiveDebtByClientIdAsync(
             string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+            IReadOnlyCollection<string> clientIds,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 

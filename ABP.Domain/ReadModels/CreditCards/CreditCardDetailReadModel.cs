@@ -13,4 +13,5 @@ public sealed record CreditCardDetailReadModel(
     decimal CurrentDebt,
     DateOnly ExpirationDate,
     CreditCardStatus Status,
+    DateTimeOffset CreatedAt,
     IReadOnlyCollection<CardConsumptionReadModel> Consumptions);

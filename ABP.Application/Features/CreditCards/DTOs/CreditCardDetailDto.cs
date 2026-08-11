@@ -11,5 +11,6 @@ namespace ABP.Application.Features.CreditCards.DTOs
     decimal CurrentDebt,
     string ExpirationDate,
     string Status,
+    DateTimeOffset CreatedAt,
     IReadOnlyCollection<CardConsumptionDto> Consumptions);
 }
