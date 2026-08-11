@@ -51,6 +51,47 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
         return debt ?? 0m;
     }
 
+    public async Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+        IReadOnlyCollection<string> clientIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (clientIds.Count == 0)
+        {
+            return new Dictionary<string, decimal>();
+        }
+
+        return await Entities
+            .AsNoTracking()
+            .Where(loan =>
+                clientIds.Contains(loan.ClientId)
+                && loan.Status == LoanStatus.Active)
+            .GroupBy(loan => loan.ClientId)
+            .Select(group => new
+            {
+                ClientId = group.Key,
+                Debt = group.Sum(loan => loan.PendingAmount)
+            })
+            .ToDictionaryAsync(
+                item => item.ClientId,
+                item => item.Debt,
+                cancellationToken);
+    }
+
+    public async Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var debt = await Entities
+            .AsNoTracking()
+            .Where(loan =>
+                loan.Status == LoanStatus.Active
+                && loan.Client.Role == Roles.Client
+                && loan.Client.IsActive)
+            .Select(loan => (decimal?)loan.PendingAmount)
+            .SumAsync(cancellationToken);
+
+        return debt ?? 0m;
+    }
+
     public Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default)
     {
         return Entities.AsNoTracking().AnyAsync(

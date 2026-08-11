@@ -21,12 +21,11 @@ namespace ABP.Application
             #region Services
 
             services.AddScoped(typeof(IGenericService<,,>), typeof(GenericService<,,>));
+            services.AddScoped<ICustomerDebtService, CustomerDebtService>();
             services.AddScoped<ICreditCardService, CreditCardService>();
             services.AddScoped<ICreditCardClientSelectionService, CreditCardClientSelectionService>();
-            services.AddScoped<ICardDebtReaderService, CardDebtReaderService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
             services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
-            services.AddScoped<ILoanDebtReader, LoanDebtReader>();
             services.AddScoped<ILoanRateService, LoanRateService>();
             services.AddScoped<ILoanDelinquencyService, LoanDelinquencyService>();
 
