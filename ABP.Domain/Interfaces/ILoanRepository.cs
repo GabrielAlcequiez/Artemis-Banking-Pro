@@ -12,6 +12,8 @@ public interface ILoanRepository : IGenericRepository<Loan, Guid>
     Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default);
     Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default);
     Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(IReadOnlyCollection<string> clientIds, CancellationToken cancellationToken = default);
+    Task<decimal> GetTotalActiveDebtForActiveClientsAsync(CancellationToken cancellationToken = default);
     Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default);
     Task<PagedResult<Loan>> GetPagedAsync(PagedRequest request, string? clientIdentification = null, LoanStatus? status = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(DateOnly bankingDate, CancellationToken cancellationToken = default);

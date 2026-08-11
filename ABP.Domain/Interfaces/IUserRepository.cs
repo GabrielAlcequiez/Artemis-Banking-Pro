@@ -9,5 +9,17 @@ namespace ABP.Domain.Interfaces
         Task<User?> FindByIdentificationAsync(string identification);
 
         Task<PagedResult<User>> GetPagedAsync(PagedRequest request, bool commerceOnly = false, Roles? role = null, CancellationToken cancellationToken = default);
+
+        Task<PagedResult<User>> GetActiveClientsPagedAsync(
+            PagedRequest request,
+            string? identification = null,
+            CancellationToken cancellationToken = default);
+
+        Task<User?> GetActiveClientByIdAsync(
+            string clientId,
+            CancellationToken cancellationToken = default);
+
+        Task<int> CountActiveClientsAsync(
+            CancellationToken cancellationToken = default);
     }
 }

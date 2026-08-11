@@ -79,6 +79,10 @@
     @apply border-danger/30 bg-danger/10 text-danger;
   }
 
+  .alert-success {
+    @apply border-success/30 bg-success/10 text-success;
+  }
+
   /* Montos y números financieros */
   .tnum {
     font-variant-numeric: tabular-nums;

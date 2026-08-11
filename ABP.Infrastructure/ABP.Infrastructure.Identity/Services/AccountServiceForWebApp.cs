@@ -1,5 +1,7 @@
 using ABP.Application.Common.DTOs.Users;
 using ABP.Application.Common.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Services;
+using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Identity.Entities;
@@ -10,23 +12,46 @@ using Microsoft.Extensions.Logging;
 
 namespace ABP.Infrastructure.Identity.Services
 {
-    public class AccountServiceForWebApp : IAccountServiceForWebApp
+    public class AccountServiceForWebApp : BaseAccountService, IAccountServiceForWebApp
     {
-        private readonly ILogger<AccountServiceForWebApp> _logger;
         private readonly SignInManager<AppUser> _signInManager;
-        private readonly UserManager<AppUser> _userManager;
         private readonly IValidator<LoginDto> _loginDtoValidator;
-        private readonly IUserRepository _userRepository;
-        private readonly IMapper _mapper;
 
-        public AccountServiceForWebApp(SignInManager<AppUser> signInManager, IValidator<LoginDto> loginDtoValidator, ILogger<AccountServiceForWebApp> logger, UserManager<AppUser> userManager, IUserRepository userRepository, IMapper mapper)
+        public AccountServiceForWebApp(
+            SignInManager<AppUser> signInManager,
+            IValidator<LoginDto> loginDtoValidator,
+            IMapper mapper,
+            UserManager<AppUser> userManager,
+            IEmailService emailService,
+            IValidator<CreateUserDto> createUserValidator,
+            IValidator<EditUserDto> editUserValidator,
+            IValidator<ResetPasswordDto> resetPasswordValidator,
+            IUserRepository userRepository,
+            IUnitOfWork unitOfWork,
+            IAccountTokenService accountTokenService,
+            IPrimaryAccountProvisioner primaryAccountProvisioner,
+            ISavingsAccountRepository savingsAccountRepository,
+            IAccountBalanceService accountBalanceService,
+            IAccountLedger accountLedger,
+            ILogger<BaseAccountService> logger)
+            : base(
+                mapper,
+                userManager,
+                emailService,
+                createUserValidator,
+                editUserValidator,
+                resetPasswordValidator,
+                userRepository,
+                unitOfWork,
+                accountTokenService,
+                primaryAccountProvisioner,
+                savingsAccountRepository,
+                accountBalanceService,
+                accountLedger,
+                logger)
         {
             _signInManager = signInManager;
             _loginDtoValidator = loginDtoValidator;
-            _logger = logger;
-            _userManager = userManager;
-            _userRepository = userRepository;
-            _mapper = mapper;
         }
 
         public async Task<LoginResponseDto> LoginAsync(LoginDto loginRequestDto)
@@ -106,6 +131,7 @@ namespace ABP.Infrastructure.Identity.Services
             response.IsVerified = appUser.EmailConfirmed;
             response.Roles = userRoles.ToList();
 
+            _logger.LogInformation("Inicio de sesión exitoso para el usuario: {UserName}", loginRequestDto.Username);
             return response;
         }
 

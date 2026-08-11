@@ -1,0 +1,132 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.CreditCards.CreditCardIndexViewModel
+@using ABP.Application.Features.CreditCards.DTOs
+@{
+    ViewData["Title"] = "Gestión de tarjetas de crédito";
+    var page = Model.Result?.Page;
+    var currentStatus = string.IsNullOrWhiteSpace(Model.Status) ? "activa" : Model.Status.ToLowerInvariant();
+}
+
+<div class="mx-auto max-w-7xl space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-ink">Gestión de tarjetas de crédito</h1>
+            <p class="mt-1 text-sm text-ink-muted">Consulta, asigna y administra las tarjetas de los clientes.</p>
+        </div>
+        <a class="btn btn-primary" asp-action="SelectClient">Asignar tarjeta de crédito</a>
+    </div>
+
+    @if (TempData["SuccessMessage"] is string successMessage)
+    {
+        <div class="alert border-success/30 bg-success/10 text-success" role="status">@successMessage</div>
+    }
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <form method="get" class="card grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_14rem_auto] md:items-end">
+        <div>
+            <label for="identification" class="mb-1 block text-sm font-medium text-ink-soft">Cédula del cliente</label>
+            <input id="identification" name="identification" value="@Model.Identification" maxlength="11"
+                   class="input" placeholder="00000000000" />
+        </div>
+        <div>
+            <label for="status" class="mb-1 block text-sm font-medium text-ink-soft">Estado</label>
+            <select id="status" name="status" class="input">
+                <option value="activa" selected="@(currentStatus == "activa")">Activas</option>
+                <option value="cancelada" selected="@(currentStatus == "cancelada")">Canceladas</option>
+                <option value="todas" selected="@(currentStatus == "todas")">Todas</option>
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Buscar</button>
+            <a class="btn btn-ghost" asp-action="Index">Limpiar</a>
+        </div>
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
+
+    <div asp-validation-summary="All" class="alert alert-danger empty:hidden" role="alert"></div>
+
+    @if (Model.Result?.SearchStatus == CreditCardSearchStatus.ClientNotFound)
+    {
+        <div class="alert alert-danger" role="alert">No existe un cliente registrado con esta cédula.</div>
+    }
+    else if (Model.Result?.SearchStatus == CreditCardSearchStatus.ClientWithoutCards)
+    {
+        <div class="alert border-warning/30 bg-warning/10 text-warning" role="status">
+            Este cliente no tiene tarjetas de crédito registradas.
+        </div>
+    }
+    else if (page is null || page.Data.Count == 0)
+    {
+        <div class="card p-10 text-center">
+            <h2 class="font-medium text-ink">No se encontraron tarjetas</h2>
+            <p class="mt-1 text-sm text-ink-muted">Modifica los filtros o asigna una nueva tarjeta.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-border text-sm">
+                    <thead class="bg-surface-sunken text-left text-xs uppercase tracking-wide text-ink-muted">
+                        <tr>
+                            <th class="px-4 py-3 font-medium">Tarjeta</th>
+                            <th class="px-4 py-3 font-medium">Cliente</th>
+                            <th class="px-4 py-3 text-right font-medium">Límite</th>
+                            <th class="px-4 py-3 text-right font-medium">Deuda</th>
+                            <th class="px-4 py-3 font-medium">Expira</th>
+                            <th class="px-4 py-3 font-medium">Estado</th>
+                            <th class="px-4 py-3 text-right font-medium">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border bg-surface">
+                        @foreach (var card in page.Data)
+                        {
+                            var isActive = string.Equals(card.Status, "Activa", StringComparison.OrdinalIgnoreCase);
+                            <tr>
+                                <td class="whitespace-nowrap px-4 py-3 font-mono text-ink">@card.MaskedCardNumber</td>
+                                <td class="px-4 py-3 text-ink-soft">@card.ClientFullName</td>
+                                <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @card.CreditLimit.ToString("N2")</td>
+                                <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @card.CurrentDebt.ToString("N2")</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-ink-soft">@card.ExpirationDate</td>
+                                <td class="px-4 py-3">
+                                    <span class="badge @(isActive ? "badge-success" : "badge-neutral")">@card.Status</span>
+                                </td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right">
+                                    <a class="btn btn-ghost px-2" asp-action="Details" asp-route-id="@card.Id">Ver detalles</a>
+                                    @if (isActive)
+                                    {
+                                        <a class="btn btn-ghost px-2" asp-action="EditLimit" asp-route-id="@card.Id">Editar</a>
+                                        <a class="btn btn-ghost px-2 text-danger" asp-action="ConfirmCancel" asp-route-id="@card.Id">Cancelar</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (page.TotalPages > 1)
+        {
+            <nav class="flex items-center justify-between gap-4" aria-label="Paginación de tarjetas">
+                <p class="text-sm text-ink-muted">Página @(page.Page) de @(page.TotalPages) · @(page.TotalRecords) registros</p>
+                <div class="flex gap-2">
+                    @if (page.Page > 1)
+                    {
+                        <a class="btn btn-ghost border border-border" asp-action="Index"
+                           asp-route-page="@(page.Page - 1)" asp-route-pageSize="@(page.PageSize)"
+                           asp-route-identification="@Model.Identification" asp-route-status="@currentStatus">Anterior</a>
+                    }
+                    @if (page.Page < page.TotalPages)
+                    {
+                        <a class="btn btn-ghost border border-border" asp-action="Index"
+                           asp-route-page="@(page.Page + 1)" asp-route-pageSize="@(page.PageSize)"
+                           asp-route-identification="@Model.Identification" asp-route-status="@currentStatus">Siguiente</a>
+                    }
+                </div>
+            </nav>
+        }
+    }
+</div>

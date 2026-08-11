@@ -1,3 +1,4 @@
+using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Entities;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -11,8 +12,9 @@ public static class DefaultUsers
 {
     private const string DefaultPasswordConfigurationKey = "SeedUsers:DefaultPassword";
 
-    private static readonly SeedUserDefinition[] WebAppUsers =
+    private static readonly SeedUserDefinition[] SeedUsers =
     [
+        // Usuarios de la aplicación web (MVC).
         new(
             UserName: "admin",
             Email: "admin@artemisbanking.com",
@@ -33,13 +35,29 @@ public static class DefaultUsers
             Name: "Default",
             LastName: "Client",
             Identification: "00000000003",
-            Role: Roles.Client)
+            Role: Roles.Client),
+        // Usuarios por defecto de la Web API (Administrador y Comercio).
+        new(
+            UserName: "adminapi",
+            Email: "adminapi@artemisbanking.com",
+            Name: "Default",
+            LastName: "Api Administrator",
+            Identification: "00000000004",
+            Role: Roles.Administrator),
+        new(
+            UserName: "commerceapi",
+            Email: "commerceapi@artemisbanking.com",
+            Name: "Default",
+            LastName: "Api Commerce",
+            Identification: "00000000005",
+            Role: Roles.Commerce)
     ];
 
     public static async Task SeedDefaultUsersAsync(
         UserManager<AppUser> userManager,
         IGenericRepository<User, string> userRepository,
         IUnitOfWork unitOfWork,
+        IPrimaryAccountProvisioner primaryAccountProvisioner,
         IConfiguration configuration,
         CancellationToken cancellationToken = default)
     {
@@ -51,7 +69,7 @@ public static class DefaultUsers
                 $"The configuration value '{DefaultPasswordConfigurationKey}' is required.");
         }
 
-        foreach (var definition in WebAppUsers)
+        foreach (var definition in SeedUsers)
         {
             await SeedUserAsync(
                 userManager,
@@ -62,6 +80,39 @@ public static class DefaultUsers
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        foreach (var definition in SeedUsers.Where(x => x.Role is Roles.Client or Roles.Commerce))
+        {
+            var appUser = await userManager.FindByNameAsync(definition.UserName);
+            if (appUser is null)
+            {
+                continue;
+            }
+
+            await ProvisionPrincipalAccountAsync(
+                primaryAccountProvisioner,
+                appUser.Id,
+                cancellationToken);
+        }
+    }
+
+    private static async Task ProvisionPrincipalAccountAsync(
+        IPrimaryAccountProvisioner primaryAccountProvisioner,
+        string ownerUserId,
+        CancellationToken cancellationToken)
+    {
+        var result = await primaryAccountProvisioner.OpenPrincipalAccountAsync(
+            ownerUserId,
+            initialBalance: 0m,
+            actorUserId: "system",
+            actorRole: Roles.Administrator.ToString(),
+            cancellationToken);
+
+        if (result.IsFailure &&
+            !string.Equals(result.Error.Code, "accounts.principal_already_exists", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(result.Error.Description);
+        }
     }
 
     private static async Task SeedUserAsync(

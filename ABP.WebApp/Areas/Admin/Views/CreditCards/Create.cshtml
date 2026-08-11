@@ -1,0 +1,42 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.CreditCards.CreateCreditCardViewModel
+@{
+    ViewData["Title"] = "Asignar tarjeta de crédito";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="SelectClient">← Seleccionar otro cliente</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Asignar tarjeta de crédito</h1>
+        <p class="mt-1 text-sm text-ink-muted">La tarjeta iniciará activa y con deuda RD$ 0.00.</p>
+    </div>
+
+    <section class="card p-5" aria-labelledby="selected-client-heading">
+        <h2 id="selected-client-heading" class="font-medium text-ink">Cliente seleccionado</h2>
+        <dl class="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+            <div><dt class="text-ink-muted">Nombre</dt><dd class="mt-1 font-medium text-ink">@Model.ClientFullName</dd></div>
+            <div><dt class="text-ink-muted">Cédula</dt><dd class="mt-1 text-ink">@Model.ClientIdentification</dd></div>
+            <div class="sm:col-span-2"><dt class="text-ink-muted">Correo</dt><dd class="mt-1 text-ink">@Model.ClientEmail</dd></div>
+        </dl>
+    </section>
+
+    <form asp-action="Create" method="post" class="card space-y-5 p-5" novalidate>
+        @Html.AntiForgeryToken()
+        <input asp-for="ClientId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger empty:hidden" role="alert"></div>
+        <span asp-validation-for="ClientId" class="block text-sm text-danger"></span>
+
+        <div>
+            <label asp-for="CreditLimit" class="mb-1 block text-sm font-medium text-ink-soft">Límite de crédito</label>
+            <div class="relative">
+                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-ink-muted">RD$</span>
+                <input asp-for="CreditLimit" class="input pl-12 tnum" type="number" min="0.01" step="0.01" inputmode="decimal" />
+            </div>
+            <span asp-validation-for="CreditLimit" class="mt-1 block text-sm text-danger"></span>
+        </div>
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <a class="btn btn-ghost" asp-action="SelectClient">Volver atrás</a>
+            <button type="submit" class="btn btn-primary">Asignar</button>
+        </div>
+    </form>
+</div>

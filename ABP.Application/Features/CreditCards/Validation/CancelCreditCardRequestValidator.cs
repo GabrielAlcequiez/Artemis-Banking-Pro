@@ -9,7 +9,7 @@ namespace ABP.Application.Features.CreditCards.Validation
         {
             RuleFor(request => request.CreditCardId)
                 .NotEmpty()
-                .WithMessage("CreditCardId is required.");
+                .WithMessage("La tarjeta seleccionada es requerida.");
         }
     }
 }
