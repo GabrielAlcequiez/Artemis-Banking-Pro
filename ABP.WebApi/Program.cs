@@ -26,6 +26,7 @@ builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 builder.Services.AddApplicationServices();
+builder.Services.AddApplicationCqrs();
 builder.Services.AddSharedServices(builder.Configuration);
 builder.Services.AddInfrastructureIdentityServicesWebApi(builder.Configuration);
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
@@ -41,7 +42,10 @@ builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
-await app.Services.RunSeedsAsync();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    await app.Services.RunSeedsAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -80,4 +84,6 @@ finally
 {
     await Log.CloseAndFlushAsync(); 
 }
+
+public partial class Program;
 
