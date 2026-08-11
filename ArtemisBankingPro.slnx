@@ -3,10 +3,7 @@
     <Project Path="ABP.Infrastructure/ABP.Infrastructure.Identity/ABP.Infrastructure.Identity.csproj" />
     <Project Path="ABP.Infrastructure/ABP.Infrastructure.Persistence/ABP.Infrastructure.Persistence.csproj" />
   </Folder>
-  <Folder Name="/Elementos de la solución/">
-    <File Path=".gitattributes" />
-  </Folder>
-  <Folder Name="/Elementos de la solución/tests/">
+  <Folder Name="/tests/">
     <Project Path="tests/ABP.Application.UnitTests/ABP.Application.UnitTests.csproj" />
     <Project Path="tests/ABP.Domain.UnitTests/ABP.Domain.UnitTests.csproj" />
     <Project Path="tests/ABP.Infrastructure.IntegrationTests/ABP.Infrastructure.IntegrationTests.csproj" />
