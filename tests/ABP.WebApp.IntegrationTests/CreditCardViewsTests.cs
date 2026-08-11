@@ -4,6 +4,7 @@ using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Domain.Common;
 using ABP.WebApp.Areas.Admin.Controllers;
 using ABP.WebApp.Areas.Admin.ViewModels.CreditCards;
+using ClientCreditCardDetailViewModel = ABP.WebApp.Areas.Client.ViewModels.CreditCards.CreditCardDetailViewModel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -30,10 +31,27 @@ public sealed class CreditCardViewsTests
         object model,
         string expectedText)
     {
-        var html = await RenderAsync(viewName, model);
+        var html = await RenderAsync("Admin", "CreditCards", viewName, model);
 
         Assert.Contains(expectedText, html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Artemis Banking", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("4000000000001234", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("CvcHash", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hashed-cvc", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Client_detail_view_renders_consumptions_with_safe_card_data()
+    {
+        var html = await RenderAsync(
+            "Client",
+            "CreditCards",
+            "Details",
+            new ClientCreditCardDetailViewModel { Card = CreateDetail() });
+
+        Assert.Contains("Supermercado Demo", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("← Volver al Home", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("************1234", html, StringComparison.Ordinal);
         Assert.DoesNotContain("4000000000001234", html, StringComparison.Ordinal);
         Assert.DoesNotContain("CvcHash", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("hashed-cvc", html, StringComparison.OrdinalIgnoreCase);
@@ -99,7 +117,11 @@ public sealed class CreditCardViewsTests
         }
     };
 
-    private static async Task<string> RenderAsync(string viewName, object model)
+    private static async Task<string> RenderAsync(
+        string area,
+        string controller,
+        string viewName,
+        object model)
     {
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
@@ -126,8 +148,8 @@ public sealed class CreditCardViewsTests
         };
         var routeData = new RouteData();
         routeData.Routers.Add(new TestRouter());
-        routeData.Values["area"] = "Admin";
-        routeData.Values["controller"] = "CreditCards";
+        routeData.Values["area"] = area;
+        routeData.Values["controller"] = controller;
         routeData.Values["action"] = viewName;
         var actionContext = new ActionContext(
             httpContext,
@@ -137,7 +159,7 @@ public sealed class CreditCardViewsTests
         var viewEngine = provider.GetRequiredService<IRazorViewEngine>();
         var viewResult = viewEngine.GetView(
             executingFilePath: null,
-            viewPath: $"/Areas/Admin/Views/CreditCards/{viewName}.cshtml",
+            viewPath: $"/Areas/{area}/Views/{controller}/{viewName}.cshtml",
             isMainPage: true);
         Assert.True(viewResult.Success, string.Join(Environment.NewLine, viewResult.SearchedLocations ?? []));
 
