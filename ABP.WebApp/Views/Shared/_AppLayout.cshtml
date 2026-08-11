@@ -23,11 +23,12 @@
                 <partial name="Partials/_Icon" model='"panel-left-close"' />
                 <span class="sidebar-label">Contraer menú</span>
             </button>
-            @* Pendiente: apuntar al endpoint real de logout cuando exista el módulo de autenticación. *@
-            <a asp-controller="Account" asp-action="Logout" class="sidebar-item" title="Cerrar sesión">
-                <partial name="Partials/_Icon" model='"log-out"' />
-                <span class="sidebar-label">Cerrar sesión</span>
-            </a>
+            <form asp-area="" asp-controller="Account" asp-action="Logout" method="post" class="sidebar-item w-full">
+                <button type="submit" class="flex w-full items-center gap-3 text-left" title="Cerrar sesión">
+                    <partial name="Partials/_Icon" model='"log-out"' />
+                    <span class="sidebar-label">Cerrar sesión</span>
+                </button>
+            </form>
         </div>
     </aside>
 

@@ -20,6 +20,7 @@ using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
 using ABP.Application.Common.Interfaces.Identity;
+using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Infrastructure.Identity.Services;
 
 namespace ABP.Infrastructure.Identity
@@ -79,8 +80,8 @@ namespace ABP.Infrastructure.Identity
                 opt.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 opt.Cookie.SameSite = SameSiteMode.Lax;
                 opt.ExpireTimeSpan = TimeSpan.FromHours(2);
-                opt.LoginPath = "/Auth/Login";
-                opt.AccessDeniedPath = "/Auth/AccessDenied";
+                opt.LoginPath = "/Account/Login";
+                opt.AccessDeniedPath = "/Account/AccessDenied";
                 opt.SlidingExpiration = true;
 
                 opt.Events = new CookieAuthenticationEvents
@@ -303,6 +304,7 @@ opt.Events = new JwtBearerEvents()
                 userManager,
                 services.GetRequiredService<IGenericRepository<User, string>>(),
                 services.GetRequiredService<IUnitOfWork>(),
+                services.GetRequiredService<IPrimaryAccountProvisioner>(),
                 configuration);
         }
     

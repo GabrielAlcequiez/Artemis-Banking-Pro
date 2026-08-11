@@ -41,7 +41,7 @@ builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
-// await app.Services.RunSeedsAsync();
+await app.Services.RunSeedsAsync();
 
 if (app.Environment.IsDevelopment())
 {

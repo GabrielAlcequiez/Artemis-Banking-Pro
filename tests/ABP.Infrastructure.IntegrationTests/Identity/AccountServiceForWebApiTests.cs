@@ -49,12 +49,23 @@ public class AccountServiceForWebApiTests
             new DefaultUserConfirmation<AppUser>());
 
         return new AccountServiceForWebApi(
-            NullLogger<AccountServiceForWebApi>.Instance,
             signInManager,
-            userManager,
             new LoginValidator(),
+            _jwtTokenService,
+            null!, // mapper (no se usa en login)
+            userManager,
+            null!, // emailService
+            null!, // createUserValidator
+            null!, // editUserValidator
+            null!, // resetPasswordValidator
             _userRepository,
-            _jwtTokenService);
+            null!, // unitOfWork
+            null!, // accountTokenService
+            null!, // primaryAccountProvisioner
+            null!, // savingsAccountRepository
+            null!, // accountBalanceService
+            null!, // accountLedger
+            NullLogger<BaseAccountService>.Instance);
     }
 
     private void SeedUser(string userName, string role, bool isActive = true, bool emailConfirmed = true, Guid? commerceId = null)

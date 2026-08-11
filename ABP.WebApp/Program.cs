@@ -23,7 +23,6 @@ builder.Host.UseSerilog();
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServicesWebApp(builder.Configuration);
 builder.Services.AddInfrastructurePersistence(builder.Configuration);
-builder.Services.AddApplicationServices();
 builder.Services.AddSharedServices(builder.Configuration);
 builder.Services.AddControllersWithViews();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -31,7 +30,7 @@ builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
-// await app.Services.RunSeedsAsync();
+await app.Services.RunSeedsAsync();
 
 app.UseCorrelationId();
 
@@ -60,7 +59,7 @@ app.MapControllerRoute(
     pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Auth}/{action=Login}/{id?}");
+    pattern: "{controller=Account}/{action=Login}/{id?}");
 
 try
 {
