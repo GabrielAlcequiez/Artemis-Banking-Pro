@@ -151,6 +151,15 @@ public sealed class GetCreditCardDetailQueryTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+            IReadOnlyCollection<string> clientIds,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<bool> IsActiveClientAsync(
             string clientId,
             CancellationToken cancellationToken = default) =>

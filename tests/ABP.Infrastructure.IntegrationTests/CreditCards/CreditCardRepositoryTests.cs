@@ -245,7 +245,7 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
     #region Debt and lifecycle tests
 
     [Fact]
-    public async Task Active_debt_reader_excludes_cancelled_cards()
+    public async Task Active_debt_query_excludes_cancelled_cards()
     {
         await SeedAsync(_context);
 
@@ -255,7 +255,7 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Active_debt_reader_returns_zero_when_client_has_no_active_cards()
+    public async Task Active_debt_query_returns_zero_when_client_has_no_active_cards()
     {
         await SeedAsync(_context);
         var clientWithoutActiveCards = new User("client-without-active-cards")

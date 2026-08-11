@@ -443,17 +443,6 @@ public sealed class CreditCardCoreServicesTests
         Assert.All(cardNumber, character => Assert.InRange(character, '0', '9'));
     }
 
-    [Fact]
-    public async Task Card_debt_reader_delegates_to_active_debt_repository()
-    {
-        var repository = new FakeCreditCardRepository { ActiveDebt = 150.25m };
-        var reader = new CardDebtReaderService(repository);
-
-        var debt = await reader.GetActiveCardDebtByClientIdAsync("client-1");
-
-        Assert.Equal(150.25m, debt);
-    }
-
     #endregion
 
     #region Test helpers
@@ -605,6 +594,16 @@ public sealed class CreditCardCoreServicesTests
             string clientId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(ActiveDebt);
+
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ActiveDebt);
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+            IReadOnlyCollection<string> clientIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<string, decimal>>(
+                clientIds.ToDictionary(clientId => clientId, _ => ActiveDebt));
 
         public Task<CreditCard> AddAsync(
             CreditCard entity,

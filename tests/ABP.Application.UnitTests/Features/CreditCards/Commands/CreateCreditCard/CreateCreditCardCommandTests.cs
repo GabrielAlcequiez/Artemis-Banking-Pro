@@ -362,6 +362,15 @@ public sealed class CreateCreditCardCommandTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+            IReadOnlyCollection<string> clientIds,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<CreditCard?> GetForUpdateAsync(
             Guid creditCardId,
             CancellationToken cancellationToken = default) =>

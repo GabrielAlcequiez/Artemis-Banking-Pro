@@ -296,6 +296,15 @@ public class BaseAccountServiceTests
         public Task<PagedResult<User>> GetPagedAsync(PagedRequest request, bool commerceOnly = false, Roles? role = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PagedResult<User>(new List<User>(), request.Page, request.PageSize, 0));
 
+        public Task<PagedResult<User>> GetActiveClientsPagedAsync(PagedRequest request, string? identification = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PagedResult<User>(new List<User>(), request.Page, request.PageSize, 0));
+
+        public Task<User?> GetActiveClientByIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<User?>(null);
+
+        public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
         public IQueryable<User> GetAllQueryable(bool trackChanges = false) => new List<User>().AsQueryable();
 
         public Task<User?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
