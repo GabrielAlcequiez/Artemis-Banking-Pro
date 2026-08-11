@@ -1,3 +1,4 @@
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Implementations;
@@ -124,6 +125,7 @@ public sealed class CreditCardCoreServicesTests
                 150m,
                 new DateOnly(2029, 8, 31),
                 CreditCardStatus.Active,
+                new DateTimeOffset(2026, 8, 5, 10, 0, 0, TimeSpan.Zero),
                 [new CardConsumptionReadModel(
                     Guid.NewGuid(),
                     new DateTimeOffset(2026, 8, 5, 12, 0, 0, TimeSpan.Zero),
@@ -158,6 +160,145 @@ public sealed class CreditCardCoreServicesTests
         var mapper = provider.GetRequiredService<IMapper>();
 
         mapper.ConfigurationProvider.AssertConfigurationIsValid();
+    }
+
+    #endregion
+
+    #region Create card tests
+
+    [Fact]
+    public async Task Create_assigns_an_active_card_with_safe_generated_values_and_commits_once()
+    {
+        var repository = new FakeCreditCardRepository
+        {
+            IsActiveClient = true,
+            CardNumberExists = false
+        };
+        var unitOfWork = new FakeUnitOfWork();
+        var clock = new FakeClock(new DateOnly(2026, 8, 8));
+        var currentUser = new FakeCurrentUserService { UserId = "admin-1" };
+        var numberGenerator = new FakeCardNumberGeneratorService("0000000000001234");
+        var cvcService = new FakeCvcService { GeneratedCvc = "007" };
+        var service = CreateService(
+            repository,
+            unitOfWork,
+            clock,
+            currentUser,
+            numberGenerator,
+            cvcService);
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("client-1", 5_000m));
+
+        Assert.True(result.IsSuccess);
+        var card = Assert.IsType<CreditCard>(repository.AddedCard);
+        Assert.Equal(card.Id, result.Value);
+        Assert.Equal("client-1", card.ClientId);
+        Assert.Equal("0000000000001234", card.CardNumber);
+        Assert.Equal(cvcService.HashedCvc, card.CvcHash);
+        Assert.Equal("007", cvcService.LastHashedCvc);
+        Assert.NotEqual(cvcService.GeneratedCvc, card.CvcHash);
+        Assert.Equal(5_000m, card.Limit);
+        Assert.Equal(0m, card.Debt);
+        Assert.Equal(new DateOnly(2029, 8, 31), card.ExpirationDate);
+        Assert.Equal(CreditCardStatus.Active, card.Status);
+        Assert.Equal("admin-1", card.AssignedByUserId);
+        Assert.Equal(1, repository.AddCalls);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Create_rejects_an_inactive_client_without_generating_or_committing()
+    {
+        var repository = new FakeCreditCardRepository { IsActiveClient = false };
+        var unitOfWork = new FakeUnitOfWork();
+        var numberGenerator = new FakeCardNumberGeneratorService();
+        var service = CreateService(
+            repository,
+            unitOfWork,
+            numberGenerator: numberGenerator);
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("client-1", 5_000m));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.ClientInactive, result.Error);
+        Assert.Equal(0, numberGenerator.GenerateCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Create_distinguishes_missing_client_from_inactive_client()
+    {
+        var repository = new FakeCreditCardRepository
+        {
+            ClientExists = false,
+            IsActiveClient = false
+        };
+        var unitOfWork = new FakeUnitOfWork();
+        var service = CreateService(repository, unitOfWork);
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("missing-client", 5_000m));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.ClientNotFound, result.Error);
+        Assert.Equal(0, repository.IsActiveClientCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Create_requires_an_authenticated_administrator()
+    {
+        var repository = new FakeCreditCardRepository { IsActiveClient = true };
+        var unitOfWork = new FakeUnitOfWork();
+        var currentUser = new FakeCurrentUserService
+        {
+            IsAuthenticated = true,
+            UserId = "client-1",
+            Roles = [Roles.Client.ToString()]
+        };
+        var service = CreateService(
+            repository,
+            unitOfWork,
+            currentUser: currentUser);
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("client-1", 5_000m));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.AdministratorRequired, result.Error);
+        Assert.Equal(0, repository.IsActiveClientCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+    }
+
+    [Fact]
+    public async Task Create_returns_generation_failure_after_ten_collisions()
+    {
+        var repository = new FakeCreditCardRepository
+        {
+            IsActiveClient = true,
+            CardNumberExists = true
+        };
+        var unitOfWork = new FakeUnitOfWork();
+        var numberGenerator = new FakeCardNumberGeneratorService();
+        var service = CreateService(
+            repository,
+            unitOfWork,
+            numberGenerator: numberGenerator);
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("client-1", 5_000m));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.NumberGenerationFailed, result.Error);
+        Assert.Equal(10, numberGenerator.GenerateCalls);
+        Assert.Equal(10, repository.CardNumberExistsCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
     }
 
     #endregion
@@ -302,35 +443,45 @@ public sealed class CreditCardCoreServicesTests
         Assert.All(cardNumber, character => Assert.InRange(character, '0', '9'));
     }
 
-    [Fact]
-    public async Task Card_debt_reader_delegates_to_active_debt_repository()
-    {
-        var repository = new FakeCreditCardRepository { ActiveDebt = 150.25m };
-        var reader = new CardDebtReaderService(repository);
-
-        var debt = await reader.GetActiveCardDebtByClientIdAsync("client-1");
-
-        Assert.Equal(150.25m, debt);
-    }
-
     #endregion
 
     #region Test helpers
 
     private static ICreditCardService CreateService(
         FakeCreditCardRepository repository,
-        FakeUnitOfWork? unitOfWork = null) =>
-        CreateProvider(repository, unitOfWork).GetRequiredService<ICreditCardService>();
+        FakeUnitOfWork? unitOfWork = null,
+        IClock? clock = null,
+        ICurrentUserService? currentUser = null,
+        ICardNumberGeneratorService? numberGenerator = null,
+        ICvcService? cvcService = null) =>
+        CreateProvider(
+            repository,
+            unitOfWork,
+            clock,
+            currentUser,
+            numberGenerator,
+            cvcService).GetRequiredService<ICreditCardService>();
 
     private static IServiceProvider CreateProvider(
         FakeCreditCardRepository repository,
-        FakeUnitOfWork? unitOfWork = null)
+        FakeUnitOfWork? unitOfWork = null,
+        IClock? clock = null,
+        ICurrentUserService? currentUser = null,
+        ICardNumberGeneratorService? numberGenerator = null,
+        ICvcService? cvcService = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddApplicationServices();
         services.AddSingleton<ICreditCardRepository>(repository);
         services.AddSingleton<IUnitOfWork>(unitOfWork ?? new FakeUnitOfWork());
+        services.AddSingleton(clock ?? new FakeClock(new DateOnly(2026, 8, 8)));
+        services.AddSingleton(
+            currentUser ?? new FakeCurrentUserService());
+        services.AddSingleton<ICardNumberGeneratorService>(
+            numberGenerator ?? new FakeCardNumberGeneratorService());
+        services.AddSingleton<ICvcService>(
+            cvcService ?? new FakeCvcService());
         return services.BuildServiceProvider();
     }
 
@@ -365,6 +516,8 @@ public sealed class CreditCardCoreServicesTests
 
     private sealed class FakeCreditCardRepository : ICreditCardRepository
     {
+        public bool ClientExists { get; init; } = true;
+
         public string? ClientIdByIdentification { get; init; }
 
         public bool HasCards { get; init; } = true;
@@ -380,12 +533,27 @@ public sealed class CreditCardCoreServicesTests
         public string? ReceivedIdentification { get; private set; }
         public bool IsActiveClient { get; init; }
         public CreditCard? CardForUpdate { get; init; }
+        public bool CardNumberExists { get; init; }
+        public int CardNumberExistsCalls { get; private set; }
+        public int IsActiveClientCalls { get; private set; }
+        public int AddCalls { get; private set; }
+        public CreditCard? AddedCard { get; private set; }
+
+        public Task<bool> ClientExistsAsync(
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ClientExists);
 
         public Task<CreditCard?> GetByCardNumberAsync(string cardNumber, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<bool> CardNumberExistsAsync(string cardNumber, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task<bool> CardNumberExistsAsync(
+            string cardNumber,
+            CancellationToken cancellationToken = default)
+        {
+            CardNumberExistsCalls++;
+            return Task.FromResult(CardNumberExists);
+        }
 
         public Task AddConsumptionAsync(CardConsumption consumption, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
@@ -427,8 +595,24 @@ public sealed class CreditCardCoreServicesTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(ActiveDebt);
 
-        public Task<CreditCard> AddAsync(CreditCard entity, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ActiveDebt);
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(
+            IReadOnlyCollection<string> clientIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<string, decimal>>(
+                clientIds.ToDictionary(clientId => clientId, _ => ActiveDebt));
+
+        public Task<CreditCard> AddAsync(
+            CreditCard entity,
+            CancellationToken cancellationToken = default)
+        {
+            AddCalls++;
+            AddedCard = entity;
+            return Task.FromResult(entity);
+        }
 
         public Task<IReadOnlyList<CreditCard>> GetAllAsync(bool trackChanges = false, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
@@ -445,7 +629,13 @@ public sealed class CreditCardCoreServicesTests
         public Task<CreditCard?> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<bool> IsActiveClientAsync(string clientId, CancellationToken cancellationToken = default) => Task.FromResult(IsActiveClient);
+        public Task<bool> IsActiveClientAsync(
+            string clientId,
+            CancellationToken cancellationToken = default)
+        {
+            IsActiveClientCalls++;
+            return Task.FromResult(IsActiveClient);
+        }
 
         public Task<CreditCard?> GetForUpdateAsync(Guid creditCardId, CancellationToken cancellationToken = default) => Task.FromResult(CardForUpdate);
 

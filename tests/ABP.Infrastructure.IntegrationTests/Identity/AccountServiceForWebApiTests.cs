@@ -49,12 +49,23 @@ public class AccountServiceForWebApiTests
             new DefaultUserConfirmation<AppUser>());
 
         return new AccountServiceForWebApi(
-            NullLogger<AccountServiceForWebApi>.Instance,
             signInManager,
-            userManager,
             new LoginValidator(),
+            _jwtTokenService,
+            null!, // mapper (no se usa en login)
+            userManager,
+            null!, // emailService
+            null!, // createUserValidator
+            null!, // editUserValidator
+            null!, // resetPasswordValidator
             _userRepository,
-            _jwtTokenService);
+            null!, // unitOfWork
+            null!, // accountTokenService
+            null!, // primaryAccountProvisioner
+            null!, // savingsAccountRepository
+            null!, // accountBalanceService
+            null!, // accountLedger
+            NullLogger<BaseAccountService>.Instance);
     }
 
     private void SeedUser(string userName, string role, bool isActive = true, bool emailConfirmed = true, Guid? commerceId = null)
@@ -344,6 +355,17 @@ public class AccountServiceForWebApiTests
 
         public Task<PagedResult<User>> GetPagedAsync(PagedRequest request, bool commerceOnly = false, Roles? role = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PagedResult<User>(new List<User>(), request.Page, request.PageSize, 0));
+
+        public Task<PagedResult<User>> GetActiveClientsPagedAsync(PagedRequest request, string? identification = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PagedResult<User>(new List<User>(), request.Page, request.PageSize, 0));
+
+        public Task<User?> GetActiveClientByIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_usersById.Values.FirstOrDefault(user =>
+                user.Id == clientId && user.Role == Roles.Client && user.IsActive));
+
+        public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(_usersById.Values.Count(user =>
+                user.Role == Roles.Client && user.IsActive));
 
         public IQueryable<User> GetAllQueryable(bool trackChanges = false) => new List<User>().AsQueryable();
 

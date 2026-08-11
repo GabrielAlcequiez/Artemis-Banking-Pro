@@ -48,5 +48,65 @@ namespace ABP.Infrastructure.Persistence.Repositories
 
             return new PagedResult<User>(data, request.Page, request.PageSize, totalRecords);
         }
+
+        public async Task<PagedResult<User>> GetActiveClientsPagedAsync(
+            PagedRequest request,
+            string? identification = null,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+
+            var normalizedPage = Math.Max(request.Page, 1);
+            var normalizedPageSize = Math.Clamp(request.PageSize, 1, 20);
+            var normalizedIdentification = identification?.Trim();
+
+            var query = _context.Users
+                .AsNoTracking()
+                .Where(user => user.Role == Roles.Client && user.IsActive);
+
+            if (!string.IsNullOrWhiteSpace(normalizedIdentification))
+            {
+                query = query.Where(user => user.Identification == normalizedIdentification);
+            }
+
+            var totalRecords = await query.CountAsync(cancellationToken);
+            var skip = (int)Math.Min(
+                (long)(normalizedPage - 1) * normalizedPageSize,
+                int.MaxValue);
+            var data = await query
+                .OrderBy(user => user.Identification)
+                .Skip(skip)
+                .Take(normalizedPageSize)
+                .ToListAsync(cancellationToken);
+
+            return new PagedResult<User>(
+                data,
+                normalizedPage,
+                normalizedPageSize,
+                totalRecords);
+        }
+
+        public Task<User?> GetActiveClientByIdAsync(
+            string clientId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.Users
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    user => user.Id == clientId
+                        && user.Role == Roles.Client
+                        && user.IsActive,
+                    cancellationToken);
+        }
+
+        public Task<int> CountActiveClientsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return _context.Users
+                .AsNoTracking()
+                .CountAsync(
+                    user => user.Role == Roles.Client && user.IsActive,
+                    cancellationToken);
+        }
     }
 }

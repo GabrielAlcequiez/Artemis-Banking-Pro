@@ -1,0 +1,12 @@
+@model ABP.WebApp.ViewModels.AccountMessageViewModel
+@{
+    ViewData["Title"] = "Activación de cuenta";
+}
+
+<div class="flex min-h-screen items-center justify-center bg-surface-muted px-4">
+    <div class="card w-full max-w-sm p-6 text-center">
+        <h1 class="text-lg font-semibold text-ink">Activación de cuenta</h1>
+        <p class="mt-2 text-sm text-ink-muted">@Model.Message</p>
+        <a asp-controller="Account" asp-action="Login" class="btn btn-primary mt-6 inline-block">Ir a iniciar sesión</a>
+    </div>
+</div>

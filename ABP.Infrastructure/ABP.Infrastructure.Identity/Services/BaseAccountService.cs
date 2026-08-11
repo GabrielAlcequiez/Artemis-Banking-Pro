@@ -18,20 +18,20 @@ namespace ABP.Infrastructure.Identity.Services
 {
     public partial class BaseAccountService : IBaseAccountService
     {
-        private readonly IMapper _mapper;
-        private readonly UserManager<AppUser> _userManager;
-        private readonly IEmailService _emailService;
-        private readonly IValidator<CreateUserDto> _createUserValidator;
-        private readonly IValidator<EditUserDto> _editUserValidator;
-        private readonly IValidator<ResetPasswordDto> _resetPasswordValidator;
-        private readonly IUserRepository _userRepository;
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly IAccountTokenService _accountTokenService;
-        private readonly IPrimaryAccountProvisioner _primaryAccountProvisioner;
-        private readonly ISavingsAccountRepository _savingsAccountRepository;
-        private readonly IAccountBalanceService _accountBalanceService;
-        private readonly IAccountLedger _accountLedger;
-        private readonly ILogger<BaseAccountService> _logger;
+        protected readonly IMapper _mapper;
+        protected readonly UserManager<AppUser> _userManager;
+        protected readonly IEmailService _emailService;
+        protected readonly IValidator<CreateUserDto> _createUserValidator;
+        protected readonly IValidator<EditUserDto> _editUserValidator;
+        protected readonly IValidator<ResetPasswordDto> _resetPasswordValidator;
+        protected readonly IUserRepository _userRepository;
+        protected readonly IUnitOfWork _unitOfWork;
+        protected readonly IAccountTokenService _accountTokenService;
+        protected readonly IPrimaryAccountProvisioner _primaryAccountProvisioner;
+        protected readonly ISavingsAccountRepository _savingsAccountRepository;
+        protected readonly IAccountBalanceService _accountBalanceService;
+        protected readonly IAccountLedger _accountLedger;
+        protected readonly ILogger<BaseAccountService> _logger;
 
         public BaseAccountService(IMapper mapper, UserManager<AppUser> userManager, IEmailService emailService, IValidator<CreateUserDto> createUserValidator, IValidator<EditUserDto> editUserValidator, IValidator<ResetPasswordDto> resetPasswordValidator, IUserRepository userRepository, IUnitOfWork unitOfWork, IAccountTokenService accountTokenService, IPrimaryAccountProvisioner primaryAccountProvisioner, ISavingsAccountRepository savingsAccountRepository, IAccountBalanceService accountBalanceService, IAccountLedger accountLedger, ILogger<BaseAccountService> logger)
         {
@@ -440,6 +440,23 @@ namespace ABP.Infrastructure.Identity.Services
 
             _logger.LogInformation("Cuenta del usuario {UserId} activada exitosamente.", userId);
             return string.Empty;
+        }
+
+        public async Task<string?> ValidateResetTokenAsync(string userId, string token)
+        {
+            _logger.LogInformation("Validando token de restablecimiento para el usuario {UserId}.", userId);
+
+            var validationResult = await _accountTokenService.ValidateAsync(userId, token, AccountTokenPurpose.PasswordReset);
+
+            return validationResult.Status switch
+            {
+                AccountTokenValidationStatus.Valid => null,
+                AccountTokenValidationStatus.NotFound => "El enlace de restablecimiento no es válido.",
+                AccountTokenValidationStatus.Invalid => "El enlace de restablecimiento no es válido.",
+                AccountTokenValidationStatus.Expired => "El enlace de restablecimiento ha expirado. Solicite un nuevo restablecimiento de contraseña.",
+                AccountTokenValidationStatus.Used => "Este enlace de restablecimiento ya fue utilizado.",
+                _ => "El enlace de restablecimiento no es válido."
+            };
         }
 
         public async Task<string> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto, string? origin = null, bool isApi = false)

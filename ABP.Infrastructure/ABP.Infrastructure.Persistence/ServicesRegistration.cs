@@ -40,7 +40,8 @@ namespace ABP.Infrastructure.Persistence
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<ICreditCardRepository, CreditCardRepository>();
-            services.AddScoped<ICvcHasherService, CvcHasherService>();
+            services.AddScoped<ICvcService, CvcService>();
+
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IAccountTokenRepository, AccountTokenRepository>();
             services.AddScoped<ISavingsAccountRepository, SavingsAccountRepository>();
