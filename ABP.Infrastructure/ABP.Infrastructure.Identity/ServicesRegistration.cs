@@ -20,6 +20,7 @@ using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
 using ABP.Application.Common.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Infrastructure.Identity.Services;
 
@@ -280,6 +281,10 @@ opt.Events = new JwtBearerEvents()
             },
             contextLifetime: ServiceLifetime.Scoped,
             optionsLifetime: ServiceLifetime.Scoped);
+
+            services.AddScoped<
+                ICommerceUserInactivationService,
+                CommerceUserInactivationService>();
         }
 
         private static async Task RejectPrincipalAsync(
