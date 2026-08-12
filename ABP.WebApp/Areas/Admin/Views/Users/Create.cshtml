@@ -1,0 +1,104 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Users.CreateUserViewModel
+@{
+    ViewData["Title"] = "Crear usuario";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Index">← Volver a la gestión de usuarios</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Crear usuario</h1>
+        <p class="mt-1 text-sm text-ink-muted">El usuario se creará inactivo y recibirá un correo de activación.</p>
+    </div>
+
+    <form asp-action="Create" method="post" class="card space-y-5 p-5" novalidate>
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger empty:hidden" role="alert"></div>
+
+        <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+                <label asp-for="FirstName" class="mb-1 block text-sm font-medium text-ink-soft">Nombre</label>
+                <input asp-for="FirstName" class="input" autocomplete="given-name" />
+                <span asp-validation-for="FirstName" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="LastName" class="mb-1 block text-sm font-medium text-ink-soft">Apellido</label>
+                <input asp-for="LastName" class="input" autocomplete="family-name" />
+                <span asp-validation-for="LastName" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="Identification" class="mb-1 block text-sm font-medium text-ink-soft">Cédula</label>
+                <input asp-for="Identification" class="input" maxlength="20" placeholder="00000000000" />
+                <span asp-validation-for="Identification" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="Email" class="mb-1 block text-sm font-medium text-ink-soft">Correo electrónico</label>
+                <input asp-for="Email" class="input" type="email" autocomplete="email" />
+                <span asp-validation-for="Email" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="UserName" class="mb-1 block text-sm font-medium text-ink-soft">Nombre de usuario</label>
+                <input asp-for="UserName" class="input" autocomplete="username" />
+                <span asp-validation-for="UserName" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="Role" class="mb-1 block text-sm font-medium text-ink-soft">Tipo de usuario</label>
+                <select asp-for="Role" class="input">
+                    <option value="">Seleccione un tipo</option>
+                    @foreach (var role in ABP.WebApp.Areas.Admin.ViewModels.Users.CreateUserViewModel.ValidRoles)
+                    {
+                        <option value="@role" selected="@(Model.Role == role)">@role</option>
+                    }
+                </select>
+                <span asp-validation-for="Role" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="Password" class="mb-1 block text-sm font-medium text-ink-soft">Contraseña</label>
+                <input asp-for="Password" class="input" type="password" autocomplete="new-password" />
+                <span asp-validation-for="Password" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="ConfirmPassword" class="mb-1 block text-sm font-medium text-ink-soft">Confirmar contraseña</label>
+                <input asp-for="ConfirmPassword" class="input" type="password" autocomplete="new-password" />
+                <span asp-validation-for="ConfirmPassword" class="mt-1 block text-sm text-danger"></span>
+            </div>
+        </div>
+
+        <div id="initial-amount-field" class="hidden">
+            <label asp-for="InitialAmount" class="mb-1 block text-sm font-medium text-ink-soft">Monto inicial</label>
+            <div class="relative">
+                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-ink-muted">RD$</span>
+                <input asp-for="InitialAmount" class="input pl-12 tnum" type="number" min="0" step="0.01" inputmode="decimal" />
+            </div>
+            <p class="mt-1 text-xs text-ink-muted">Saldo inicial de la cuenta de ahorro principal. Si se deja vacío se asume RD$ 0.00.</p>
+            <span asp-validation-for="InitialAmount" class="mt-1 block text-sm text-danger"></span>
+        </div>
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <a class="btn btn-ghost" asp-action="Index">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Crear usuario</button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var roleSelect = document.getElementById("@Html.IdFor(m => m.Role)");
+            var amountField = document.getElementById("initial-amount-field");
+
+            function toggleAmount() {
+                if (!roleSelect || !amountField) {
+                    return;
+                }
+
+                amountField.classList.toggle("hidden", roleSelect.value !== "Cliente");
+            }
+
+            if (roleSelect) {
+                roleSelect.addEventListener("change", toggleAmount);
+            }
+
+            toggleAmount();
+        })();
+    </script>
+}

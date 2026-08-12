@@ -1,0 +1,124 @@
+@using ABP.WebApp.Helpers
+@model ABP.WebApp.Areas.Admin.ViewModels.Users.UsersIndexViewModel
+@{
+    ViewData["Title"] = "Gestión de usuarios";
+    var page = Model.Result;
+    var currentRole = string.IsNullOrWhiteSpace(Model.Role) ? "Todos" : Model.Role;
+}
+
+<div class="mx-auto max-w-7xl space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-ink">Gestión de usuarios</h1>
+            <p class="mt-1 text-sm text-ink-muted">Consulta, crea y administra los usuarios de la aplicación web.</p>
+        </div>
+        <a class="btn btn-primary" asp-action="Create">Crear usuario</a>
+    </div>
+
+    @if (TempData["SuccessMessage"] is string successMessage)
+    {
+        <div class="alert border-success/30 bg-success/10 text-success" role="status">@successMessage</div>
+    }
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <form method="get" class="card grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_14rem_auto] md:items-end">
+        <div>
+            <label for="role" class="mb-1 block text-sm font-medium text-ink-soft">Tipo de usuario</label>
+            <select id="role" name="role" class="input">
+                <option value="Todos" selected="@(currentRole == "Todos")">Todos</option>
+                <option value="Administrador" selected="@(currentRole == "Administrador")">Administrador</option>
+                <option value="Cajero" selected="@(currentRole == "Cajero")">Cajero</option>
+                <option value="Cliente" selected="@(currentRole == "Cliente")">Cliente</option>
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Buscar</button>
+            <a class="btn btn-ghost" asp-action="Index">Limpiar</a>
+        </div>
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+    </form>
+
+    <div asp-validation-summary="All" class="alert alert-danger empty:hidden" role="alert"></div>
+
+    @if (page is null || page.Data.Count == 0)
+    {
+        <div class="card p-10 text-center">
+            <h2 class="font-medium text-ink">No se encontraron usuarios</h2>
+            <p class="mt-1 text-sm text-ink-muted">Modifica los filtros o crea un nuevo usuario.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-border text-sm">
+                    <thead class="bg-surface-sunken text-left text-xs uppercase tracking-wide text-ink-muted">
+                        <tr>
+                            <th class="px-4 py-3 font-medium">Nombre de usuario</th>
+                            <th class="px-4 py-3 font-medium">Cédula</th>
+                            <th class="px-4 py-3 font-medium">Nombre</th>
+                            <th class="px-4 py-3 font-medium">Apellido</th>
+                            <th class="px-4 py-3 font-medium">Correo electrónico</th>
+                            <th class="px-4 py-3 font-medium">Tipo de usuario</th>
+                            <th class="px-4 py-3 font-medium">Estado</th>
+                            <th class="px-4 py-3 text-right font-medium">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border bg-surface">
+                        @foreach (var user in page.Data)
+                        {
+                            <tr>
+                                <td class="whitespace-nowrap px-4 py-3 font-medium text-ink">@user.UserName</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-ink-soft">@user.Identification</td>
+                                <td class="px-4 py-3 text-ink-soft">@user.FirstName</td>
+                                <td class="px-4 py-3 text-ink-soft">@user.LastName</td>
+                                <td class="px-4 py-3 text-ink-soft">@user.Email</td>
+                                <td class="px-4 py-3 text-ink-soft">@RoleNames.ToSpanish(user.Role)</td>
+                                <td class="px-4 py-3">
+                                    <span class="badge @(user.IsActive ? "badge-success" : "badge-neutral")">
+                                        @(user.IsActive ? "Activo" : "Inactivo")
+                                    </span>
+                                </td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right">
+                                    <a class="btn btn-ghost px-2" asp-action="Edit" asp-route-id="@user.Id">Editar</a>
+                                    @if (user.IsActive)
+                                    {
+                                        <a class="btn btn-ghost px-2 text-danger" asp-action="ConfirmStatus" asp-route-id="@user.Id">Inactivar</a>
+                                    }
+                                    else
+                                    {
+                                        <a class="btn btn-ghost px-2" asp-action="ConfirmStatus" asp-route-id="@user.Id">Activar</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (page.TotalPages > 1)
+        {
+            <nav class="flex items-center justify-between gap-4" aria-label="Paginación de usuarios">
+                <p class="text-sm text-ink-muted">Página @(page.Page) de @(page.TotalPages) · @(page.TotalRecords) registros</p>
+                <div class="flex gap-2">
+                    @if (page.Page > 1)
+                    {
+                        <a class="btn btn-ghost border border-border" asp-action="Index"
+                           asp-route-page="@(page.Page - 1)" asp-route-pageSize="@(page.PageSize)"
+                           asp-route-role="@currentRole">Anterior</a>
+                    }
+                    @if (page.Page < page.TotalPages)
+                    {
+                        <a class="btn btn-ghost border border-border" asp-action="Index"
+                           asp-route-page="@(page.Page + 1)" asp-route-pageSize="@(page.PageSize)"
+                           asp-route-role="@currentRole">Siguiente</a>
+                    }
+                </div>
+            </nav>
+        }
+    }
+</div>
