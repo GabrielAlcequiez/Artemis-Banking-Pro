@@ -4,6 +4,8 @@ namespace ABP.Domain.Rules.Cards;
 
 public static class CreditCardRules
 {
+    public const decimal CashAdvanceInterestRate = 0.0625m;
+
     public static bool IsCreditLimitValid(decimal creditLimit)
     {
         return creditLimit > 0m;
@@ -46,4 +48,13 @@ public static class CreditCardRules
         return status == CreditCardStatus.Active
             && currentDebt == 0m;
     }
+
+    public static decimal CalculateCashAdvanceInterest(decimal amount) =>
+        decimal.Round(
+            amount * CashAdvanceInterestRate,
+            2,
+            MidpointRounding.AwayFromZero);
+
+    public static decimal CalculateCashAdvanceTotal(decimal amount) =>
+        amount + CalculateCashAdvanceInterest(amount);
 }

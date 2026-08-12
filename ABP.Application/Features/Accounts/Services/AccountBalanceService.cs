@@ -1,4 +1,5 @@
 using ABP.Application.Common;
+using ABP.Application.Features.Accounts;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -30,23 +31,20 @@ namespace ABP.Application.Features.Accounts.Services
             {
                 _logger.LogWarning(
                     "Intento de crédito con monto inválido {Amount} para la cuenta {AccountId}.", amount, accountId);
-                return OperationResult.Failure(
-                    new Error("accounts.invalid_amount", "The amount must be greater than zero."));
+                return OperationResult.Failure(AccountErrors.InvalidAmount);
             }
 
             var account = await _accounts.GetByIdAsync(accountId, cancellationToken);
             if (account is null)
             {
                 _logger.LogWarning("Crédito rechazado: la cuenta {AccountId} no existe.", accountId);
-                return OperationResult.Failure(
-                    new Error("accounts.not_found", $"Account '{accountId}' was not found."));
+                return OperationResult.Failure(AccountErrors.NotFound);
             }
 
             if (account.Status != SavingsAccountStatus.Active)
             {
                 _logger.LogWarning("Crédito rechazado: la cuenta {AccountId} está cancelada.", accountId);
-                return OperationResult.Failure(
-                    new Error("accounts.inactive_account", $"Account '{accountId}' is cancelled."));
+                return OperationResult.Failure(AccountErrors.InactiveAccount);
             }
 
             account.Balance += amount;
@@ -68,23 +66,20 @@ namespace ABP.Application.Features.Accounts.Services
             {
                 _logger.LogWarning(
                     "Intento de débito con monto inválido {Amount} para la cuenta {AccountId}.", amount, accountId);
-                return OperationResult.Failure(
-                    new Error("accounts.invalid_amount", "The amount must be greater than zero."));
+                return OperationResult.Failure(AccountErrors.InvalidAmount);
             }
 
             var account = await _accounts.GetByIdAsync(accountId, cancellationToken);
             if (account is null)
             {
                 _logger.LogWarning("Débito rechazado: la cuenta {AccountId} no existe.", accountId);
-                return OperationResult.Failure(
-                    new Error("accounts.not_found", $"Account '{accountId}' was not found."));
+                return OperationResult.Failure(AccountErrors.NotFound);
             }
 
             if (account.Status != SavingsAccountStatus.Active)
             {
                 _logger.LogWarning("Débito rechazado: la cuenta {AccountId} está cancelada.", accountId);
-                return OperationResult.Failure(
-                    new Error("accounts.inactive_account", $"Account '{accountId}' is cancelled."));
+                return OperationResult.Failure(AccountErrors.InactiveAccount);
             }
 
             if (account.Balance < amount)
@@ -92,9 +87,7 @@ namespace ABP.Application.Features.Accounts.Services
                 _logger.LogWarning(
                     "Débito rechazado por fondos insuficientes en la cuenta {AccountId}. Saldo: {Balance}, solicitado: {Amount}.",
                     accountId, account.Balance, amount);
-                return OperationResult.Failure(
-                    new Error("accounts.insufficient_funds",
-                        $"Account '{accountId}' has insufficient funds. Available: {account.Balance}, requested: {amount}."));
+                return OperationResult.Failure(AccountErrors.InsufficientFunds);
             }
 
             account.Balance -= amount;

@@ -11,6 +11,15 @@ public interface ICreditCardRepository : IGenericRepository<CreditCard, Guid>
     Task<bool> CardNumberExistsAsync(string cardNumber, CancellationToken cancellationToken = default);
     Task AddConsumptionAsync(CardConsumption consumption, CancellationToken cancellationToken = default);
     Task AddPaymentAsync(CardPayment payment, CancellationToken cancellationToken = default);
+    Task<CardPayment?> GetPaymentByOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default);
+    Task<CardConsumption?> GetConsumptionByOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CreditCard>> GetActiveByClientIdAsync(
+        string clientId,
+        CancellationToken cancellationToken = default);
 
     Task<string?> FindClientIdByIdentificationAsync(string identification, CancellationToken cancellationToken = default);
     Task<bool> HasAnyCardsAsync(string clientId, CancellationToken cancellationToken = default);
@@ -21,6 +30,10 @@ public interface ICreditCardRepository : IGenericRepository<CreditCard, Guid>
         CreditCardStatusFilter? status = null,
         CancellationToken cancellationToken = default);
     Task<CreditCardDetailReadModel?> GetDetailsAsync(Guid creditCardId, CancellationToken cancellationToken = default);
+    Task<CreditCardDetailReadModel?> GetDetailsForClientAsync(
+        Guid creditCardId,
+        string clientId,
+        CancellationToken cancellationToken = default);
     Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default);
     Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(IReadOnlyCollection<string> clientIds, CancellationToken cancellationToken = default);
     Task<decimal> GetTotalActiveDebtForActiveClientsAsync(CancellationToken cancellationToken = default);

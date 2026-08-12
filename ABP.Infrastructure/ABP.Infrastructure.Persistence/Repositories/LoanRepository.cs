@@ -2,6 +2,7 @@ using ABP.Domain.Common;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
+using ABP.Domain.ReadModels.Loans;
 using ABP.Infrastructure.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,27 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
             .Include(loan => loan.Client)
             .Include(loan => loan.Installments.OrderBy(installment => installment.Number))
             .SingleOrDefaultAsync(loan => loan.Id == id, cancellationToken);
+    }
+
+    public Task<Loan?> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return Entities
+            .AsNoTracking()
+            .Include(loan => loan.Client)
+            .Include(loan => loan.Installments.OrderBy(installment => installment.Number))
+            .SingleOrDefaultAsync(loan => loan.Id == id, cancellationToken);
+    }
+
+    public Task<LoanPayment?> GetPaymentByOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.LoanPayments
+            .AsNoTracking()
+            .Include(payment => payment.Loan)
+            .SingleOrDefaultAsync(
+                payment => payment.OperationId == operationId,
+                cancellationToken);
     }
 
     public Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default)
@@ -92,33 +114,30 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
         return debt ?? 0m;
     }
 
-    public Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default)
-    {
-        return Entities.AsNoTracking().AnyAsync(
-            loan => loan.LoanNumber == loanNumber,
-            cancellationToken);
-    }
-
-    public async Task<PagedResult<Loan>> GetPagedAsync(PagedRequest request, string? clientIdentification = null, LoanStatus? status = null, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<LoanClientCandidateReadModel>> GetEligibleClientsPagedAsync(
+        PagedRequest request,
+        string? clientIdentification = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         var normalizedPage = Math.Max(request.Page, 1);
         var normalizedPageSize = Math.Clamp(request.PageSize, 1, 20);
         var normalizedIdentification = clientIdentification?.Trim();
-        var selectedStatus = status ?? LoanStatus.Active;
 
-        var query = Entities
+        var query = _context.Users
             .AsNoTracking()
-            .Include(loan => loan.Client)
-            .Where(loan =>
-                loan.Client.Role == Roles.Client
-                && loan.Status == selectedStatus);
+            .Where(client =>
+                client.Role == Roles.Client
+                && client.IsActive
+                && !_context.Loans.Any(loan =>
+                    loan.ClientId == client.Id
+                    && loan.Status == LoanStatus.Active));
 
         if (!string.IsNullOrWhiteSpace(normalizedIdentification))
         {
             query = query.Where(
-                loan => loan.Client.Identification == normalizedIdentification);
+                client => client.Identification == normalizedIdentification);
         }
 
         var totalRecords = await query.CountAsync(cancellationToken);
@@ -126,12 +145,146 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
             (long)(normalizedPage - 1) * normalizedPageSize,
             int.MaxValue);
         var data = await query
-            .OrderByDescending(loan => loan.CreatedAtUtc)
+            .OrderBy(client => client.Identification)
+            .ThenBy(client => client.Id)
             .Skip(skip)
             .Take(normalizedPageSize)
+            .Select(client => new LoanClientCandidateReadModel(
+                client.Id,
+                client.Identification,
+                client.Name + " " + client.LastName,
+                client.Email))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<Loan>(
+        return new PagedResult<LoanClientCandidateReadModel>(
+            data,
+            normalizedPage,
+            normalizedPageSize,
+            totalRecords);
+    }
+
+    public async Task<LoanClientCandidateReadModel?> GetEligibleClientByIdAsync(
+        string clientId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return null;
+        }
+
+        return await _context.Users
+            .AsNoTracking()
+            .Where(client =>
+                client.Id == clientId
+                && client.Role == Roles.Client
+                && client.IsActive
+                && !_context.Loans.Any(loan =>
+                    loan.ClientId == client.Id
+                    && loan.Status == LoanStatus.Active))
+            .Select(client => new LoanClientCandidateReadModel(
+                client.Id,
+                client.Identification,
+                client.Name + " " + client.LastName,
+                client.Email))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public Task<int> CountActiveLoansAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return Entities
+            .AsNoTracking()
+            .CountAsync(
+                loan => loan.Status == LoanStatus.Active,
+                cancellationToken);
+    }
+
+    public Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default)
+    {
+        return Entities.AsNoTracking().AnyAsync(
+            loan => loan.LoanNumber == loanNumber,
+            cancellationToken);
+    }
+
+    public async Task<PagedResult<LoanSummaryReadModel>> GetPagedAsync(
+        PagedRequest request,
+        string? clientIdentification = null,
+        LoanStatusFilter? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var normalizedPage = Math.Max(request.Page, 1);
+        var normalizedPageSize = Math.Clamp(request.PageSize, 1, 20);
+        var normalizedIdentification = clientIdentification?.Trim();
+        var hasIdentification = !string.IsNullOrWhiteSpace(normalizedIdentification);
+
+        var query = Entities
+            .AsNoTracking()
+            .Where(loan => loan.Client.Role == Roles.Client);
+
+        if (hasIdentification)
+        {
+            query = query.Where(
+                loan => loan.Client.Identification == normalizedIdentification!);
+        }
+
+        switch (status)
+        {
+            case null:
+                if (!hasIdentification)
+                {
+                    query = query.Where(loan => loan.Status == LoanStatus.Active);
+                }
+                break;
+            case LoanStatusFilter.Active:
+                query = query.Where(loan => loan.Status == LoanStatus.Active);
+                break;
+            case LoanStatusFilter.Completed:
+                query = query.Where(loan => loan.Status == LoanStatus.Completed);
+                break;
+            case LoanStatusFilter.All:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(status),
+                    status,
+                    "El filtro de estado del préstamo no es válido.");
+        }
+
+        var totalRecords = await query.CountAsync(cancellationToken);
+        var includeAllStatuses = status == LoanStatusFilter.All
+            || (status is null && hasIdentification);
+        var orderedQuery = includeAllStatuses
+            ? query
+                .OrderBy(loan => loan.Status == LoanStatus.Active ? 0 : 1)
+                .ThenByDescending(loan => loan.CreatedAtUtc)
+            : query.OrderByDescending(loan => loan.CreatedAtUtc);
+        var skip = (int)Math.Min(
+            (long)(normalizedPage - 1) * normalizedPageSize,
+            int.MaxValue);
+        var data = await orderedQuery
+            .Skip(skip)
+            .Take(normalizedPageSize)
+            .Select(loan => new LoanSummaryReadModel(
+                loan.Id,
+                loan.LoanNumber,
+                loan.ClientId,
+                loan.Client.Name + " " + loan.Client.LastName,
+                loan.Capital,
+                loan.Installments.Count,
+                loan.Installments.Count(installment =>
+                    installment.PaymentStatus == InstallmentPaymentStatus.Paid),
+                loan.PendingAmount,
+                loan.AnnualInterestRate,
+                loan.TermInMonths,
+                loan.Status,
+                loan.Installments.Any(installment =>
+                    installment.IsLate && installment.PendingAmount > 0m),
+                loan.CreatedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<LoanSummaryReadModel>(
             data,
             normalizedPage,
             normalizedPageSize,

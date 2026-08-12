@@ -215,6 +215,12 @@ public sealed class GetCreditCardsQueryTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<CreditCardDetailReadModel?> GetDetailsForClientAsync(
+            Guid creditCardId,
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<decimal> GetActiveDebtByClientIdAsync(
             string clientId,
             CancellationToken cancellationToken = default) =>
@@ -258,6 +264,10 @@ public sealed class GetCreditCardsQueryTests
             CardPayment payment,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+
+        public Task<CardPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CardPayment?>(null);
+        public Task<CardConsumption?> GetConsumptionByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CardConsumption?>(null);
+        public Task<IReadOnlyCollection<CreditCard>> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<CreditCard>>(Array.Empty<CreditCard>());
 
         public Task<CreditCard> AddAsync(
             CreditCard entity,

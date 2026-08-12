@@ -1,0 +1,92 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Loans.CreateLoanViewModel
+@{
+    ViewData["Title"] = "Configurar préstamo";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="SelectClient">← Seleccionar otro cliente</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Configurar préstamo</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Define el capital, el plazo y la tasa anual. El riesgo del préstamo se evaluará antes de asignarlo.
+        </p>
+    </div>
+
+    <section class="card p-5" aria-labelledby="selected-client-heading">
+        <h2 id="selected-client-heading" class="font-medium text-ink">Cliente seleccionado</h2>
+        <dl class="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+            <div>
+                <dt class="text-ink-muted">Nombre</dt>
+                <dd class="mt-1 font-medium text-ink">@Model.ClientFullName</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Cédula</dt>
+                <dd class="mt-1 text-ink">@Model.ClientIdentification</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Correo</dt>
+                <dd class="mt-1 text-ink">@Model.ClientEmail</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Deuda actual</dt>
+                <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.CurrentDebt.ToString("N2")</dd>
+            </div>
+        </dl>
+    </section>
+
+    <form asp-action="Create" method="post" class="card space-y-5 p-5" novalidate>
+        @Html.AntiForgeryToken()
+        <input asp-for="ClientId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger empty:hidden" role="alert"></div>
+        <span asp-validation-for="ClientId" class="block text-sm text-danger"></span>
+
+        <div>
+            <label asp-for="CapitalAmount" class="mb-1 block text-sm font-medium text-ink-soft">Monto del capital</label>
+            <div class="relative">
+                <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-ink-muted">RD$</span>
+                <input asp-for="CapitalAmount" class="input pl-12 tnum" type="number"
+                       min="0.01" step="0.01" inputmode="decimal" />
+            </div>
+            <span asp-validation-for="CapitalAmount" class="mt-1 block text-sm text-danger"></span>
+            <p class="mt-1 text-xs text-ink-muted">Este monto se desembolsará en la cuenta principal del cliente.</p>
+        </div>
+
+        <div>
+            <label asp-for="TermInMonths" class="mb-1 block text-sm font-medium text-ink-soft">Plazo</label>
+            <select asp-for="TermInMonths" class="input">
+                <option value="">Selecciona el plazo</option>
+                <option value="6">6 meses</option>
+                <option value="12">12 meses</option>
+                <option value="18">18 meses</option>
+                <option value="24">24 meses</option>
+                <option value="30">30 meses</option>
+                <option value="36">36 meses</option>
+                <option value="42">42 meses</option>
+                <option value="48">48 meses</option>
+                <option value="54">54 meses</option>
+                <option value="60">60 meses</option>
+            </select>
+            <span asp-validation-for="TermInMonths" class="mt-1 block text-sm text-danger"></span>
+        </div>
+
+        <div>
+            <label asp-for="AnnualInterestRate" class="mb-1 block text-sm font-medium text-ink-soft">Tasa de interés anual</label>
+            <div class="relative">
+                <input asp-for="AnnualInterestRate" class="input pr-10 tnum" type="number"
+                       min="0" step="0.0001" inputmode="decimal" />
+                <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-ink-muted">%</span>
+            </div>
+            <span asp-validation-for="AnnualInterestRate" class="mt-1 block text-sm text-danger"></span>
+            <p class="mt-1 text-xs text-ink-muted">Puedes indicar hasta cuatro decimales.</p>
+        </div>
+
+        <div class="alert border-warning/30 bg-warning/10 text-warning" role="status">
+            Al continuar, el sistema calculará la tabla de amortización y verificará el nivel de riesgo. Si el riesgo es alto, solicitará una confirmación adicional.
+        </div>
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <a class="btn btn-ghost" asp-action="SelectClient">Volver atrás</a>
+            <button type="submit" class="btn btn-primary">Evaluar y asignar</button>
+        </div>
+    </form>
+</div>

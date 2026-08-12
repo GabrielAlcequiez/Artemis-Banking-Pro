@@ -83,6 +83,11 @@
     @apply border-success/30 bg-success/10 text-success;
   }
 
+  /* ASP.NET Core MVC Validation Summary */
+  .validation-summary-valid {
+    display: none !important;
+  }
+
   /* Montos y números financieros */
   .tnum {
     font-variant-numeric: tabular-nums;

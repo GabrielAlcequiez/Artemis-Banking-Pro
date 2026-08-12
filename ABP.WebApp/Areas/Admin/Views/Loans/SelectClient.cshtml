@@ -1,0 +1,105 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Loans.LoanClientSelectionViewModel
+@{
+    ViewData["Title"] = "Seleccionar cliente";
+    var page = Model.Result?.Page;
+}
+
+<div class="mx-auto max-w-6xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Index">← Volver a préstamos</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Seleccionar cliente</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Solo se muestran clientes activos sin un préstamo activo. Debes seleccionar uno para continuar.
+        </p>
+    </div>
+
+    <section class="card p-5" aria-label="Promedio de deuda">
+        <p class="text-sm text-ink-muted">Promedio de deuda de clientes activos</p>
+        <p class="tnum mt-1 text-2xl font-semibold text-ink">RD$ @((Model.Result?.AverageDebt ?? 0m).ToString("N2"))</p>
+    </section>
+
+    <form method="get" class="card flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+        <div class="flex-1">
+            <label for="identification" class="mb-1 block text-sm font-medium text-ink-soft">Buscar por cédula</label>
+            <input id="identification" name="identification" value="@Model.Identification" maxlength="11"
+                   class="input" inputmode="numeric" placeholder="00000000000" />
+        </div>
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <button type="submit" class="btn btn-primary">Buscar</button>
+        <a class="btn btn-ghost" asp-action="SelectClient">Limpiar</a>
+    </form>
+
+    <form asp-action="SelectClient" method="post" class="space-y-4">
+        @Html.AntiForgeryToken()
+        <input asp-for="Page" type="hidden" />
+        <input asp-for="PageSize" type="hidden" />
+        <input asp-for="Identification" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger empty:hidden" role="alert"></div>
+        <span asp-validation-for="SelectedClientId" class="block text-sm text-danger"></span>
+
+        @if (page is null || page.Data.Count == 0)
+        {
+            <div class="card p-10 text-center">
+                <h2 class="font-medium text-ink">No se encontraron clientes elegibles</h2>
+                <p class="mt-1 text-sm text-ink-muted">
+                    Prueba con otra cédula o verifica que el cliente esté activo y no tenga un préstamo activo.
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="card overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-border text-sm">
+                        <thead class="bg-surface-sunken text-left text-xs uppercase tracking-wide text-ink-muted">
+                            <tr>
+                                <th class="w-12 px-4 py-3"><span class="sr-only">Seleccionar</span></th>
+                                <th class="px-4 py-3 font-medium">Cédula</th>
+                                <th class="px-4 py-3 font-medium">Nombre</th>
+                                <th class="px-4 py-3 font-medium">Correo</th>
+                                <th class="px-4 py-3 text-right font-medium">Deuda actual</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border bg-surface">
+                            @foreach (var client in page.Data)
+                            {
+                                <tr>
+                                    <td class="px-4 py-3">
+                                        <input asp-for="SelectedClientId" value="@client.Id" type="radio"
+                                               aria-label="Seleccionar a @client.FullName"
+                                               class="h-4 w-4 accent-ink" />
+                                    </td>
+                                    <td class="whitespace-nowrap px-4 py-3 text-ink">@client.Identification</td>
+                                    <td class="px-4 py-3 text-ink-soft">@client.FullName</td>
+                                    <td class="px-4 py-3 text-ink-soft">@client.Email</td>
+                                    <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @client.CurrentDebt.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-3">
+                    <p class="text-sm text-ink-muted">Página @(page.Page) de @(page.TotalPages) · @(page.TotalRecords) clientes</p>
+                    <div class="flex gap-2">
+                        @if (page.Page > 1)
+                        {
+                            <a class="btn btn-ghost border border-border" asp-action="SelectClient"
+                               asp-route-page="@(page.Page - 1)" asp-route-pageSize="@(page.PageSize)"
+                               asp-route-identification="@Model.Identification">Anterior</a>
+                        }
+                        @if (page.Page < page.TotalPages)
+                        {
+                            <a class="btn btn-ghost border border-border" asp-action="SelectClient"
+                               asp-route-page="@(page.Page + 1)" asp-route-pageSize="@(page.PageSize)"
+                               asp-route-identification="@Model.Identification">Siguiente</a>
+                        }
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Configurar préstamo</button>
+            </div>
+        }
+    </form>
+</div>

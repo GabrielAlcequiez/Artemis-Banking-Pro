@@ -20,6 +20,7 @@ using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
 using ABP.Application.Common.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Infrastructure.Identity.Services;
 
@@ -202,7 +203,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
-                        Title = "Unauthorized",
+                        Title = "No autorizado",
                         Status = StatusCodes.Status401Unauthorized,
                         Detail = "No tiene autorización para acceder a este recurso.",
                         Instance = context.Request.Path
@@ -226,7 +227,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
-                        Title = "Unauthorized",
+                        Title = "No autorizado",
                         Status = StatusCodes.Status401Unauthorized,
                         Detail = "No tiene autorización para acceder a este recurso.",
                         Instance = context.Request.Path
@@ -245,7 +246,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7231#section-6.5.3",
-                        Title = "Forbidden",
+                        Title = "Acceso denegado",
                         Status = StatusCodes.Status403Forbidden,
                         Detail = "Acceso denegado. No tiene permisos para utilizar este recurso.",
                         Instance = context.Request.Path
@@ -290,6 +291,10 @@ opt.Events = new JwtBearerEvents()
             },
             contextLifetime: ServiceLifetime.Scoped,
             optionsLifetime: ServiceLifetime.Scoped);
+
+            services.AddScoped<
+                ICommerceUserInactivationService,
+                CommerceUserInactivationService>();
         }
 
         private static async Task RejectPrincipalAsync(

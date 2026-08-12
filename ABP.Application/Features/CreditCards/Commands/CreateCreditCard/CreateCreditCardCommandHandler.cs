@@ -1,4 +1,6 @@
+using System.Data;
 using ABP.Application.Common;
+using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Entities.CreditCards;
@@ -14,6 +16,7 @@ public sealed class CreateCreditCardCommandHandler(
     ICardNumberGeneratorService numberGeneratorService,
     ICreditCardRepository repository,
     IUnitOfWork unitOfWork,
+    IFinancialTransaction financialTransaction,
     IClock clock,
     ICurrentUserService currentUser)
     : IRequestHandler<CreateCreditCardCommand, OperationResult<Guid>>
@@ -38,57 +41,63 @@ public sealed class CreateCreditCardCommandHandler(
                 CreditCardErrors.AdministratorRequired);
         }
 
-        var clientExists = await repository.ClientExistsAsync(
-            request.ClientId,
+        return await financialTransaction.ExecuteAsync(
+            IsolationLevel.Serializable,
+            async transactionCancellationToken =>
+            {
+                var clientExists = await repository.ClientExistsAsync(
+                    request.ClientId,
+                    transactionCancellationToken);
+
+                if (!clientExists)
+                {
+                    return OperationResult<Guid>.Failure(
+                        CreditCardErrors.ClientNotFound);
+                }
+
+                var isActiveClient = await repository.IsActiveClientAsync(
+                    request.ClientId,
+                    transactionCancellationToken);
+
+                if (!isActiveClient)
+                {
+                    return OperationResult<Guid>.Failure(
+                        CreditCardErrors.ClientInactive);
+                }
+
+                var cardNumber = await GenerateUniqueCardNumberAsync(
+                    transactionCancellationToken);
+
+                if (cardNumber is null)
+                {
+                    return OperationResult<Guid>.Failure(
+                        CreditCardErrors.NumberGenerationFailed);
+                }
+
+                var cvc = cvcService.Generate();
+                var card = new CreditCard
+                {
+                    ClientId = request.ClientId,
+                    CardNumber = cardNumber,
+                    CvcHash = cvcService.Hash(cvc),
+                    Limit = request.CreditLimit,
+                    Debt = 0m,
+                    ExpirationDate = CreditCardRules.CalculateExpirationDate(clock.Today),
+                    Status = CreditCardStatus.Active,
+                    AssignedByUserId = assignedByUserId
+                };
+
+                var createdCard = await repository.AddAsync(
+                    card,
+                    transactionCancellationToken);
+
+                // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
+                // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
+                await unitOfWork.SaveChangesAsync(transactionCancellationToken);
+
+                return OperationResult<Guid>.Success(createdCard.Id);
+            },
             cancellationToken);
-
-        if (!clientExists)
-        {
-            return OperationResult<Guid>.Failure(
-                CreditCardErrors.ClientNotFound);
-        }
-
-        var isActiveClient = await repository.IsActiveClientAsync(
-            request.ClientId,
-            cancellationToken);
-
-        if (!isActiveClient)
-        {
-            return OperationResult<Guid>.Failure(
-                CreditCardErrors.ClientInactive);
-        }
-
-        var cardNumber = await GenerateUniqueCardNumberAsync(
-            cancellationToken);
-
-        if (cardNumber is null)
-        {
-            return OperationResult<Guid>.Failure(
-                CreditCardErrors.NumberGenerationFailed);
-        }
-
-        var cvc = cvcService.Generate();
-        var card = new CreditCard
-        {
-            ClientId = request.ClientId,
-            CardNumber = cardNumber,
-            CvcHash = cvcService.Hash(cvc),
-            Limit = request.CreditLimit,
-            Debt = 0m,
-            ExpirationDate = CreditCardRules.CalculateExpirationDate(clock.Today),
-            Status = CreditCardStatus.Active,
-            AssignedByUserId = assignedByUserId
-        };
-
-        var createdCard = await repository.AddAsync(
-            card,
-            cancellationToken);
-
-        // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
-        // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return OperationResult<Guid>.Success(createdCard.Id);
     }
 
     private async Task<string?> GenerateUniqueCardNumberAsync(

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using ABP.Application.Common.DTOs.Users;
 using ABP.Domain.Entities;
 using ABP.Domain.Enums;
@@ -26,10 +24,12 @@ namespace ABP.Application.Mappings
                 .ForMember(dest => dest.LastModifiedAtUtc, opt => opt.Ignore())
                 .ForMember(dest => dest.LastModifiedByUserId, opt => opt.Ignore());
 
+
             // 2. EditUserDto -> User
             CreateMap<EditUserDto, User>()
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.FirstName))
                 .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.Role, opt => opt.Ignore())
                 .ForMember(dest => dest.IsActive, opt => opt.Ignore())
                 .ForMember(dest => dest.CommerceId, opt => opt.Ignore())
                 .ForMember(dest => dest.SavingsAccounts, opt => opt.Ignore())
@@ -40,6 +40,7 @@ namespace ABP.Application.Mappings
                 .ForMember(dest => dest.CreatedByUserId, opt => opt.Ignore())
                 .ForMember(dest => dest.LastModifiedAtUtc, opt => opt.Ignore())
                 .ForMember(dest => dest.LastModifiedByUserId, opt => opt.Ignore());
+
 
             // 3. User -> GetUserDto
             CreateMap<User, GetUserDto>()

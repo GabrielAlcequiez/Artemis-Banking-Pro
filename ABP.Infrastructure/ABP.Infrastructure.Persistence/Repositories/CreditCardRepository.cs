@@ -38,6 +38,35 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
         await _context.CardPayments.AddAsync(payment, cancellationToken);
     }
 
+    public Task<CardPayment?> GetPaymentByOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default) =>
+        _context.CardPayments
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                payment => payment.OperationId == operationId,
+                cancellationToken);
+
+    public Task<CardConsumption?> GetConsumptionByOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default) =>
+        _context.CardConsumptions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                consumption => consumption.OperationId == operationId,
+                cancellationToken);
+
+    public async Task<IReadOnlyCollection<CreditCard>> GetActiveByClientIdAsync(
+        string clientId,
+        CancellationToken cancellationToken = default) =>
+        await Entities
+            .AsNoTracking()
+            .Where(card =>
+                card.ClientId == clientId &&
+                card.Status == CreditCardStatus.Active)
+            .OrderByDescending(card => card.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
     #endregion
 
     #region Administrative card queries
@@ -145,17 +174,36 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
         return new PagedResult<CreditCardSummaryReadModel>(data, normalizedPage, normalizedPageSize, totalRecords);
     }
 
-    public async Task<CreditCardDetailReadModel?> GetDetailsAsync(
+    public Task<CreditCardDetailReadModel?> GetDetailsAsync(
         Guid creditCardId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        GetDetailsCoreAsync(creditCardId, clientId: null, cancellationToken);
+
+    public Task<CreditCardDetailReadModel?> GetDetailsForClientAsync(
+        Guid creditCardId,
+        string clientId,
+        CancellationToken cancellationToken = default) =>
+        GetDetailsCoreAsync(creditCardId, clientId, cancellationToken);
+
+    private async Task<CreditCardDetailReadModel?> GetDetailsCoreAsync(
+        Guid creditCardId,
+        string? clientId,
+        CancellationToken cancellationToken)
     {
         var clientsQuery = _context.Users
             .AsNoTracking()
             .Where(client => client.Role == Roles.Client);
 
-        var summary = await _context.CreditCards
+        var cardsQuery = _context.CreditCards
             .AsNoTracking()
-            .Where(card => card.Id == creditCardId)
+            .Where(card => card.Id == creditCardId);
+
+        if (clientId is not null)
+        {
+            cardsQuery = cardsQuery.Where(card => card.ClientId == clientId);
+        }
+
+        var summary = await cardsQuery
             .Join(
                 clientsQuery,
                 card => card.ClientId,

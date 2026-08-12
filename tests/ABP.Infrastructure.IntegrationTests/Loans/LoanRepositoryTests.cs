@@ -108,6 +108,16 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CountActiveLoans_returns_only_active_loan_count()
+    {
+        await SeedAsync(_context);
+
+        var result = await _repository.CountActiveLoansAsync();
+
+        Assert.Equal(2, result);
+    }
+
+    [Fact]
     public async Task GetWithInstallments_returns_ordered_installments_and_tracks_loan()
     {
         var seeded = await SeedAsync(_context);
@@ -119,6 +129,20 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
         Assert.Equal("María", result.Client.Name);
         Assert.Equal([1, 2], result.Installments.Select(x => x.Number).ToArray());
         Assert.Equal(EntityState.Unchanged, _context.Entry(result).State);
+    }
+
+    [Fact]
+    public async Task GetDetails_returns_ordered_installments_without_tracking()
+    {
+        var seeded = await SeedAsync(_context);
+        _context.ChangeTracker.Clear();
+
+        var result = await _repository.GetDetailsAsync(seeded.ActiveNew.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal("María", result.Client.Name);
+        Assert.Equal([1, 2], result.Installments.Select(x => x.Number).ToArray());
+        Assert.Empty(_context.ChangeTracker.Entries());
     }
 
     #endregion
@@ -137,11 +161,14 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
             [seeded.ActiveNew.Id, seeded.ActiveOld.Id],
             result.Data.Select(loan => loan.Id).ToArray());
         Assert.All(result.Data, loan => Assert.Equal(LoanStatus.Active, loan.Status));
-        Assert.All(result.Data, loan => Assert.NotNull(loan.Client));
+        var loanWithInstallments = result.Data.Single(loan => loan.Id == seeded.ActiveNew.Id);
+        Assert.Equal(2, loanWithInstallments.TotalInstallments);
+        Assert.Equal(1, loanWithInstallments.PaidInstallments);
+        Assert.Equal("María Gómez", loanWithInstallments.ClientFullName);
     }
 
     [Fact]
-    public async Task GetPaged_filters_by_trimmed_client_identification()
+    public async Task GetPaged_with_identification_and_no_status_returns_active_then_completed()
     {
         var seeded = await SeedAsync(_context);
 
@@ -149,8 +176,10 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
             new PagedRequest(),
             clientIdentification: " 111 ");
 
-        Assert.Equal(1, result.TotalRecords);
-        Assert.Equal(seeded.ActiveNew.Id, result.Data.Single().Id);
+        Assert.Equal(2, result.TotalRecords);
+        Assert.Equal(
+            [seeded.ActiveNew.Id, seeded.Completed.Id],
+            result.Data.Select(loan => loan.Id).ToArray());
     }
 
     [Fact]
@@ -160,7 +189,7 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
 
         var completedResult = await _repository.GetPagedAsync(
             new PagedRequest(),
-            status: LoanStatus.Completed);
+            status: LoanStatusFilter.Completed);
         var secondActivePage = await _repository.GetPagedAsync(
             new PagedRequest(Page: 2, PageSize: 1));
 
@@ -169,6 +198,96 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
         Assert.Equal(2, secondActivePage.Page);
         Assert.Equal(1, secondActivePage.PageSize);
         Assert.Equal(seeded.ActiveOld.Id, secondActivePage.Data.Single().Id);
+    }
+
+    [Fact]
+    public async Task GetPaged_with_all_statuses_returns_active_loans_before_completed_loans()
+    {
+        var seeded = await SeedAsync(_context);
+
+        var result = await _repository.GetPagedAsync(
+            new PagedRequest(),
+            status: LoanStatusFilter.All);
+
+        Assert.Equal(3, result.TotalRecords);
+        Assert.Equal(
+            [seeded.ActiveNew.Id, seeded.ActiveOld.Id, seeded.Completed.Id],
+            result.Data.Select(loan => loan.Id).ToArray());
+    }
+
+    [Fact]
+    public async Task GetEligibleClients_returns_only_active_clients_without_active_loan()
+    {
+        await SeedAsync(_context);
+
+        var result = await _repository.GetEligibleClientsPagedAsync(
+            new PagedRequest());
+
+        var client = Assert.Single(result.Data);
+        Assert.Equal("client-without-loans", client.Id);
+        Assert.Equal("333", client.Identification);
+        Assert.Equal("Ana Pérez", client.FullName);
+    }
+
+    [Fact]
+    public async Task GetEligibleClients_allows_client_with_only_completed_loans_and_filters_identification()
+    {
+        await SeedAsync(_context);
+        var completedOnlyClient = CreateUser(
+            "client-completed",
+            "Laura",
+            "Méndez",
+            "444",
+            Roles.Client);
+        _context.Users.Add(completedOnlyClient);
+        AddLoan(
+            _context,
+            completedOnlyClient.Id,
+            "100000004",
+            LoanStatus.Completed,
+            new DateTimeOffset(2026, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        await _context.SaveChangesAsync();
+
+        var result = await _repository.GetEligibleClientsPagedAsync(
+            new PagedRequest(),
+            " 444 ");
+
+        var client = Assert.Single(result.Data);
+        Assert.Equal(completedOnlyClient.Id, client.Id);
+    }
+
+    [Fact]
+    public async Task GetEligibleClients_applies_pagination_and_identification_order()
+    {
+        await SeedAsync(_context);
+        _context.Users.Add(CreateUser(
+            "client-eligible-2",
+            "Laura",
+            "Méndez",
+            "444",
+            Roles.Client));
+        await _context.SaveChangesAsync();
+
+        var result = await _repository.GetEligibleClientsPagedAsync(
+            new PagedRequest(Page: 2, PageSize: 1));
+
+        Assert.Equal(2, result.TotalRecords);
+        Assert.Equal(2, result.Page);
+        Assert.Equal("client-eligible-2", result.Data.Single().Id);
+    }
+
+    [Fact]
+    public async Task GetEligibleClientById_rejects_active_loan_and_returns_eligible_client()
+    {
+        await SeedAsync(_context);
+
+        var activeLoanClient = await _repository.GetEligibleClientByIdAsync("client-1");
+        var eligibleClient = await _repository.GetEligibleClientByIdAsync(
+            "client-without-loans");
+
+        Assert.Null(activeLoanClient);
+        Assert.NotNull(eligibleClient);
+        Assert.Equal("333", eligibleClient.Identification);
     }
 
     #endregion
@@ -222,6 +341,33 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
         Assert.Equal(500m, persisted.EffectiveAmount);
     }
 
+    [Fact]
+    public async Task GetPaymentByOperationId_returns_payment_with_loan_without_tracking()
+    {
+        var seeded = await SeedAsync(_context);
+        var operationId = Guid.NewGuid();
+        var payment = new LoanPayment
+        {
+            LoanId = seeded.ActiveNew.Id,
+            SourceAccountId = seeded.SourceAccount.Id,
+            EffectiveAmount = 250m,
+            ActorUserId = "admin",
+            PaidAtUtc = new DateTimeOffset(2026, 4, 2, 12, 0, 0, TimeSpan.Zero),
+            OperationId = operationId
+        };
+        _context.Entry(payment).Property(x => x.Id).CurrentValue = Guid.NewGuid();
+        _context.LoanPayments.Add(payment);
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        var result = await _repository.GetPaymentByOperationIdAsync(operationId);
+
+        Assert.NotNull(result);
+        Assert.Equal(seeded.ActiveNew.LoanNumber, result.Loan.LoanNumber);
+        Assert.Empty(_context.ChangeTracker.Entries<LoanPayment>());
+        Assert.Empty(_context.ChangeTracker.Entries<Loan>());
+    }
+
     #endregion
 
     #region Test data builders
@@ -237,7 +383,19 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
             "Pérez",
             "333",
             Roles.Client);
-        context.Users.AddRange(admin, firstClient, secondClient, clientWithoutLoans);
+        var inactiveClient = CreateUser(
+            "client-inactive",
+            "José",
+            "Ruiz",
+            "555",
+            Roles.Client);
+        inactiveClient.IsActive = false;
+        context.Users.AddRange(
+            admin,
+            firstClient,
+            secondClient,
+            clientWithoutLoans,
+            inactiveClient);
 
         var sourceAccount = new SavingsAccount(Guid.NewGuid())
         {
@@ -260,7 +418,7 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
             firstClient.Id,
             "100000002",
             LoanStatus.Completed,
-            new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero));
+            new DateTimeOffset(2026, 4, 1, 0, 0, 0, TimeSpan.Zero));
         var activeNew = AddLoan(
             context,
             firstClient.Id,
@@ -270,9 +428,16 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
 
         await context.SaveChangesAsync();
 
+        var paidInstallment = CreateInstallment(
+            activeNew.Id,
+            1,
+            new DateOnly(2026, 4, 1));
+        paidInstallment.PendingAmount = 0m;
+        paidInstallment.PaymentStatus = InstallmentPaymentStatus.Paid;
+
         context.LoanInstallments.AddRange(
             CreateInstallment(activeNew.Id, 2, new DateOnly(2026, 5, 1)),
-            CreateInstallment(activeNew.Id, 1, new DateOnly(2026, 4, 1)));
+            paidInstallment);
         await context.SaveChangesAsync();
 
         return new(activeOld, activeNew, completed, sourceAccount);

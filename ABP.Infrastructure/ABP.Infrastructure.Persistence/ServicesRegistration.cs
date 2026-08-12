@@ -1,4 +1,5 @@
 using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence.Auditing;
@@ -6,6 +7,7 @@ using ABP.Infrastructure.Persistence.Context;
 using ABP.Infrastructure.Persistence.Repositories;
 using ABP.Infrastructure.Persistence.Security;
 using ABP.Infrastructure.Persistence.Services;
+using ABP.Infrastructure.Persistence.Transactions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +41,9 @@ namespace ABP.Infrastructure.Persistence
                 typeof(GenericRepository<,>));
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<IFinancialTransaction, EfFinancialTransaction>();
             services.AddScoped<ICreditCardRepository, CreditCardRepository>();
+            services.AddScoped<ICommerceRepository, CommerceRepository>();
             services.AddScoped<ICvcService, CvcService>();
 
             services.AddScoped<IUserRepository, UserRepository>();

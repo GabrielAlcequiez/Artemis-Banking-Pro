@@ -1,0 +1,142 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Loans.LoanIndexViewModel
+@{
+    ViewData["Title"] = "Gestión de préstamos";
+    var page = Model.Result;
+    var currentStatus = Model.Status?.Trim().ToLowerInvariant() ?? string.Empty;
+}
+
+<div class="mx-auto max-w-7xl space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-ink">Gestión de préstamos</h1>
+            <p class="mt-1 text-sm text-ink-muted">Consulta, asigna y administra los préstamos de los clientes.</p>
+        </div>
+        <a class="btn btn-primary" asp-action="SelectClient">Asignar préstamo</a>
+    </div>
+
+    @if (TempData["SuccessMessage"] is string successMessage)
+    {
+        <div class="alert alert-success" role="status">@successMessage</div>
+    }
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <form method="get" class="card grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_14rem_auto] md:items-end">
+        <div>
+            <label for="identification" class="mb-1 block text-sm font-medium text-ink-soft">Cédula del cliente</label>
+            <input id="identification" name="identification" value="@Model.Identification" maxlength="11"
+                   class="input" inputmode="numeric" placeholder="00000000000" />
+        </div>
+        <div>
+            <label for="status" class="mb-1 block text-sm font-medium text-ink-soft">Estado</label>
+            <select id="status" name="status" class="input">
+                <option value="" selected="@(currentStatus.Length == 0)">Predeterminado</option>
+                <option value="activo" selected="@(currentStatus == "activo")">Activos</option>
+                <option value="completado" selected="@(currentStatus == "completado")">Completados</option>
+                <option value="todos" selected="@(currentStatus == "todos")">Todos</option>
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Buscar</button>
+            <a class="btn btn-ghost" asp-action="Index">Limpiar</a>
+        </div>
+        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        <p class="text-xs text-ink-muted md:col-span-3">
+            El estado predeterminado muestra los préstamos activos; al buscar una cédula, también incluye los completados.
+        </p>
+    </form>
+
+    <div asp-validation-summary="All" class="alert alert-danger empty:hidden" role="alert"></div>
+
+    @if (page is null || page.Data.Count == 0)
+    {
+        <div class="card p-10 text-center">
+            <h2 class="font-medium text-ink">No se encontraron préstamos</h2>
+            <p class="mt-1 text-sm text-ink-muted">Modifica los filtros o asigna un nuevo préstamo.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-border text-sm">
+                    <thead class="bg-surface-sunken text-left text-xs uppercase tracking-wide text-ink-muted">
+                        <tr>
+                            <th class="px-4 py-3 font-medium">Préstamo</th>
+                            <th class="px-4 py-3 font-medium">Cliente</th>
+                            <th class="px-4 py-3 text-right font-medium">Capital</th>
+                            <th class="px-4 py-3 text-right font-medium">Cuotas</th>
+                            <th class="px-4 py-3 text-right font-medium">Pendiente</th>
+                            <th class="px-4 py-3 text-right font-medium">Tasa</th>
+                            <th class="px-4 py-3 font-medium">Pago</th>
+                            <th class="px-4 py-3 font-medium">Estado</th>
+                            <th class="px-4 py-3 text-right font-medium">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border bg-surface">
+                        @foreach (var loan in page.Data)
+                        {
+                            var isActive = string.Equals(loan.Status, "Activo", StringComparison.OrdinalIgnoreCase);
+                            var paymentStatusClass = loan.ClientPaymentStatus switch
+                            {
+                                "En mora" => "badge-danger",
+                                "Al día" => "badge-success",
+                                _ => "badge-neutral"
+                            };
+
+                            <tr>
+                                <td class="whitespace-nowrap px-4 py-3">
+                                    <span class="font-mono text-ink">@loan.LoanNumber</span>
+                                    <span class="mt-0.5 block text-xs text-ink-muted">@loan.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                </td>
+                                <td class="px-4 py-3 text-ink-soft">@loan.ClientFullName</td>
+                                <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @loan.CapitalAmount.ToString("N2")</td>
+                                <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">
+                                    @loan.PaidInstallments / @loan.TotalInstallments
+                                </td>
+                                <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @loan.PendingAmount.ToString("N2")</td>
+                                <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">@loan.AnnualInterestRate.ToString("N2") %</td>
+                                <td class="px-4 py-3">
+                                    <span class="badge @paymentStatusClass">@loan.ClientPaymentStatus</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="badge @(isActive ? "badge-success" : "badge-neutral")">@loan.Status</span>
+                                </td>
+                                <td class="whitespace-nowrap px-4 py-3 text-right">
+                                    <a class="btn btn-ghost px-2" asp-action="Details" asp-route-id="@loan.Id">Ver detalles</a>
+                                    @if (isActive)
+                                    {
+                                        <a class="btn btn-ghost px-2" asp-action="EditRate" asp-route-id="@loan.Id">Editar tasa</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (page.TotalPages > 1)
+        {
+            <nav class="flex items-center justify-between gap-4" aria-label="Paginación de préstamos">
+                <p class="text-sm text-ink-muted">Página @(page.Page) de @(page.TotalPages) · @(page.TotalRecords) registros</p>
+                <div class="flex gap-2">
+                    @if (page.Page > 1)
+                    {
+                        <a class="btn btn-ghost border border-border" asp-action="Index"
+                           asp-route-page="@(page.Page - 1)" asp-route-pageSize="@(page.PageSize)"
+                           asp-route-identification="@Model.Identification" asp-route-status="@Model.Status">Anterior</a>
+                    }
+                    @if (page.Page < page.TotalPages)
+                    {
+                        <a class="btn btn-ghost border border-border" asp-action="Index"
+                           asp-route-page="@(page.Page + 1)" asp-route-pageSize="@(page.PageSize)"
+                           asp-route-identification="@Model.Identification" asp-route-status="@Model.Status">Siguiente</a>
+                    }
+                </div>
+            </nav>
+        }
+    }
+</div>

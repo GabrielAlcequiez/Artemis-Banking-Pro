@@ -1,0 +1,80 @@
+@model ABP.WebApp.Areas.Client.ViewModels.CreditCards.CashAdvanceViewModel
+@{
+    ViewData["Title"] = "Avance de efectivo";
+    var canAdvance = Model.CreditCards.Count > 0 && Model.SavingsAccounts.Count > 0;
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink"
+           asp-area="Client" asp-controller="Home" asp-action="Index">← Volver al Home</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Avance de efectivo</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Deposita el avance en una cuenta propia. El cargo incluye un interés fijo de 6.25%.
+        </p>
+    </header>
+
+    <form asp-action="Execute" method="post" class="card space-y-5 p-6">
+        @Html.AntiForgeryToken()
+        <input asp-for="OperationId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        @if (Model.CreditCards.Count == 0)
+        {
+            <div class="alert" role="status">No tienes tarjetas activas disponibles para avances.</div>
+        }
+        else
+        {
+            <div class="space-y-2">
+                <label asp-for="CreditCardId" class="text-sm font-medium text-ink">Tarjeta de origen</label>
+                <select asp-for="CreditCardId" class="input" required>
+                    <option value="">Seleccione una tarjeta</option>
+                    @foreach (var card in Model.CreditCards)
+                    {
+                        <option value="@card.Id">
+                            @card.MaskedCardNumber · Crédito RD$ @card.AvailableCredit.ToString("N2")
+                        </option>
+                    }
+                </select>
+                <span asp-validation-for="CreditCardId" class="text-sm text-danger"></span>
+            </div>
+        }
+
+        @if (Model.SavingsAccounts.Count == 0)
+        {
+            <div class="alert" role="status">No tienes cuentas activas donde recibir el avance.</div>
+        }
+        else
+        {
+            <div class="space-y-2">
+                <label asp-for="TargetAccountId" class="text-sm font-medium text-ink">Cuenta destino</label>
+                <select asp-for="TargetAccountId" class="input" required>
+                    <option value="">Seleccione una cuenta</option>
+                    @foreach (var account in Model.SavingsAccounts)
+                    {
+                        <option value="@account.Id">@account.AccountNumber</option>
+                    }
+                </select>
+                <span asp-validation-for="TargetAccountId" class="text-sm text-danger"></span>
+            </div>
+        }
+
+        <div class="space-y-2">
+            <label asp-for="Amount" class="text-sm font-medium text-ink">Monto del avance</label>
+            <input asp-for="Amount" class="input" type="number" min="0.01" step="0.01" />
+            <span asp-validation-for="Amount" class="text-sm text-danger"></span>
+        </div>
+
+        @if (Model.Amount > 0m)
+        {
+            <dl class="grid gap-3 rounded-lg bg-surface-sunken p-4 text-sm sm:grid-cols-2">
+                <div><dt class="text-ink-muted">Interés 6.25%</dt><dd class="tnum font-medium">RD$ @Model.Interest.ToString("N2")</dd></div>
+                <div><dt class="text-ink-muted">Total a cargar</dt><dd class="tnum font-medium">RD$ @Model.TotalCharge.ToString("N2")</dd></div>
+            </dl>
+        }
+
+        <button type="submit" class="btn btn-primary" disabled="@(!canAdvance)">
+            Realizar avance
+        </button>
+    </form>
+</div>

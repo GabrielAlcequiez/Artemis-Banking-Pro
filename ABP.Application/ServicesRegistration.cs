@@ -24,17 +24,28 @@ namespace ABP.Application
             services.AddScoped<ICustomerDebtService, CustomerDebtService>();
             services.AddScoped<ICreditCardService, CreditCardService>();
             services.AddScoped<ICreditCardClientSelectionService, CreditCardClientSelectionService>();
+            services.AddScoped<ICardPaymentService, CardPaymentService>();
+            services.AddScoped<ICashAdvanceService, CashAdvanceService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
+
             services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
+            services.AddScoped<ILoanService, LoanService>();
             services.AddScoped<ILoanRateService, LoanRateService>();
             services.AddScoped<ILoanDelinquencyService, LoanDelinquencyService>();
-
+            services.AddScoped<ILoanClientSelectionService, LoanClientSelectionService>();
+            services.AddScoped<ILoanRiskService, LoanRiskService>();
+            services.AddScoped<ILoansMetricsReader, LoansMetricsReader>();
+            services.AddScoped<ILoanOriginationService, LoanOriginationService>();
+            services.AddScoped<ILoanPaymentService, LoanPaymentService>();
 
             services.AddScoped<IAccountBalanceService, AccountBalanceService>();
             services.AddScoped<IAccountLedger, AccountLedger>();
             services.AddScoped<IMoneyTransferService, MoneyTransferService>();
             services.AddScoped<IPrimaryAccountProvisioner, PrimaryAccountProvisioner>();
             services.AddScoped<IBeneficiaryService, BeneficiaryService>();
+            services.AddScoped<ISavingsAccountAdminService, SavingsAccountAdminService>();
+            services.AddScoped<IAccountClientSelectionService, AccountClientSelectionService>();
+            services.AddScoped<ISavingsAccountQueryService, SavingsAccountQueryService>();
             services.AddScoped<IAccountsMetricsReader, AccountsMetricsReader>();
             services.AddScoped<ITransactionsMetricsReader, TransactionsMetricsReader>();
 
@@ -46,9 +57,6 @@ namespace ABP.Application
 
             services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
-            // pipeline behaviors
-            services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-
             #endregion
 
             #region Mappers
@@ -57,5 +65,22 @@ namespace ABP.Application
 
             #endregion
         }        
+
+        #region CQRS
+
+        public static IServiceCollection AddApplicationCqrs(
+            this IServiceCollection services)
+        {
+            services.AddMediatR(configuration =>
+            {
+                configuration.RegisterServicesFromAssembly(
+                    Assembly.GetExecutingAssembly());
+                configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            });
+
+            return services;
+        }
+
+        #endregion
     }
 }

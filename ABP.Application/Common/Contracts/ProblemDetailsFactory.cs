@@ -30,18 +30,29 @@ public static class ProblemDetailsFactory
                 problem.Status = status;
                 problem.Title = GetTitle(status);
                 problem.Detail = apiException.Message;
-                problem.ErrorCode = apiException.ErrorCode;
                 break;
 
             case FluentValidation.ValidationException validationException:
                 problem.Status = (int)HttpStatusCode.BadRequest;
                 problem.Title = GetTitle(problem.Status);
-                problem.Detail = "One or more validation errors occurred.";
+                problem.Detail = "Uno o más datos proporcionados no son válidos.";
                 problem.Errors = validationException.Errors
                     .GroupBy(e => e.PropertyName)
                     .ToDictionary(
                         g => g.Key,
                         g => g.Select(e => e.ErrorMessage).ToArray());
+                break;
+
+            case FinancialConcurrencyException or PersistenceConflictException:
+                problem.Status = (int)HttpStatusCode.Conflict;
+                problem.Title = GetTitle(problem.Status);
+                problem.Detail = exception.Message;
+                break;
+
+            case PersistenceFailureException:
+                problem.Status = (int)HttpStatusCode.InternalServerError;
+                problem.Title = GetTitle(problem.Status);
+                problem.Detail = "Ocurrió un error inesperado.";
                 break;
 
             case KeyNotFoundException:
@@ -65,7 +76,7 @@ public static class ProblemDetailsFactory
             default:
                 problem.Status = (int)HttpStatusCode.InternalServerError;
                 problem.Title = GetTitle(problem.Status);
-                problem.Detail = "An unexpected error occurred.";
+                problem.Detail = "Ocurrió un error inesperado.";
                 break;
         }
 
@@ -74,11 +85,11 @@ public static class ProblemDetailsFactory
 
     private static string GetTitle(int statusCode) => statusCode switch
     {
-        (int)HttpStatusCode.BadRequest => "Bad Request",
-        (int)HttpStatusCode.Unauthorized => "Unauthorized",
-        (int)HttpStatusCode.Forbidden => "Forbidden",
-        (int)HttpStatusCode.NotFound => "Not Found",
-        (int)HttpStatusCode.Conflict => "Conflict",
-        _ => "An unexpected error occurred"
+        (int)HttpStatusCode.BadRequest => "Solicitud inválida",
+        (int)HttpStatusCode.Unauthorized => "No autorizado",
+        (int)HttpStatusCode.Forbidden => "Acceso denegado",
+        (int)HttpStatusCode.NotFound => "No encontrado",
+        (int)HttpStatusCode.Conflict => "Conflicto",
+        _ => "Error inesperado"
     };
 }
