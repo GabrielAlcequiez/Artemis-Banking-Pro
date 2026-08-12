@@ -43,7 +43,7 @@ public static class ProblemDetailsFactory
                         g => g.Select(e => e.ErrorMessage).ToArray());
                 break;
 
-            case FinancialConcurrencyException:
+            case FinancialConcurrencyException or PersistenceConflictException:
                 problem.Status = (int)HttpStatusCode.Conflict;
                 problem.Title = GetTitle(problem.Status);
                 problem.Detail = exception.Message;

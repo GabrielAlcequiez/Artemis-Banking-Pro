@@ -1,6 +1,7 @@
 using ABP.Application.Exceptions;
 using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Persistence.Context;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace ABP.Infrastructure.Persistence.Repositories
@@ -19,6 +20,18 @@ namespace ABP.Infrastructure.Persistence.Repositories
             {
                 throw new FinancialConcurrencyException(exception);
             }
+            catch (DbUpdateException exception)
+                when (IsUniqueConstraintViolation(exception))
+            {
+                throw new PersistenceConflictException(exception);
+            }
         }
+
+        private static bool IsUniqueConstraintViolation(
+            DbUpdateException exception) =>
+            exception.InnerException is SqlException
+            {
+                Number: 2601 or 2627
+            };
     }
 }
