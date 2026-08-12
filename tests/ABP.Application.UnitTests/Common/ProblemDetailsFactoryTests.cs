@@ -43,11 +43,30 @@ public sealed class ProblemDetailsFactoryTests
     }
 
     [Fact]
+    public void Persistence_conflict_returns_conflict_without_database_details()
+    {
+        var exception = new PersistenceConflictException(
+            new InvalidOperationException("índice IX_Commerces_Email"));
+
+        var problem = ProblemDetailsFactory.Create(
+            exception,
+            "trace-3",
+            "/api/commerce");
+
+        Assert.Equal(409, problem.Status);
+        Assert.Equal("Conflicto", problem.Title);
+        Assert.Equal(
+            "La operación entra en conflicto con datos que ya existen.",
+            problem.Detail);
+        Assert.DoesNotContain("IX_Commerces_Email", problem.Detail);
+    }
+
+    [Fact]
     public void Unexpected_exception_returns_generic_spanish_problem_details()
     {
         var problem = ProblemDetailsFactory.Create(
             new InvalidOperationException("dato sensible"),
-            "trace-3",
+            "trace-4",
             "/api/credit-card");
 
         Assert.Equal(500, problem.Status);
