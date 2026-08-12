@@ -36,6 +36,8 @@ public sealed class CreditCardPaymentsController(
         if (result.IsFailure)
         {
             ModelState.AddModelError(string.Empty, result.Error.Description);
+            ModelState.Remove(nameof(model.CreditCardNumber));
+            model.CreditCardNumber = string.Empty;
             return View("Create", model);
         }
 
