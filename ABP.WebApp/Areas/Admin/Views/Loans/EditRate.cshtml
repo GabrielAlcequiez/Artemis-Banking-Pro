@@ -1,0 +1,48 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Loans.EditLoanRateViewModel
+@{
+    ViewData["Title"] = "Editar tasa de préstamo";
+}
+
+<div class="mx-auto max-w-2xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Details" asp-route-id="@Model.LoanId">← Volver al detalle</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Editar tasa de interés</h1>
+        <p class="mt-1 font-mono text-sm text-ink-muted">@Model.LoanNumber</p>
+    </div>
+
+    <section class="card p-5" aria-labelledby="loan-rate-summary-heading">
+        <h2 id="loan-rate-summary-heading" class="font-medium text-ink">Préstamo seleccionado</h2>
+        <dl class="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+            <div><dt class="text-ink-muted">Cliente</dt><dd class="mt-1 font-medium text-ink">@Model.ClientFullName</dd></div>
+            <div><dt class="text-ink-muted">Estado</dt><dd class="mt-1"><span class="badge badge-success">@Model.Status</span></dd></div>
+            <div><dt class="text-ink-muted">Monto pendiente</dt><dd class="tnum mt-1 font-medium text-ink">RD$ @Model.PendingAmount.ToString("N2")</dd></div>
+            <div><dt class="text-ink-muted">Tasa actual</dt><dd class="tnum mt-1 font-medium text-ink">@Model.CurrentAnnualInterestRate.ToString("N4") %</dd></div>
+        </dl>
+    </section>
+
+    <div class="alert border-warning/30 bg-warning/10 text-warning" role="note">
+        La nueva tasa se aplicará al capital de las cuotas futuras pendientes. Las cuotas vencidas, pagadas o parcialmente pagadas no serán modificadas.
+    </div>
+
+    <form asp-action="EditRate" method="post" class="card space-y-5 p-5" novalidate>
+        @Html.AntiForgeryToken()
+        <input asp-for="LoanId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger empty:hidden" role="alert"></div>
+
+        <div>
+            <label asp-for="AnnualInterestRate" class="mb-1 block text-sm font-medium text-ink-soft">Nueva tasa de interés anual</label>
+            <div class="relative">
+                <input asp-for="AnnualInterestRate" class="input pr-10 tnum" type="number"
+                       min="0" step="0.0001" inputmode="decimal" />
+                <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-ink-muted">%</span>
+            </div>
+            <span asp-validation-for="AnnualInterestRate" class="mt-1 block text-sm text-danger"></span>
+            <p class="mt-1 text-xs text-ink-muted">La tasa no puede ser negativa y admite hasta cuatro decimales.</p>
+        </div>
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <a class="btn btn-ghost" asp-action="Details" asp-route-id="@Model.LoanId">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+    </form>
+</div>

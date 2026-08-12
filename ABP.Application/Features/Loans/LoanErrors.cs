@@ -40,6 +40,34 @@ namespace ABP.Application.Features.Loans
             "Loans.NumberGenerationFailed",
             "No fue posible generar un número de préstamo único.");
 
+        public static readonly Error AdministratorRequired = new(
+            "Loans.AdministratorRequired",
+            "Se requiere un administrador autenticado para asignar un préstamo.");
+
+        public static readonly Error PrincipalAccountNotFound = new(
+            "Loans.PrincipalAccountNotFound",
+            "El cliente debe tener una cuenta de ahorro principal activa para recibir el desembolso.");
+
+        public static readonly Error PaymentActorRequired = new(
+            "Loans.PaymentActorRequired",
+            "Se requiere un cliente o cajero autenticado para procesar el pago.");
+
+        public static readonly Error SourceAccountNotFound = new(
+            "Loans.SourceAccountNotFound",
+            "La cuenta de origen especificada no existe.");
+
+        public static readonly Error LoanOwnershipRequired = new(
+            "Loans.LoanOwnershipRequired",
+            "El cliente autenticado solo puede pagar sus propios préstamos.");
+
+        public static readonly Error AccountOwnershipRequired = new(
+            "Loans.AccountOwnershipRequired",
+            "El cliente autenticado solo puede pagar desde una cuenta propia.");
+
+        public static readonly Error OperationConflict = new(
+            "Loans.OperationConflict",
+            "El identificador de operación ya fue utilizado para otro pago.");
+
         public static readonly Error ConcurrencyConflict = new(
             "Loans.ConcurrencyConflict",
             "El préstamo fue modificado por otra operación. Intente nuevamente.");
