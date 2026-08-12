@@ -11,7 +11,7 @@ namespace ABP.Infrastructure.IntegrationTests.Persistence;
 public sealed class UnitOfWorkConcurrencyTests
 {
     [Fact]
-    public async Task SaveChanges_translates_ef_concurrency_exception()
+    public async Task SaveChanges_translates_ef_concurrency_exception_without_leaking_infrastructure_details()
     {
         var databaseRoot = new InMemoryDatabaseRoot();
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -47,7 +47,10 @@ public sealed class UnitOfWorkConcurrencyTests
         var exception = await Assert.ThrowsAsync<FinancialConcurrencyException>(
             () => unitOfWork.SaveChangesAsync());
 
-        Assert.IsType<DbUpdateConcurrencyException>(exception.InnerException);
+        Assert.Null(exception.InnerException);
+        Assert.Equal(
+            "La operación no pudo completarse porque los datos fueron modificados por otro proceso. Actualice la información e intente nuevamente.",
+            exception.Message);
     }
 
     private static CreditCard CreateCard() => new()

@@ -80,7 +80,11 @@ public sealed class CardFinancialOperationsTests
 
         Assert.True(result.IsFailure);
         Assert.Equal("CreditCards.OwnershipRequired", result.Error.Code);
-        Assert.Empty(environment.Context.CardPayments);
+        var rejectedPayment = await environment.Context.CardPayments
+            .AsNoTracking()
+            .SingleAsync();
+        Assert.Equal(TransactionStatus.Rejected, rejectedPayment.Status);
+        Assert.Equal("CreditCards.OwnershipRequired", rejectedPayment.FailureCode);
         Assert.Empty(environment.Context.AccountTransactions);
     }
 
@@ -96,15 +100,19 @@ public sealed class CardFinancialOperationsTests
             cardLimit: 2_000m);
         var service = environment.CreatePaymentService();
 
-        var result = await service.ProcessPaymentAsync(
-            new CreditCardPaymentRequest(
-                products.CardId,
-                products.AccountId,
-                100m,
-                Guid.NewGuid()));
+        var request = new CreditCardPaymentRequest(
+            products.CardId,
+            products.AccountId,
+            100m,
+            Guid.NewGuid());
+
+        var result = await service.ProcessPaymentAsync(request);
+        var retry = await service.ProcessPaymentAsync(request);
 
         Assert.True(result.IsFailure);
+        Assert.True(retry.IsFailure);
         Assert.Equal("CreditCards.InsufficientFunds", result.Error.Code);
+        Assert.Equal(result.Error, retry.Error);
         var account = await environment.Context.SavingsAccounts
             .AsNoTracking()
             .SingleAsync(item => item.Id == products.AccountId);
@@ -117,7 +125,55 @@ public sealed class CardFinancialOperationsTests
         Assert.Equal(50m, account.Balance);
         Assert.Equal(500m, card.Debt);
         Assert.Equal(TransactionStatus.Rejected, ledgerEntry.Status);
-        Assert.Empty(environment.Context.CardPayments);
+        var rejectedPayment = await environment.Context.CardPayments
+            .AsNoTracking()
+            .SingleAsync();
+        Assert.Equal(TransactionStatus.Rejected, rejectedPayment.Status);
+        Assert.Equal(100m, rejectedPayment.RequestedAmount);
+        Assert.Equal("CreditCards.InsufficientFunds", rejectedPayment.FailureCode);
+    }
+
+    [Fact]
+    public async Task Payment_reusing_operation_id_with_different_amount_is_rejected()
+    {
+        await using var environment = CreateEnvironment("client-1", Roles.Client);
+        var products = await environment.SeedProductsAsync(
+            "client-1",
+            "client-1",
+            accountBalance: 1_000m,
+            cardDebt: 500m,
+            cardLimit: 2_000m);
+        var operationId = Guid.NewGuid();
+        var service = environment.CreatePaymentService();
+
+        var first = await service.ProcessPaymentAsync(
+            new CreditCardPaymentRequest(
+                products.CardId,
+                products.AccountId,
+                100m,
+                operationId));
+        var conflictingReplay = await service.ProcessPaymentAsync(
+            new CreditCardPaymentRequest(
+                products.CardId,
+                products.AccountId,
+                200m,
+                operationId));
+
+        Assert.True(first.IsSuccess);
+        Assert.True(conflictingReplay.IsFailure);
+        Assert.Equal(
+            "CreditCards.OperationIdConflict",
+            conflictingReplay.Error.Code);
+        var account = await environment.Context.SavingsAccounts
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == products.AccountId);
+        var card = await environment.Context.CreditCards
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == products.CardId);
+        Assert.Equal(900m, account.Balance);
+        Assert.Equal(400m, card.Debt);
+        Assert.Single(environment.Context.CardPayments);
+        Assert.Single(environment.Context.AccountTransactions);
     }
 
     [Fact]
@@ -178,14 +234,25 @@ public sealed class CardFinancialOperationsTests
             cardLimit: 1_000m);
         var service = environment.CreateCashAdvanceService();
 
-        var result = await service.ProcessCashAdvanceAsync(
-            new CashAdvanceRequest(
-                products.CardId,
-                products.AccountId,
-                100m,
-                Guid.NewGuid()));
+        var operationId = Guid.NewGuid();
+        var request = new CashAdvanceRequest(
+            products.CardId,
+            products.AccountId,
+            100m,
+            operationId);
+
+        var result = await service.ProcessCashAdvanceAsync(request);
+        var retry = await service.ProcessCashAdvanceAsync(request);
+        var conflictingReplay = await service.ProcessCashAdvanceAsync(
+            request with { Amount = 200m });
 
         Assert.True(result.IsSuccess);
+        Assert.True(retry.IsSuccess);
+        Assert.Equal(100m, retry.Value.EffectiveAmount);
+        Assert.True(conflictingReplay.IsFailure);
+        Assert.Equal(
+            "CreditCards.OperationIdConflict",
+            conflictingReplay.Error.Code);
         var account = await environment.Context.SavingsAccounts
             .AsNoTracking()
             .SingleAsync(item => item.Id == products.AccountId);
@@ -198,6 +265,8 @@ public sealed class CardFinancialOperationsTests
         Assert.Equal(150m, account.Balance);
         Assert.Equal(206.25m, card.Debt);
         Assert.Equal(106.25m, consumption.Amount);
+        Assert.Equal(100m, consumption.RequestedAmount);
+        Assert.Equal(products.AccountId, consumption.TargetAccountId);
         Assert.Equal("AVANCE", consumption.CommerceName);
         Assert.Equal(ConsumptionStatus.Approved, consumption.Status);
     }
@@ -286,7 +355,6 @@ public sealed class CardFinancialOperationsTests
                 creditCards,
                 accounts,
                 users,
-                transactions,
                 balances,
                 ledger,
                 unitOfWork,
