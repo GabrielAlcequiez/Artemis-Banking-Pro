@@ -1,4 +1,5 @@
 using ABP.Application.Common;
+using ABP.Application.Features.Accounts;
 using ABP.Application.Features.Accounts.DTOs;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Entities.Accounts;
@@ -39,8 +40,7 @@ namespace ABP.Application.Features.Accounts.Services
         {
             if (request.InitialBalance < 0)
             {
-                return OperationResult<Guid>.Failure(
-                    new Error("accounts.invalid_amount", "The initial balance cannot be negative."));
+                return OperationResult<Guid>.Failure(AccountErrors.InvalidAmount);
             }
 
             var accountNumber = await _identifierGenerator.GenerateNineDigitIdentifierAsync(
@@ -80,22 +80,19 @@ namespace ABP.Application.Features.Accounts.Services
             var account = await _accounts.GetByIdAsync(request.AccountId, cancellationToken);
             if (account is null)
             {
-                return OperationResult.Failure(
-                    new Error("accounts.not_found", $"Account '{request.AccountId}' was not found."));
+                return OperationResult.Failure(AccountErrors.NotFound);
             }
 
             if (account.Type == SavingsAccountType.Principal)
             {
                 _logger.LogWarning(
                     "Cancelación rechazada: la cuenta {AccountId} es principal y no se puede cancelar.", account.Id);
-                return OperationResult.Failure(
-                    new Error("accounts.cannot_cancel_principal", "The Principal savings account cannot be cancelled."));
+                return OperationResult.Failure(AccountErrors.CannotCancelPrincipal);
             }
 
             if (account.Status != SavingsAccountStatus.Active)
             {
-                return OperationResult.Failure(
-                    new Error("accounts.already_cancelled", $"Account '{account.Id}' is already cancelled."));
+                return OperationResult.Failure(AccountErrors.AlreadyCancelled);
             }
 
             if (account.Balance > 0)
@@ -106,9 +103,7 @@ namespace ABP.Application.Features.Accounts.Services
                     _logger.LogError(
                         "Cancelación bloqueada: la cuenta {AccountId} tiene saldo pero {OwnerUserId} no tiene cuenta principal.",
                         account.Id, account.OwnerUserId);
-                    return OperationResult.Failure(
-                        new Error("accounts.principal_not_found",
-                            "The account balance cannot be transferred because the owner has no Principal account."));
+                    return OperationResult.Failure(AccountErrors.PrincipalNotFound);
                 }
 
                 var transferRequest = new TransferFundsRequest
@@ -131,8 +126,7 @@ namespace ABP.Application.Features.Accounts.Services
                 account = await _accounts.GetByIdAsync(request.AccountId, cancellationToken);
                 if (account is null)
                 {
-                    return OperationResult.Failure(
-                        new Error("accounts.not_found", $"Account '{request.AccountId}' was not found."));
+                    return OperationResult.Failure(AccountErrors.NotFound);
                 }
             }
 

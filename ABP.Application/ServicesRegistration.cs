@@ -41,6 +41,9 @@ namespace ABP.Application
             services.AddScoped<IMoneyTransferService, MoneyTransferService>();
             services.AddScoped<IPrimaryAccountProvisioner, PrimaryAccountProvisioner>();
             services.AddScoped<IBeneficiaryService, BeneficiaryService>();
+            services.AddScoped<ISavingsAccountAdminService, SavingsAccountAdminService>();
+            services.AddScoped<IAccountClientSelectionService, AccountClientSelectionService>();
+            services.AddScoped<ISavingsAccountQueryService, SavingsAccountQueryService>();
             services.AddScoped<IAccountsMetricsReader, AccountsMetricsReader>();
             services.AddScoped<ITransactionsMetricsReader, TransactionsMetricsReader>();
 

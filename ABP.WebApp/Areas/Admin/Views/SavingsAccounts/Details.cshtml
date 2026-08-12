@@ -1,0 +1,96 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.SavingsAccounts.SavingsAccountDetailViewModel
+@using ABP.Domain.Enums
+@{
+    ViewData["Title"] = "Detalle de cuenta de ahorro";
+    var account = Model.Account;
+    var isActive = account.Status == SavingsAccountStatus.Active;
+    var isSecondary = account.Type == SavingsAccountType.Secondary;
+}
+
+<div class="mx-auto max-w-6xl space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+            <a class="text-sm text-ink-muted hover:text-ink" asp-action="Index">← Volver a cuentas</a>
+            <h1 class="mt-2 text-2xl font-semibold text-ink">@account.AccountNumber</h1>
+            <p class="mt-1 text-sm text-ink-muted">Titular @account.OwnerUserId</p>
+        </div>
+        @if (isActive && isSecondary)
+        {
+            <div class="flex gap-2">
+                <a class="btn border border-danger/30 text-danger hover:bg-danger/10" asp-action="ConfirmCancel" asp-route-id="@account.Id">Cancelar cuenta</a>
+            </div>
+        }
+    </div>
+
+    @if (TempData["SuccessMessage"] is string successMessage)
+    {
+        <div class="alert border-success/30 bg-success/10 text-success" role="status">@successMessage</div>
+    }
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <section class="card p-5" aria-labelledby="account-summary-heading">
+        <div class="flex items-center justify-between gap-3">
+            <h2 id="account-summary-heading" class="font-medium text-ink">Información general</h2>
+            <span class="badge @(isActive ? "badge-success" : "badge-neutral")">@account.Status</span>
+        </div>
+        <dl class="mt-5 grid gap-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div><dt class="text-ink-muted">Tipo</dt><dd class="mt-1 font-medium text-ink">@account.Type</dd></div>
+            <div><dt class="text-ink-muted">Saldo</dt><dd class="tnum mt-1 font-medium text-ink">RD$ @account.Balance.ToString("N2")</dd></div>
+            <div><dt class="text-ink-muted">Titular</dt><dd class="mt-1 font-mono text-ink">@account.OwnerUserId</dd></div>
+            <div><dt class="text-ink-muted">Fecha de apertura</dt><dd class="mt-1 text-ink">@account.CreatedAtUtc.ToString("dd/MM/yyyy HH:mm")</dd></div>
+        </dl>
+    </section>
+
+    <section class="space-y-3" aria-labelledby="transactions-heading">
+        <div class="flex items-center justify-between">
+            <h2 id="transactions-heading" class="text-lg font-semibold text-ink">Transacciones recientes</h2>
+            <span class="text-sm text-ink-muted">@account.RecentTransactions.Count registros</span>
+        </div>
+
+        @if (account.RecentTransactions.Count == 0)
+        {
+            <div class="card p-8 text-center text-sm text-ink-muted">Esta cuenta todavía no tiene transacciones registradas.</div>
+        }
+        else
+        {
+            <div class="card overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-border text-sm">
+                        <thead class="bg-surface-sunken text-left text-xs uppercase tracking-wide text-ink-muted">
+                            <tr>
+                                <th class="px-4 py-3 font-medium">Fecha</th>
+                                <th class="px-4 py-3 font-medium">Tipo</th>
+                                <th class="px-4 py-3 font-medium">Dirección</th>
+                                <th class="px-4 py-3 text-right font-medium">Monto</th>
+                                <th class="px-4 py-3 font-medium">Contraparte</th>
+                                <th class="px-4 py-3 font-medium">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border bg-surface">
+                            @foreach (var transaction in account.RecentTransactions)
+                            {
+                                var approved = transaction.Status == TransactionStatus.Approved;
+                                var isCredit = transaction.Direction == TransactionDirection.Credit;
+                                <tr>
+                                    <td class="whitespace-nowrap px-4 py-3 text-ink-soft">@transaction.CreatedAtUtc.ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td class="px-4 py-3 text-ink">@transaction.OperationType</td>
+                                    <td class="px-4 py-3">
+                                        <span class="badge @(isCredit ? "badge-success" : "badge-neutral")">@transaction.Direction</span>
+                                    </td>
+                                    <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @transaction.Amount.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-ink-soft">@(transaction.Beneficiary ?? transaction.Origin ?? "—")</td>
+                                    <td class="px-4 py-3">
+                                        <span class="badge @(approved ? "badge-success" : "badge-danger")">@transaction.Status</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </section>
+</div>
