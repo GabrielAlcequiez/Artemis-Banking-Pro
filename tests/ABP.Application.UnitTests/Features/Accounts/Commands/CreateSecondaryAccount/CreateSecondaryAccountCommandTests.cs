@@ -19,8 +19,7 @@ namespace ABP.Application.UnitTests.Features.Accounts.Commands.CreateSecondaryAc
         [Fact]
         public async Task Validator_reuses_shared_request_rules()
         {
-            var validator = new CreateSecondaryAccountCommandValidator(
-                new CreateSecondaryAccountRequestValidator());
+            var validator = new CreateSecondaryAccountCommandValidator( new CreateSecondaryAccountRequestValidator());
             var invalidRequest = ValidRequest();
             invalidRequest.OwnerUserId = string.Empty;
             var command = new CreateSecondaryAccountCommand(invalidRequest);

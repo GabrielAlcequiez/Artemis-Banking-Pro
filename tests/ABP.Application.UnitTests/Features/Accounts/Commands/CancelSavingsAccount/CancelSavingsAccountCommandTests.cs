@@ -18,8 +18,7 @@ namespace ABP.Application.UnitTests.Features.Accounts.Commands.CancelSavingsAcco
         [Fact]
         public async Task Validator_reuses_shared_request_rules()
         {
-            var validator = new CancelSavingsAccountCommandValidator(
-                new CancelSavingsAccountRequestValidator());
+            var validator = new CancelSavingsAccountCommandValidator( new CancelSavingsAccountRequestValidator());
             var invalidRequest = ValidRequest();
             invalidRequest.AccountId = Guid.Empty;
             var command = new CancelSavingsAccountCommand(invalidRequest);

@@ -36,8 +36,7 @@ namespace ABP.Application.UnitTests.Features.Accounts.Commands.TransferFunds
         [Fact]
         public async Task Handler_delegates_to_the_money_transfer_service()
         {
-            var fakeReceipt = OperationResult<FinancialOperationReceipt>.Success(
-                new FinancialOperationReceipt(Guid.NewGuid(), 50m, DateTimeOffset.UtcNow));
+            var fakeReceipt = OperationResult<FinancialOperationReceipt>.Success( new FinancialOperationReceipt(Guid.NewGuid(), 50m, DateTimeOffset.UtcNow));
             var moneyTransfer = new FakeMoneyTransferService { TransferResult = fakeReceipt };
             var handler = new TransferFundsCommandHandler(moneyTransfer);
 
