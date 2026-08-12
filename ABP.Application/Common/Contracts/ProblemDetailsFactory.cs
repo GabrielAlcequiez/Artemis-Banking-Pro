@@ -49,6 +49,12 @@ public static class ProblemDetailsFactory
                 problem.Detail = exception.Message;
                 break;
 
+            case PersistenceFailureException:
+                problem.Status = (int)HttpStatusCode.InternalServerError;
+                problem.Title = GetTitle(problem.Status);
+                problem.Detail = "Ocurrió un error inesperado.";
+                break;
+
             case KeyNotFoundException:
                 problem.Status = (int)HttpStatusCode.NotFound;
                 problem.Title = GetTitle(problem.Status);
