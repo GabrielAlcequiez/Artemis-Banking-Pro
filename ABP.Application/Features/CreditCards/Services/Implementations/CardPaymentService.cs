@@ -200,7 +200,8 @@ public sealed class CardPaymentService(
         }
 
         var validationError = ValidateProducts(card, account, request.Amount);
-        if (validationError is not null)
+        if (validationError is not null &&
+            validationError != CardFinancialOperationErrors.InsufficientFunds)
         {
             return OperationResult<FinancialOperationReceipt>.Failure(validationError);
         }
@@ -238,13 +239,32 @@ public sealed class CardPaymentService(
                     trackedCard,
                     currentAccount,
                     request.Amount);
+                var effectiveAmount = Math.Min(request.Amount, trackedCard.Debt);
+
+                if (currentValidationError ==
+                    CardFinancialOperationErrors.InsufficientFunds)
+                {
+                    await ledger.RecordRejectedAsync(
+                        currentAccount.Id,
+                        request.OperationId,
+                        effectiveAmount,
+                        TransactionDirection.Debit,
+                        FinancialOperationType.CreditCardPayment,
+                        CardFinancialOperationErrors.InsufficientFunds.Description,
+                        actor.Value.UserId,
+                        actor.Value.Role,
+                        transactionCancellationToken);
+
+                    return OperationResult<FinancialOperationReceipt>.Failure(
+                        currentValidationError);
+                }
+
                 if (currentValidationError is not null)
                 {
                     return OperationResult<FinancialOperationReceipt>.Failure(
                         currentValidationError);
                 }
 
-                var effectiveAmount = Math.Min(request.Amount, trackedCard.Debt);
                 var debitResult = await balances.DebitAsync(
                     currentAccount.Id,
                     effectiveAmount,
