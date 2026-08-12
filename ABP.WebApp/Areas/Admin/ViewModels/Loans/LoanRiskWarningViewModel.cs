@@ -1,0 +1,24 @@
+namespace ABP.WebApp.Areas.Admin.ViewModels.Loans;
+
+public sealed class LoanRiskWarningViewModel
+{
+    public string ClientId { get; set; } = string.Empty;
+
+    public string ClientFullName { get; set; } = string.Empty;
+
+    public string ClientIdentification { get; set; } = string.Empty;
+
+    public decimal CapitalAmount { get; set; }
+
+    public int TermInMonths { get; set; }
+
+    public decimal AnnualInterestRate { get; set; }
+
+    public string RiskType { get; set; } = string.Empty;
+
+    public decimal CurrentDebt { get; set; }
+
+    public decimal ProjectedDebt { get; set; }
+
+    public decimal AverageDebt { get; set; }
+}

@@ -1,4 +1,5 @@
 using ABP.Application.Common;
+using ABP.Application.Features.Accounts;
 using ABP.Application.Features.Accounts.DTOs;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Enums;
@@ -44,15 +45,13 @@ namespace ABP.Application.Features.Accounts.Services
         {
             if (request.Amount <= 0)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.invalid_amount", "The transfer amount must be greater than zero."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.InvalidAmount);
             }
 
             var source = await _accounts.GetByIdAsync(request.SourceAccountId, cancellationToken);
             if (source is null)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.not_found", "The source account was not found."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.NotFound);
             }
 
             var destination = request.DestinationAccountId is not null
@@ -61,14 +60,12 @@ namespace ABP.Application.Features.Accounts.Services
 
             if (destination is null)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.not_found", "The destination account was not found."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.NotFound);
             }
 
             if (destination.Id == source.Id)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.same_account", "Source and destination accounts must be different."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.SameAccount);
             }
 
             var operationId = Guid.NewGuid();
@@ -129,15 +126,13 @@ namespace ABP.Application.Features.Accounts.Services
         {
             if (request.Amount <= 0)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.invalid_amount", "The deposit amount must be greater than zero."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.InvalidAmount);
             }
 
             var destination = await _accounts.GetByAccountNumberAsync(request.DestinationAccountNumber, cancellationToken);
             if (destination is null)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.not_found", "The destination account was not found."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.NotFound);
             }
 
             var operationId = Guid.NewGuid();
@@ -171,15 +166,13 @@ namespace ABP.Application.Features.Accounts.Services
         {
             if (request.Amount <= 0)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.invalid_amount", "The withdrawal amount must be greater than zero."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.InvalidAmount);
             }
 
             var source = await _accounts.GetByAccountNumberAsync(request.SourceAccountNumber, cancellationToken);
             if (source is null)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.not_found", "The source account was not found."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.NotFound);
             }
 
             var operationId = Guid.NewGuid();

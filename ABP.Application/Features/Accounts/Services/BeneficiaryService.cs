@@ -1,4 +1,5 @@
 using ABP.Application.Common;
+using ABP.Application.Features.Accounts;
 using ABP.Application.Features.Accounts.DTOs;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Entities;
@@ -65,21 +66,18 @@ namespace ABP.Application.Features.Accounts.Services
             var account = await _accounts.GetByAccountNumberAsync(request.BeneficiaryAccountNumber, cancellationToken);
             if (account is null)
             {
-                return OperationResult<BeneficiaryDto>.Failure(
-                    new Error("accounts.not_found", "The beneficiary account was not found."));
+                return OperationResult<BeneficiaryDto>.Failure(AccountErrors.NotFound);
             }
 
             if (account.OwnerUserId == request.OwnerUserId)
             {
-                return OperationResult<BeneficiaryDto>.Failure(
-                    new Error("accounts.cannot_add_self", "You cannot add your own account as a beneficiary."));
+                return OperationResult<BeneficiaryDto>.Failure(AccountErrors.CannotAddSelf);
             }
 
             var alreadyExists = await _beneficiaries.ExistsAsync(request.OwnerUserId, account.Id, cancellationToken);
             if (alreadyExists)
             {
-                return OperationResult<BeneficiaryDto>.Failure(
-                    new Error("accounts.beneficiary_already_exists", "This account is already registered as a beneficiary."));
+                return OperationResult<BeneficiaryDto>.Failure(AccountErrors.BeneficiaryAlreadyExists);
             }
 
             var beneficiary = new Beneficiary(Guid.NewGuid())
@@ -120,8 +118,7 @@ namespace ABP.Application.Features.Accounts.Services
                 _logger.LogWarning(
                     "Eliminación de beneficiario rechazada: {BeneficiaryId} no pertenece a {OwnerUserId}.",
                     beneficiaryId, ownerUserId);
-                return OperationResult.Failure(
-                    new Error("accounts.beneficiary_not_found", "The beneficiary was not found."));
+                return OperationResult.Failure(AccountErrors.BeneficiaryNotFound);
             }
 
             await _beneficiaries.DeleteAsync(beneficiary.Id, cancellationToken);

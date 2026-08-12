@@ -1,0 +1,84 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Loans.LoanRiskWarningViewModel
+@{
+    ViewData["Title"] = "Confirmar préstamo de alto riesgo";
+    var riskDescription = Model.RiskType switch
+    {
+        "CurrentHighRisk" => "Riesgo alto por deuda actual",
+        "ProjectedHighRisk" => "Riesgo alto por deuda proyectada",
+        _ => "Riesgo alto"
+    };
+    var riskExplanation = Model.RiskType switch
+    {
+        "CurrentHighRisk" => "La deuda actual del cliente supera el promedio de deuda de los clientes activos.",
+        "ProjectedHighRisk" => "La deuda proyectada al agregar este préstamo supera el promedio de deuda de los clientes activos.",
+        _ => "La asignación requiere una confirmación administrativa adicional."
+    };
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Create" asp-route-clientId="@Model.ClientId">← Volver a configurar</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Confirmar préstamo de alto riesgo</h1>
+        <p class="mt-1 text-sm text-ink-muted">Revisa la evaluación antes de autorizar el desembolso.</p>
+    </div>
+
+    <section class="card space-y-5 p-6" aria-labelledby="risk-warning-heading">
+        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-danger/10 text-xl font-semibold text-danger" aria-hidden="true">!</div>
+        <div>
+            <h2 id="risk-warning-heading" class="text-lg font-semibold text-ink">@riskDescription</h2>
+            <p class="mt-2 text-sm text-ink-muted">@riskExplanation</p>
+        </div>
+
+        <dl class="grid gap-4 text-sm sm:grid-cols-2">
+            <div>
+                <dt class="text-ink-muted">Cliente</dt>
+                <dd class="mt-1 font-medium text-ink">@Model.ClientFullName</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Cédula</dt>
+                <dd class="mt-1 text-ink">@Model.ClientIdentification</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Capital solicitado</dt>
+                <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.CapitalAmount.ToString("N2")</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Condiciones</dt>
+                <dd class="mt-1 text-ink">@Model.TermInMonths meses · @Model.AnnualInterestRate.ToString("N4") % anual</dd>
+            </div>
+        </dl>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+            <div class="rounded-lg border border-border bg-surface-sunken p-4">
+                <p class="text-xs uppercase tracking-wide text-ink-muted">Deuda actual</p>
+                <p class="tnum mt-1 text-lg font-semibold text-ink">RD$ @Model.CurrentDebt.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-danger/30 bg-danger/10 p-4">
+                <p class="text-xs uppercase tracking-wide text-danger">Deuda proyectada</p>
+                <p class="tnum mt-1 text-lg font-semibold text-danger">RD$ @Model.ProjectedDebt.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-border bg-surface-sunken p-4">
+                <p class="text-xs uppercase tracking-wide text-ink-muted">Promedio de deuda</p>
+                <p class="tnum mt-1 text-lg font-semibold text-ink">RD$ @Model.AverageDebt.ToString("N2")</p>
+            </div>
+        </div>
+
+        <div asp-validation-summary="All" class="alert alert-danger empty:hidden" role="alert"></div>
+
+        <form asp-action="ConfirmAssignment" method="post" class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            @Html.AntiForgeryToken()
+            <input asp-for="ClientId" type="hidden" />
+            <input asp-for="ClientFullName" type="hidden" />
+            <input asp-for="ClientIdentification" type="hidden" />
+            <input asp-for="CapitalAmount" type="hidden" />
+            <input asp-for="TermInMonths" type="hidden" />
+            <input asp-for="AnnualInterestRate" type="hidden" />
+            <input asp-for="RiskType" type="hidden" />
+            <input asp-for="CurrentDebt" type="hidden" />
+            <input asp-for="ProjectedDebt" type="hidden" />
+            <input asp-for="AverageDebt" type="hidden" />
+            <a class="btn btn-ghost" asp-action="Create" asp-route-clientId="@Model.ClientId">No, volver atrás</a>
+            <button type="submit" class="btn border border-danger bg-danger text-white hover:opacity-90">Sí, confirmar y desembolsar</button>
+        </form>
+    </section>
+</div>

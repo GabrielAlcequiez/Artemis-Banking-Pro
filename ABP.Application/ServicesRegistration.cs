@@ -27,16 +27,25 @@ namespace ABP.Application
             services.AddScoped<ICardPaymentService, CardPaymentService>();
             services.AddScoped<ICashAdvanceService, CashAdvanceService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
+
             services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
+            services.AddScoped<ILoanService, LoanService>();
             services.AddScoped<ILoanRateService, LoanRateService>();
             services.AddScoped<ILoanDelinquencyService, LoanDelinquencyService>();
-
+            services.AddScoped<ILoanClientSelectionService, LoanClientSelectionService>();
+            services.AddScoped<ILoanRiskService, LoanRiskService>();
+            services.AddScoped<ILoansMetricsReader, LoansMetricsReader>();
+            services.AddScoped<ILoanOriginationService, LoanOriginationService>();
+            services.AddScoped<ILoanPaymentService, LoanPaymentService>();
 
             services.AddScoped<IAccountBalanceService, AccountBalanceService>();
             services.AddScoped<IAccountLedger, AccountLedger>();
             services.AddScoped<IMoneyTransferService, MoneyTransferService>();
             services.AddScoped<IPrimaryAccountProvisioner, PrimaryAccountProvisioner>();
             services.AddScoped<IBeneficiaryService, BeneficiaryService>();
+            services.AddScoped<ISavingsAccountAdminService, SavingsAccountAdminService>();
+            services.AddScoped<IAccountClientSelectionService, AccountClientSelectionService>();
+            services.AddScoped<ISavingsAccountQueryService, SavingsAccountQueryService>();
             services.AddScoped<IAccountsMetricsReader, AccountsMetricsReader>();
             services.AddScoped<ITransactionsMetricsReader, TransactionsMetricsReader>();
 
