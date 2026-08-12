@@ -40,6 +40,7 @@ public sealed class ProblemDetailsFactoryTests
         Assert.Equal(409, problem.Status);
         Assert.Equal("Conflicto", problem.Title);
         Assert.DoesNotContain("detalle interno", problem.Detail);
+        Assert.Null(exception.InnerException);
     }
 
     [Fact]
@@ -59,6 +60,25 @@ public sealed class ProblemDetailsFactoryTests
             "La operación entra en conflicto con datos que ya existen.",
             problem.Detail);
         Assert.DoesNotContain("IX_Commerces_Email", problem.Detail);
+        Assert.Null(exception.InnerException);
+    }
+
+    [Fact]
+    public void Persistence_failure_returns_generic_details_without_database_exception()
+    {
+        var exception = new PersistenceFailureException(
+            new InvalidOperationException("4000000000001234"));
+
+        var problem = ProblemDetailsFactory.Create(
+            exception,
+            "trace-4",
+            "/api/credit-card");
+
+        Assert.Equal(500, problem.Status);
+        Assert.Equal("Error inesperado", problem.Title);
+        Assert.Equal("Ocurrió un error inesperado.", problem.Detail);
+        Assert.Null(exception.InnerException);
+        Assert.DoesNotContain("4000000000001234", problem.ToString());
     }
 
     [Fact]
@@ -66,7 +86,7 @@ public sealed class ProblemDetailsFactoryTests
     {
         var problem = ProblemDetailsFactory.Create(
             new InvalidOperationException("dato sensible"),
-            "trace-4",
+            "trace-5",
             "/api/credit-card");
 
         Assert.Equal(500, problem.Status);
