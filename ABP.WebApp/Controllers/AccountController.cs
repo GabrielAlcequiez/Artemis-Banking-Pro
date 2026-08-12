@@ -71,8 +71,7 @@ namespace ABP.WebApp.Controllers
             var error = await _accountServiceForWebApp.ConfirmAccountAsync(userId, token);
             if (string.IsNullOrEmpty(error))
             {
-                TempData["AccountMessage"] = "Su cuenta ha sido activada correctamente. Ya puede iniciar sesión.";
-                return RedirectToAction(nameof(Login));
+                return View(new AccountMessageViewModel { Message = "Su cuenta ha sido activada correctamente. Ya puede iniciar sesión." });
             }
 
             return View(new AccountMessageViewModel { Message = MapActivationError(error) });

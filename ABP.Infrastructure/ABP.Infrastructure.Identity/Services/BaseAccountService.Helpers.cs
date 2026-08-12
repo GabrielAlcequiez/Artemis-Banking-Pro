@@ -50,7 +50,7 @@ public partial class BaseAccountService
         {
             if (!isApi)
             {
-                string verificationUri = $"{origin}/Account/ConfirmAccount?userId={userId}&token={Uri.EscapeDataString(token)}";
+                string verificationUri = $"{origin}/Account/Activate?userId={userId}&token={Uri.EscapeDataString(token)}";
                 await _emailService.SendAsync(new EmailRequestDto
                 {
                     ToEmail = email,
