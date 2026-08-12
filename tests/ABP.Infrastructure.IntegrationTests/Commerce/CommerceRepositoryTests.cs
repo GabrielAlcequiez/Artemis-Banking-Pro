@@ -1,3 +1,4 @@
+using ABP.Application.Exceptions;
 using ABP.Domain.Entities;
 using ABP.Domain.Entities.Commerce;
 using ABP.Domain.Enums;
@@ -235,6 +236,25 @@ public sealed class CommerceRepositoryTests : IAsyncLifetime
             new DateTimeOffset(2026, 8, 4, 0, 0, 0, TimeSpan.Zero));
 
         await Assert.ThrowsAsync<DbUpdateException>(() => _context.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task Unit_of_work_translates_unique_index_race_to_persistence_conflict()
+    {
+        var seeded = await SeedAsync(_context);
+        AddCommerce(
+            _context,
+            "Email Duplicado Concurrente",
+            seeded.ActiveNew.Email,
+            "200000002",
+            CommerceStatus.Active,
+            new DateTimeOffset(2026, 8, 4, 0, 0, 0, TimeSpan.Zero));
+        var unitOfWork = new UnitOfWork(_context);
+
+        var exception = await Assert.ThrowsAsync<PersistenceConflictException>(
+            () => unitOfWork.SaveChangesAsync());
+
+        Assert.IsType<DbUpdateException>(exception.InnerException);
     }
 
     [Fact]
