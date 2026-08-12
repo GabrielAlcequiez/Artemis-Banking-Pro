@@ -57,7 +57,9 @@ public class BaseAccountServiceTests
             null!,
             null!,
             null!,
-            NullLogger<BaseAccountService>.Instance);
+            NullLogger<BaseAccountService>.Instance,
+            null!, // commerceRepository (no se usa en los tests actuales)
+            new CreateCommerceUserRequestValidator());
     }
 
     private static CreateUserDto ValidClientDto(decimal? initialBalance = 100m) => new()
@@ -305,6 +307,9 @@ public class BaseAccountServiceTests
         public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(0);
 
+        public Task<bool> ExistsByCommerceIdAsync(Guid commerceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
         public IQueryable<User> GetAllQueryable(bool trackChanges = false) => new List<User>().AsQueryable();
 
         public Task<User?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
@@ -339,6 +344,9 @@ public class BaseAccountServiceTests
 
         public Task<AccountTokenValidationResult> ValidateAsync(string userId, string token, AccountTokenPurpose purpose, CancellationToken cancellationToken = default) =>
             Task.FromResult(new AccountTokenValidationResult(AccountTokenValidationStatus.Valid));
+
+        public Task<AccountTokenValidationResult> ValidateByTokenAsync(string token, AccountTokenPurpose purpose, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new AccountTokenValidationResult(AccountTokenValidationStatus.Valid, UserId: "user"));
 
         public Task<bool> TryMarkAsUsedAsync(Guid accountTokenId, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
