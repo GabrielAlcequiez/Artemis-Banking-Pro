@@ -60,3 +60,25 @@ internal sealed class CommerceCurrentUserStub : ICurrentUserService
             ABP.Domain.Enums.Roles.Client.ToString();
     }
 }
+
+internal sealed class CommerceUserInactivationServiceStub
+    : ICommerceUserInactivationService
+{
+    public Exception? Exception { get; set; }
+
+    public int Calls { get; private set; }
+
+    public Guid? ReceivedCommerceId { get; private set; }
+
+    public Task InactivateAssociatedUsersAndCommitAsync(
+        Guid commerceId,
+        CancellationToken cancellationToken = default)
+    {
+        Calls++;
+        ReceivedCommerceId = commerceId;
+
+        return Exception is null
+            ? Task.CompletedTask
+            : Task.FromException(Exception);
+    }
+}

@@ -72,6 +72,10 @@ namespace ABP.Application.UnitTests.Features.Accounts.Queries.GetSavingsAccounts
             public Task<SavingsAccount?> GetPrincipalAccountAsync(string ownerUserId, CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
 
+            public Task<IReadOnlyCollection<SavingsAccount>> GetActiveByOwnerIdAsync(
+                string ownerUserId, CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
             public Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
 

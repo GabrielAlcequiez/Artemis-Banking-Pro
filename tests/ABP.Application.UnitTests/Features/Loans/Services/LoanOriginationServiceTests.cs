@@ -336,6 +336,7 @@ public sealed class LoanOriginationServiceTests
     {
         public SavingsAccount? PrincipalAccount { get; init; }
         public Task<SavingsAccount?> GetPrincipalAccountAsync(string ownerUserId, CancellationToken cancellationToken = default) => Task.FromResult(PrincipalAccount);
+        public Task<IReadOnlyCollection<SavingsAccount>> GetActiveByOwnerIdAsync(string ownerUserId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<SavingsAccount?> GetByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<SavingsAccount>> GetPagedAsync(PagedRequest request, string? ownerIdentification = null, SavingsAccountStatus? status = null, SavingsAccountType? type = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
