@@ -29,6 +29,7 @@ public sealed class CardFinancialOperationsTests
             cardLimit: 2_000m);
         var operationId = Guid.NewGuid();
         var service = environment.CreatePaymentService();
+        var options = await service.GetClientOptionsAsync();
         var request = new CreditCardPaymentRequest(
             products.CardId,
             products.AccountId,
@@ -38,6 +39,9 @@ public sealed class CardFinancialOperationsTests
         var firstResult = await service.ProcessPaymentAsync(request);
         var retryResult = await service.ProcessPaymentAsync(request);
 
+        Assert.Single(options.CreditCards);
+        Assert.Single(options.SavingsAccounts);
+        Assert.Equal("************", options.CreditCards.Single().MaskedCardNumber[..12]);
         Assert.True(firstResult.IsSuccess);
         Assert.True(retryResult.IsSuccess);
         Assert.Equal(500m, firstResult.Value.EffectiveAmount);
@@ -81,6 +85,42 @@ public sealed class CardFinancialOperationsTests
     }
 
     [Fact]
+    public async Task Payment_with_insufficient_funds_records_rejection_without_mutating_debt()
+    {
+        await using var environment = CreateEnvironment("client-1", Roles.Client);
+        var products = await environment.SeedProductsAsync(
+            "client-1",
+            "client-1",
+            accountBalance: 50m,
+            cardDebt: 500m,
+            cardLimit: 2_000m);
+        var service = environment.CreatePaymentService();
+
+        var result = await service.ProcessPaymentAsync(
+            new CreditCardPaymentRequest(
+                products.CardId,
+                products.AccountId,
+                100m,
+                Guid.NewGuid()));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("CreditCards.InsufficientFunds", result.Error.Code);
+        var account = await environment.Context.SavingsAccounts
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == products.AccountId);
+        var card = await environment.Context.CreditCards
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == products.CardId);
+        var ledgerEntry = await environment.Context.AccountTransactions
+            .AsNoTracking()
+            .SingleAsync();
+        Assert.Equal(50m, account.Balance);
+        Assert.Equal(500m, card.Debt);
+        Assert.Equal(TransactionStatus.Rejected, ledgerEntry.Status);
+        Assert.Empty(environment.Context.CardPayments);
+    }
+
+    [Fact]
     public async Task Cashier_payment_allows_different_account_and_card_owners()
     {
         await using var environment = CreateEnvironment("cashier-1", Roles.Cashier);
@@ -92,6 +132,18 @@ public sealed class CardFinancialOperationsTests
             cardLimit: 2_000m);
         await environment.AddUserAsync("cashier-1", Roles.Cashier);
         var service = environment.CreatePaymentService();
+        var accountBeforePayment = await environment.Context.SavingsAccounts
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == products.AccountId);
+        var cardBeforePayment = await environment.Context.CreditCards
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == products.CardId);
+
+        var preview = await service.PrepareCashierPaymentAsync(
+            accountBeforePayment.AccountNumber,
+            cardBeforePayment.CardNumber,
+            500m,
+            Guid.NewGuid());
 
         var result = await service.ProcessPaymentAsync(
             new CreditCardPaymentRequest(
@@ -100,6 +152,9 @@ public sealed class CardFinancialOperationsTests
                 100m,
                 Guid.NewGuid()));
 
+        Assert.True(preview.IsSuccess);
+        Assert.Equal(cardBeforePayment.CardNumber[^4..], preview.Value.CardLastFourDigits);
+        Assert.Equal(300m, preview.Value.EffectiveAmount);
         Assert.True(result.IsSuccess);
         var account = await environment.Context.SavingsAccounts
             .AsNoTracking()
