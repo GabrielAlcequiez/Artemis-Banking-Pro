@@ -27,16 +27,9 @@ namespace ABP.Application
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
 
             services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
+            services.AddScoped<ILoanService, LoanService>();
             services.AddScoped<ILoanRateService, LoanRateService>();
             services.AddScoped<ILoanDelinquencyService, LoanDelinquencyService>();
-            services.AddScoped<ILoanService, LoanService>();
-            services.AddScoped<ILoanClientSelectionService, LoanClientSelectionService>();
-            services.AddScoped<ILoanRiskService, LoanRiskService>();
-            services.AddScoped<ILoansMetricsReader, LoansMetricsReader>();
-            services.AddScoped<ILoanOriginationService, LoanOriginationService>();
-            services.AddScoped<ILoanPaymentService, LoanPaymentService>();
-
-
             services.AddScoped<IAccountBalanceService, AccountBalanceService>();
             services.AddScoped<IAccountLedger, AccountLedger>();
             services.AddScoped<IMoneyTransferService, MoneyTransferService>();
