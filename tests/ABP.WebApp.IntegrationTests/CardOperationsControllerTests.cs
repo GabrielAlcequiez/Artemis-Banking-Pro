@@ -142,6 +142,44 @@ public sealed class CardOperationsControllerTests
     }
 
     [Fact]
+    public async Task Cashier_confirm_failure_removes_full_pan_from_model_state_and_view_model()
+    {
+        const string fullPan = "4000000000001234";
+        var service = new FakeCardPaymentService
+        {
+            PreviewResult = OperationResult<CashierCardPaymentPreview>.Failure(
+                CardFinancialOperationErrors.CardNotFound)
+        };
+        var controller = Configure(new CashierPaymentsController(service));
+        var input = new CashierCreditCardPaymentViewModel
+        {
+            SourceAccountNumber = "123456789",
+            CreditCardNumber = fullPan,
+            Amount = 100m,
+            OperationId = Guid.NewGuid()
+        };
+        controller.ModelState.SetModelValue(
+            nameof(input.CreditCardNumber),
+            fullPan,
+            fullPan);
+
+        var result = await controller.Confirm(input, CancellationToken.None);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<CashierCreditCardPaymentViewModel>(view.Model);
+        Assert.Equal(string.Empty, model.CreditCardNumber);
+        Assert.False(
+            controller.ModelState.ContainsKey(nameof(input.CreditCardNumber)));
+        Assert.DoesNotContain(
+            fullPan,
+            string.Join(
+                ' ',
+                controller.ModelState.Values
+                    .SelectMany(value => value.Errors)
+                    .Select(error => error.ErrorMessage)));
+    }
+
+    [Fact]
     public async Task Cashier_execute_success_uses_prg()
     {
         var service = new FakeCardPaymentService

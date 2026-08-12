@@ -6,9 +6,11 @@ using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Common;
 using ABP.Domain.Enums;
 using ABP.WebApp.Areas.Client.ViewModels.CreditCards;
+using ABP.WebApp.Areas.Client.ViewModels.Home;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ClientCreditCardsController = ABP.WebApp.Areas.Client.Controllers.CreditCardsController;
+using ClientHomeController = ABP.WebApp.Areas.Client.Controllers.HomeController;
 
 namespace ABP.WebApp.IntegrationTests;
 
@@ -55,6 +57,32 @@ public sealed class ClientCreditCardsControllerTests
         Assert.IsType<NotFoundResult>(result);
     }
 
+    [Fact]
+    public async Task Home_lists_only_safe_active_card_projections()
+    {
+        var card = new ClientCreditCardPortfolioItemDto(
+            Guid.NewGuid(),
+            "************1234",
+            1_000m,
+            200m,
+            "08/29");
+        var service = new FakeCreditCardService
+        {
+            ActiveCards = [card]
+        };
+        var controller = new ClientHomeController(service);
+
+        var result = await controller.Index(CancellationToken.None);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<ClientHomeViewModel>(view.Model);
+        Assert.Equal([card], model.CreditCards);
+        Assert.DoesNotContain(
+            model.CreditCards,
+            item => item.MaskedCardNumber.Any(char.IsDigit) &&
+                    item.MaskedCardNumber.Count(char.IsDigit) > 4);
+    }
+
     private static CreditCardDetailDto CreateDetail() =>
         new(
             Guid.NewGuid(),
@@ -74,6 +102,9 @@ public sealed class ClientCreditCardsControllerTests
     {
         public CreditCardDetailDto? ClientDetail { get; init; }
 
+        public IReadOnlyCollection<ClientCreditCardPortfolioItemDto> ActiveCards { get; init; } =
+            Array.Empty<ClientCreditCardPortfolioItemDto>();
+
         public Guid? ReceivedClientCardId { get; private set; }
 
         public Task<CreditCardDetailDto?> GetClientDetailAsync(
@@ -83,6 +114,11 @@ public sealed class ClientCreditCardsControllerTests
             ReceivedClientCardId = creditCardId;
             return Task.FromResult(ClientDetail);
         }
+
+        public Task<IReadOnlyCollection<ClientCreditCardPortfolioItemDto>>
+            GetClientActiveCardsAsync(
+                CancellationToken cancellationToken = default) =>
+            Task.FromResult(ActiveCards);
 
         public Task<CreditCardListResult> ListAsync(
             CreditCardListRequest request,

@@ -9,6 +9,7 @@ using CashierPaymentConfirmationViewModel = ABP.WebApp.Areas.Cashier.ViewModels.
 using CashierPaymentViewModel = ABP.WebApp.Areas.Cashier.ViewModels.CreditCards.CashierCreditCardPaymentViewModel;
 using ClientCashAdvanceViewModel = ABP.WebApp.Areas.Client.ViewModels.CreditCards.CashAdvanceViewModel;
 using ClientPaymentViewModel = ABP.WebApp.Areas.Client.ViewModels.CreditCards.CreditCardPaymentViewModel;
+using ClientHomeViewModel = ABP.WebApp.Areas.Client.ViewModels.Home.ClientHomeViewModel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -146,6 +147,24 @@ public sealed class CreditCardViewsTests
     public static TheoryData<string, string, string, object, string>
         OperationViewCases => new()
         {
+            {
+                "Client",
+                "Home",
+                "Index",
+                new ClientHomeViewModel
+                {
+                    CreditCards =
+                    [
+                        new ClientCreditCardPortfolioItemDto(
+                            CardId,
+                            "************1234",
+                            1_000m,
+                            200m,
+                            "08/29")
+                    ]
+                },
+                "Ver detalles"
+            },
             {
                 "Client",
                 "CreditCardPayments",
