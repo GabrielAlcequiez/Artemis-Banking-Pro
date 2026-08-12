@@ -1,0 +1,110 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Loans.LoanDetailViewModel
+@{
+    ViewData["Title"] = "Detalle de préstamo";
+    var loan = Model.Loan;
+    var isActive = string.Equals(loan.Status, "Activo", StringComparison.OrdinalIgnoreCase);
+    var paymentStatusClass = loan.ClientPaymentStatus switch
+    {
+        "En mora" => "badge-danger",
+        "Al día" => "badge-success",
+        _ => "badge-neutral"
+    };
+}
+
+<div class="mx-auto max-w-7xl space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+            <a class="text-sm text-ink-muted hover:text-ink" asp-action="Index">← Volver a préstamos</a>
+            <h1 class="mt-2 font-mono text-2xl font-semibold text-ink">@loan.LoanNumber</h1>
+            <p class="mt-1 text-sm text-ink-muted">Asignado a @loan.ClientFullName</p>
+        </div>
+        @if (isActive)
+        {
+            <a class="btn btn-ghost border border-border" asp-action="EditRate" asp-route-id="@loan.Id">Editar tasa</a>
+        }
+    </div>
+
+    @if (TempData["SuccessMessage"] is string successMessage)
+    {
+        <div class="alert alert-success" role="status">@successMessage</div>
+    }
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <section class="card p-5" aria-labelledby="loan-summary-heading">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="loan-summary-heading" class="font-medium text-ink">Información general</h2>
+            <div class="flex gap-2">
+                <span class="badge @paymentStatusClass">@loan.ClientPaymentStatus</span>
+                <span class="badge @(isActive ? "badge-success" : "badge-neutral")">@loan.Status</span>
+            </div>
+        </div>
+        <dl class="mt-5 grid gap-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div><dt class="text-ink-muted">Capital original</dt><dd class="tnum mt-1 font-medium text-ink">RD$ @loan.CapitalAmount.ToString("N2")</dd></div>
+            <div><dt class="text-ink-muted">Monto pendiente</dt><dd class="tnum mt-1 font-medium text-ink">RD$ @loan.PendingAmount.ToString("N2")</dd></div>
+            <div><dt class="text-ink-muted">Cuota mensual</dt><dd class="tnum mt-1 font-medium text-ink">RD$ @loan.MonthlyInstallment.ToString("N2")</dd></div>
+            <div><dt class="text-ink-muted">Tasa anual</dt><dd class="tnum mt-1 font-medium text-ink">@loan.AnnualInterestRate.ToString("N4") %</dd></div>
+            <div><dt class="text-ink-muted">Plazo</dt><dd class="mt-1 font-medium text-ink">@loan.TermInMonths meses</dd></div>
+            <div><dt class="text-ink-muted">Cuotas</dt><dd class="tnum mt-1 font-medium text-ink">@loan.Amortization.Count</dd></div>
+            <div><dt class="text-ink-muted">Fecha de asignación</dt><dd class="mt-1 text-ink">@loan.CreatedAt.ToString("dd/MM/yyyy HH:mm")</dd></div>
+        </dl>
+    </section>
+
+    <section class="space-y-3" aria-labelledby="amortization-heading">
+        <div class="flex items-center justify-between gap-3">
+            <h2 id="amortization-heading" class="text-lg font-semibold text-ink">Tabla de amortización</h2>
+            <span class="text-sm text-ink-muted">@loan.Amortization.Count cuotas</span>
+        </div>
+
+        @if (loan.Amortization.Count == 0)
+        {
+            <div class="card p-8 text-center text-sm text-ink-muted">Este préstamo no tiene cuotas registradas.</div>
+        }
+        else
+        {
+            <div class="card overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-border text-sm">
+                        <thead class="bg-surface-sunken text-left text-xs uppercase tracking-wide text-ink-muted">
+                            <tr>
+                                <th class="px-4 py-3 text-right font-medium">Cuota</th>
+                                <th class="px-4 py-3 font-medium">Vencimiento</th>
+                                <th class="px-4 py-3 text-right font-medium">Monto</th>
+                                <th class="px-4 py-3 text-right font-medium">Capital</th>
+                                <th class="px-4 py-3 text-right font-medium">Interés</th>
+                                <th class="px-4 py-3 text-right font-medium">Pendiente</th>
+                                <th class="px-4 py-3 font-medium">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border bg-surface">
+                            @foreach (var installment in loan.Amortization)
+                            {
+                                var installmentStatus = installment.IsLate ? "En mora" : installment.PaymentStatus;
+                                var installmentStatusClass = installment.IsLate
+                                    ? "badge-danger"
+                                    : installment.PaymentStatus switch
+                                    {
+                                        "Pagada" => "badge-success",
+                                        "Parcialmente pagada" => "badge-warning",
+                                        _ => "badge-neutral"
+                                    };
+
+                                <tr>
+                                    <td class="tnum whitespace-nowrap px-4 py-3 text-right font-medium text-ink">@installment.InstallmentNumber</td>
+                                    <td class="whitespace-nowrap px-4 py-3 text-ink-soft">@installment.DueDate.ToString("dd/MM/yyyy")</td>
+                                    <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @installment.InstallmentAmount.ToString("N2")</td>
+                                    <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @installment.CapitalAmount.ToString("N2")</td>
+                                    <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @installment.InterestAmount.ToString("N2")</td>
+                                    <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @installment.PendingInstallmentAmount.ToString("N2")</td>
+                                    <td class="px-4 py-3"><span class="badge @installmentStatusClass">@installmentStatus</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </section>
+</div>

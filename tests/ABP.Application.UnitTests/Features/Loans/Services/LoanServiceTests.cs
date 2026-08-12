@@ -8,6 +8,7 @@ using ABP.Domain.Entities;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
+using ABP.Domain.ReadModels.Loans;
 using AutoMapper;
 using FluentValidation;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -25,21 +26,23 @@ public sealed class LoanServiceTests
     {
         var repository = new FakeLoanRepository
         {
-            Page = new PagedResult<Loan>([CreateLoan()], 2, 5, 6)
+            Page = new PagedResult<LoanSummaryReadModel>([CreateLoanSummary()], 2, 5, 6)
         };
         var service = CreateService(repository);
 
         var result = await service.ListAsync(
-            new LoanListRequest(2, 5, " 00123456789 ", LoanStatus.Active));
+            new LoanListRequest(2, 5, " 00123456789 ", LoanStatusFilter.Active));
 
         Assert.Single(result.Data);
         Assert.Equal(2, result.Page);
         Assert.Equal(5, result.PageSize);
         Assert.Equal(6, result.TotalRecords);
         Assert.Equal("00123456789", repository.ReceivedIdentification);
-        Assert.Equal(LoanStatus.Active, repository.ReceivedStatus);
+        Assert.Equal(LoanStatusFilter.Active, repository.ReceivedStatus);
         Assert.Equal("123456789", result.Data.Single().LoanNumber);
-        Assert.Equal("Ana P?rez", result.Data.Single().ClientFullName);
+        Assert.Equal("Ana Pérez", result.Data.Single().ClientFullName);
+        Assert.Equal(12, result.Data.Single().TotalInstallments);
+        Assert.Equal(4, result.Data.Single().PaidInstallments);
     }
 
     [Fact]
@@ -88,7 +91,7 @@ public sealed class LoanServiceTests
         var result = await service.GetDetailAsync(Guid.NewGuid());
 
         Assert.NotNull(result);
-        Assert.Equal("Ana P?rez", result.ClientFullName);
+        Assert.Equal("Ana Pérez", result.ClientFullName);
         Assert.Equal(100m, result.MonthlyInstallment);
         Assert.Single(result.Amortization);
         Assert.Equal("Pendiente", result.Amortization.Single().PaymentStatus);
@@ -113,7 +116,7 @@ public sealed class LoanServiceTests
         Client = new User("client-1")
         {
             Name = "Ana",
-            LastName = "P?rez"
+            LastName = "Pérez"
         },
         LoanNumber = "123456789",
         Capital = 1_000m,
@@ -124,9 +127,24 @@ public sealed class LoanServiceTests
         AssignedByUserId = "admin-1"
     };
 
+    private static LoanSummaryReadModel CreateLoanSummary() => new(
+        Guid.NewGuid(),
+        "123456789",
+        "client-1",
+        "Ana Pérez",
+        1_000m,
+        12,
+        4,
+        1_000m,
+        12m,
+        12,
+        LoanStatus.Active,
+        false,
+        new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero));
+
     private sealed class FakeLoanRepository : ILoanRepository
     {
-        public PagedResult<Loan> Page { get; init; } = new([], 1, 20, 0);
+        public PagedResult<LoanSummaryReadModel> Page { get; init; } = new([], 1, 20, 0);
 
         public Loan? Detail { get; init; }
 
@@ -134,12 +152,12 @@ public sealed class LoanServiceTests
 
         public string? ReceivedIdentification { get; private set; }
 
-        public LoanStatus? ReceivedStatus { get; private set; }
+        public LoanStatusFilter? ReceivedStatus { get; private set; }
 
-        public Task<PagedResult<Loan>> GetPagedAsync(
+        public Task<PagedResult<LoanSummaryReadModel>> GetPagedAsync(
             PagedRequest request,
             string? clientIdentification = null,
-            LoanStatus? status = null,
+            LoanStatusFilter? status = null,
             CancellationToken cancellationToken = default)
         {
             GetPagedCalls++;
@@ -158,6 +176,9 @@ public sealed class LoanServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
 
+        public Task<LoanPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<Loan?> GetByLoanNumberAsync(string loanNumber, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
@@ -168,6 +189,21 @@ public sealed class LoanServiceTests
             throw new NotImplementedException();
 
         public Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(IReadOnlyCollection<string> clientIds, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<PagedResult<LoanClientCandidateReadModel>> GetEligibleClientsPagedAsync(PagedRequest request, string? clientIdentification = null, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<LoanClientCandidateReadModel?> GetEligibleClientByIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<int> CountActiveLoansAsync(CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
         public Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default) =>

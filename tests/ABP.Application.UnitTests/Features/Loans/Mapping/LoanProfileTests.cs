@@ -3,6 +3,7 @@ using ABP.Application.Features.Loans.Mapping;
 using ABP.Domain.Entities;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
+using ABP.Domain.ReadModels.Loans;
 using AutoMapper;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -23,17 +24,11 @@ public sealed class LoanProfileTests
     [Fact]
     public void Maps_loan_summary_with_counts_and_delinquency_status()
     {
-        var loan = CreateLoan();
-        loan.Installments =
-        [
-            CreateInstallment(1, InstallmentPaymentStatus.Paid, 0m),
-            CreateInstallment(2, InstallmentPaymentStatus.Pending, 125m, isLate: true),
-            CreateInstallment(3, InstallmentPaymentStatus.Pending, 125m)
-        ];
+        var loan = CreateLoanSummary(hasLateInstallments: true);
 
         var result = mapper.Map<LoanSummaryDto>(loan);
 
-        Assert.Equal("Ana P?rez", result.ClientFullName);
+        Assert.Equal("Ana Pérez", result.ClientFullName);
         Assert.Equal(1_000m, result.CapitalAmount);
         Assert.Equal(3, result.TotalInstallments);
         Assert.Equal(1, result.PaidInstallments);
@@ -54,7 +49,7 @@ public sealed class LoanProfileTests
         var result = mapper.Map<LoanDetailDto>(loan);
 
         Assert.Equal(100m, result.MonthlyInstallment);
-        Assert.Equal("Al d?a", result.ClientPaymentStatus);
+        Assert.Equal("Al día", result.ClientPaymentStatus);
         Assert.Equal([1, 2], result.Amortization.Select(item => item.InstallmentNumber));
         Assert.Equal("Pendiente", result.Amortization.First().PaymentStatus);
         Assert.Equal("Parcialmente pagada", result.Amortization.Last().PaymentStatus);
@@ -64,13 +59,11 @@ public sealed class LoanProfileTests
     [Fact]
     public void Maps_completed_loan_as_paid_off()
     {
-        var loan = CreateLoan();
-        loan.Status = LoanStatus.Completed;
-        loan.PendingAmount = 0m;
-        loan.Installments =
-        [
-            CreateInstallment(1, InstallmentPaymentStatus.Paid, 0m)
-        ];
+        var loan = CreateLoanSummary() with
+        {
+            Status = LoanStatus.Completed,
+            PendingAmount = 0m
+        };
 
         var result = mapper.Map<LoanSummaryDto>(loan);
 
@@ -84,7 +77,7 @@ public sealed class LoanProfileTests
         Client = new User("client-1")
         {
             Name = "Ana",
-            LastName = "P?rez"
+            LastName = "Pérez"
         },
         LoanNumber = "123456789",
         Capital = 1_000m,
@@ -94,6 +87,22 @@ public sealed class LoanProfileTests
         Status = LoanStatus.Active,
         AssignedByUserId = "admin-1"
     };
+
+    private static LoanSummaryReadModel CreateLoanSummary(
+        bool hasLateInstallments = false) => new(
+        Guid.NewGuid(),
+        "123456789",
+        "client-1",
+        "Ana Pérez",
+        1_000m,
+        3,
+        1,
+        250m,
+        12m,
+        12,
+        LoanStatus.Active,
+        hasLateInstallments,
+        new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero));
 
     private static LoanInstallment CreateInstallment(
         int number,

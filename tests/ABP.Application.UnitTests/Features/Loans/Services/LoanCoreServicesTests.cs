@@ -8,6 +8,7 @@ using ABP.Domain.Common;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
+using ABP.Domain.ReadModels.Loans;
 using FluentValidation;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -239,38 +240,23 @@ public sealed class LoanCoreServicesTests
 
     #endregion
 
-    #region Loan debt reader tests
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(" ")]
-    [InlineData("   ")]
-    public async Task Debt_reader_returns_zero_for_blank_client_id(string clientId)
-    {
-        var repository = new FakeLoanRepository { ActiveDebt = 999m };
-        var reader = new LoanDebtReader(repository);
-
-        var debt = await reader.GetActiveLoanDebtByClientIdAsync(clientId);
-
-        Assert.Equal(0m, debt);
-        Assert.Equal(0, repository.GetActiveDebtCalls);
-    }
+    #region Loan metrics reader tests
 
     [Fact]
-    public async Task Debt_reader_delegates_to_repository_and_propagates_cancellation_token()
+    public async Task Count_active_loans_delegates_to_repository()
     {
-        var repository = new FakeLoanRepository { ActiveDebt = 325.75m };
-        var reader = new LoanDebtReader(repository);
+        var repository = new FakeLoanRepository { ActiveLoanCount = 7 };
+        var reader = new LoansMetricsReader(repository);
         using var cancellationSource = new CancellationTokenSource();
 
-        var debt = await reader.GetActiveLoanDebtByClientIdAsync(
-            "client-1",
+        var result = await reader.CountActiveLoansAsync(
             cancellationSource.Token);
 
-        Assert.Equal(325.75m, debt);
-        Assert.Equal(1, repository.GetActiveDebtCalls);
-        Assert.Equal("client-1", repository.ReceivedClientId);
-        Assert.Equal(cancellationSource.Token, repository.ReceivedCancellationToken);
+        Assert.Equal(7, result);
+        Assert.Equal(1, repository.CountActiveLoansCalls);
+        Assert.Equal(
+            cancellationSource.Token,
+            repository.MetricsCancellationToken);
     }
 
     #endregion
@@ -329,17 +315,15 @@ public sealed class LoanCoreServicesTests
 
         public IReadOnlyCollection<LoanInstallment> InstallmentsForDelinquency { get; init; } = [];
 
-        public decimal ActiveDebt { get; init; }
+        public int ActiveLoanCount { get; init; }
 
         public int GetWithInstallmentsCalls { get; private set; }
 
-        public int GetActiveDebtCalls { get; private set; }
-
-        public string? ReceivedClientId { get; private set; }
+        public int CountActiveLoansCalls { get; private set; }
 
         public DateOnly? ReceivedBankingDate { get; private set; }
 
-        public CancellationToken ReceivedCancellationToken { get; private set; }
+        public CancellationToken MetricsCancellationToken { get; private set; }
 
         public Task<Loan?> GetWithInstallmentsAsync(
             Guid id,
@@ -351,15 +335,29 @@ public sealed class LoanCoreServicesTests
 
         public Task<Loan?> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+        public Task<LoanPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
 
-        public Task<decimal> GetActiveDebtByClientIdAsync(
-            string clientId,
-            CancellationToken cancellationToken = default)
+        public Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(IReadOnlyCollection<string> clientIds, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<decimal> GetTotalActiveDebtForActiveClientsAsync(CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<PagedResult<LoanClientCandidateReadModel>> GetEligibleClientsPagedAsync(PagedRequest request, string? clientIdentification = null, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<LoanClientCandidateReadModel?> GetEligibleClientByIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<int> CountActiveLoansAsync(CancellationToken cancellationToken = default)
         {
-            GetActiveDebtCalls++;
-            ReceivedClientId = clientId;
-            ReceivedCancellationToken = cancellationToken;
-            return Task.FromResult(ActiveDebt);
+            CountActiveLoansCalls++;
+            MetricsCancellationToken = cancellationToken;
+            return Task.FromResult(ActiveLoanCount);
         }
 
         public Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(
@@ -382,7 +380,7 @@ public sealed class LoanCoreServicesTests
         public Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<PagedResult<Loan>> GetPagedAsync(PagedRequest request, string? clientIdentification = null, LoanStatus? status = null, CancellationToken cancellationToken = default) =>
+        public Task<PagedResult<LoanSummaryReadModel>> GetPagedAsync(PagedRequest request, string? clientIdentification = null, LoanStatusFilter? status = null, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
         public Task AddInstallmentsAsync(IReadOnlyCollection<LoanInstallment> installments, CancellationToken cancellationToken = default) =>
