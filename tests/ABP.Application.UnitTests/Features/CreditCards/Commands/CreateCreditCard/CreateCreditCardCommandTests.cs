@@ -1,3 +1,5 @@
+using System.Data;
+using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards;
 using ABP.Application.Features.CreditCards.Commands.CreateCreditCard;
@@ -43,13 +45,15 @@ public sealed class CreateCreditCardCommandTests
         };
         var unitOfWork = new StubUnitOfWork();
         var cvcService = new StubCvcService("007", "hashed-007");
+        var transaction = new StubFinancialTransaction();
         var handler = CreateHandler(
             repository,
             unitOfWork,
             cvcService: cvcService,
             numberGenerator: new StubCardNumberGenerator("0000000000001234"),
             clock: new StubClock(new DateOnly(2026, 8, 8)),
-            currentUser: StubCurrentUser.Administrator("admin-1"));
+            currentUser: StubCurrentUser.Administrator("admin-1"),
+            transaction: transaction);
 
         var result = await handler.Handle(
             new CreateCreditCardCommand(
@@ -71,6 +75,7 @@ public sealed class CreateCreditCardCommandTests
         Assert.Equal("admin-1", card.AssignedByUserId);
         Assert.Equal(1, repository.AddCalls);
         Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(IsolationLevel.Serializable, transaction.IsolationLevel);
     }
 
     [Fact]
@@ -175,17 +180,38 @@ public sealed class CreateCreditCardCommandTests
         ICvcService? cvcService = null,
         ICardNumberGeneratorService? numberGenerator = null,
         IClock? clock = null,
-        ICurrentUserService? currentUser = null) =>
+        ICurrentUserService? currentUser = null,
+        StubFinancialTransaction? transaction = null) =>
         new(
             cvcService ?? new StubCvcService(),
             numberGenerator ?? new StubCardNumberGenerator(),
             repository,
             unitOfWork ?? new StubUnitOfWork(),
+            transaction ?? new StubFinancialTransaction(),
             clock ?? new StubClock(new DateOnly(2026, 8, 8)),
             currentUser ?? StubCurrentUser.Administrator("admin-1"));
 
     private static CreateCreditCardCommand ValidCommand() =>
         new(new CreateCreditCardRequest("client-1", 5_000m));
+
+    private sealed class StubFinancialTransaction : IFinancialTransaction
+    {
+        public IsolationLevel? IsolationLevel { get; private set; }
+
+        public Task<TResult> ExecuteAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default) =>
+            operation(cancellationToken);
+
+        public Task<TResult> ExecuteAsync<TResult>(
+            IsolationLevel isolationLevel,
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            IsolationLevel = isolationLevel;
+            return operation(cancellationToken);
+        }
+    }
 
     private sealed class StubCvcService(
         string generatedCvc = "123",
@@ -334,6 +360,10 @@ public sealed class CreateCreditCardCommandTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<CardPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CardPayment?>(null);
+        public Task<CardConsumption?> GetConsumptionByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CardConsumption?>(null);
+        public Task<IReadOnlyCollection<CreditCard>> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<CreditCard>>(Array.Empty<CreditCard>());
+
         public Task<string?> FindClientIdByIdentificationAsync(
             string identification,
             CancellationToken cancellationToken = default) =>
@@ -354,6 +384,12 @@ public sealed class CreateCreditCardCommandTests
 
         public Task<CreditCardDetailReadModel?> GetDetailsAsync(
             Guid creditCardId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<CreditCardDetailReadModel?> GetDetailsForClientAsync(
+            Guid creditCardId,
+            string clientId,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 

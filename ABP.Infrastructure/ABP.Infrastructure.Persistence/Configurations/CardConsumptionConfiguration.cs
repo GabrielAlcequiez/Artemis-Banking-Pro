@@ -1,4 +1,6 @@
 using ABP.Domain.Entities.CreditCards;
+using ABP.Domain.Entities.Accounts;
+using ABP.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -22,6 +24,9 @@ namespace ABP.Infrastructure.Persistence.Configurations
                 .HasPrecision(18, 2)
                 .IsRequired();
 
+            builder.Property(x => x.RequestedAmount)
+                .HasPrecision(18, 2);
+
             builder.Property(x => x.CommerceName)
                 .HasMaxLength(150)
                 .IsRequired();
@@ -34,6 +39,15 @@ namespace ABP.Infrastructure.Persistence.Configurations
             builder.Property(x => x.OccurredAtUtc)
                 .IsRequired();
 
+            builder.Property(x => x.ActorUserId)
+                .HasMaxLength(450);
+
+            builder.Property(x => x.FailureCode)
+                .HasMaxLength(100);
+
+            builder.Property(x => x.FailureDescription)
+                .HasMaxLength(500);
+
             builder.HasOne<CreditCard>()
                 .WithMany()
                 .HasForeignKey(x => x.CreditCardId)
@@ -43,6 +57,18 @@ namespace ABP.Infrastructure.Persistence.Configurations
             builder.HasOne<Domain.Entities.Commerce.Commerce>()
                 .WithMany()
                 .HasForeignKey(x => x.CommerceId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.HasOne<SavingsAccount>()
+                .WithMany()
+                .HasForeignKey(x => x.TargetAccountId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.ActorUserId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.NoAction);
 

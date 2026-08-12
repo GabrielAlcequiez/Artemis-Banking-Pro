@@ -131,6 +131,41 @@ namespace ABP.Infrastructure.Persistence.Migrations
                     b.ToTable("AccountTransactions", (string)null);
                 });
 
+            modelBuilder.Entity("ABP.Domain.Entities.Accounts.Beneficiary", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BeneficiaryAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LastModifiedByUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OwnerUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BeneficiaryAccountId");
+
+                    b.HasIndex("OwnerUserId", "BeneficiaryAccountId")
+                        .IsUnique();
+
+                    b.ToTable("Beneficiaries", (string)null);
+                });
+
             modelBuilder.Entity("ABP.Domain.Entities.Accounts.SavingsAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -187,41 +222,6 @@ namespace ABP.Infrastructure.Persistence.Migrations
                     b.HasIndex("OwnerUserId");
 
                     b.ToTable("SavingsAccounts", (string)null);
-                });
-
-            modelBuilder.Entity("ABP.Domain.Entities.Beneficiary", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("BeneficiaryAccountId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("LastModifiedByUserId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("OwnerUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BeneficiaryAccountId");
-
-                    b.HasIndex("OwnerUserId", "BeneficiaryAccountId")
-                        .IsUnique();
-
-                    b.ToTable("Beneficiaries", (string)null);
                 });
 
             modelBuilder.Entity("ABP.Domain.Entities.Commerce.Commerce", b =>
@@ -298,6 +298,10 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -320,6 +324,14 @@ namespace ABP.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CreditCardId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FailureDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTimeOffset?>("LastModifiedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -333,15 +345,26 @@ namespace ABP.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OperationId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("RequestedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<Guid?>("TargetAccountId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
 
                     b.HasIndex("OperationId")
                         .IsUnique();
+
+                    b.HasIndex("TargetAccountId");
 
                     b.HasIndex("CommerceId", "OccurredAtUtc");
 
@@ -380,6 +403,14 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FailureDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTimeOffset?>("LastModifiedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -393,8 +424,17 @@ namespace ABP.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("PaidAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<decimal>("RequestedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid>("SourceAccountId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.HasKey("Id");
 
@@ -409,9 +449,11 @@ namespace ABP.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CardPayments", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CardPayments_EffectiveAmount_Positive", "[EffectiveAmount] > 0");
+                            t.HasCheckConstraint("CK_CardPayments_EffectiveAmount_Valid", "([Status] = 'Approved' AND [EffectiveAmount] > 0) OR ([Status] = 'Rejected' AND [EffectiveAmount] >= 0)");
 
                             t.HasCheckConstraint("CK_CardPayments_OperationId_NotEmpty", "[OperationId] <> '00000000-0000-0000-0000-000000000000'");
+
+                            t.HasCheckConstraint("CK_CardPayments_RequestedAmount_Positive", "[RequestedAmount] > 0");
                         });
                 });
 
@@ -823,16 +865,7 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ABP.Domain.Entities.Accounts.SavingsAccount", b =>
-                {
-                    b.HasOne("ABP.Domain.Entities.User", null)
-                        .WithMany("SavingsAccounts")
-                        .HasForeignKey("OwnerUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ABP.Domain.Entities.Beneficiary", b =>
+            modelBuilder.Entity("ABP.Domain.Entities.Accounts.Beneficiary", b =>
                 {
                     b.HasOne("ABP.Domain.Entities.Accounts.SavingsAccount", null)
                         .WithMany()
@@ -847,8 +880,22 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ABP.Domain.Entities.Accounts.SavingsAccount", b =>
+                {
+                    b.HasOne("ABP.Domain.Entities.User", null)
+                        .WithMany("SavingsAccounts")
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ABP.Domain.Entities.CreditCards.CardConsumption", b =>
                 {
+                    b.HasOne("ABP.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("ABP.Domain.Entities.Commerce.Commerce", null)
                         .WithMany()
                         .HasForeignKey("CommerceId")
@@ -859,6 +906,11 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CreditCardId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
+
+                    b.HasOne("ABP.Domain.Entities.Accounts.SavingsAccount", null)
+                        .WithMany()
+                        .HasForeignKey("TargetAccountId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("ABP.Domain.Entities.CreditCards.CardPayment", b =>

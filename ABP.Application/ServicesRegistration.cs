@@ -24,6 +24,8 @@ namespace ABP.Application
             services.AddScoped<ICustomerDebtService, CustomerDebtService>();
             services.AddScoped<ICreditCardService, CreditCardService>();
             services.AddScoped<ICreditCardClientSelectionService, CreditCardClientSelectionService>();
+            services.AddScoped<ICardPaymentService, CardPaymentService>();
+            services.AddScoped<ICashAdvanceService, CashAdvanceService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
 
             services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
@@ -55,9 +57,6 @@ namespace ABP.Application
 
             services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
-            // pipeline behaviors
-            services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-
             #endregion
 
             #region Mappers
@@ -66,5 +65,22 @@ namespace ABP.Application
 
             #endregion
         }        
+
+        #region CQRS
+
+        public static IServiceCollection AddApplicationCqrs(
+            this IServiceCollection services)
+        {
+            services.AddMediatR(configuration =>
+            {
+                configuration.RegisterServicesFromAssembly(
+                    Assembly.GetExecutingAssembly());
+                configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            });
+
+            return services;
+        }
+
+        #endregion
     }
 }

@@ -1,4 +1,7 @@
 using ABP.Application.Common;
+using System.Globalization;
+using System.Data;
+using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
@@ -18,6 +21,7 @@ public sealed class CreditCardService(
     ICardNumberGeneratorService numberGeneratorService,
     ICreditCardRepository repository,
     IUnitOfWork unitOfWork,
+    IFinancialTransaction financialTransaction,
     IMapper mapper,
     IClock clock,
     ICurrentUserService currentUser,
@@ -81,6 +85,62 @@ public sealed class CreditCardService(
             : mapper.Map<CreditCardDetailDto>(readModel);
     }
 
+    public async Task<CreditCardDetailDto?> GetClientDetailAsync(
+        Guid creditCardId,
+        CancellationToken cancellationToken = default)
+    {
+        var clientId =
+            currentUser.IsAuthenticated &&
+            currentUser.IsInRole(Roles.Client.ToString())
+                ? currentUser.UserId
+                : null;
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return null;
+        }
+
+        var readModel = await repository.GetDetailsForClientAsync(
+            creditCardId,
+            clientId,
+            cancellationToken);
+
+        return readModel is null
+            ? null
+            : mapper.Map<CreditCardDetailDto>(readModel);
+    }
+
+    public async Task<IReadOnlyCollection<ClientCreditCardPortfolioItemDto>>
+        GetClientActiveCardsAsync(
+            CancellationToken cancellationToken = default)
+    {
+        var clientId =
+            currentUser.IsAuthenticated &&
+            currentUser.IsInRole(Roles.Client.ToString())
+                ? currentUser.UserId
+                : null;
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return Array.Empty<ClientCreditCardPortfolioItemDto>();
+        }
+
+        var cards = await repository.GetActiveByClientIdAsync(
+            clientId,
+            cancellationToken);
+
+        return cards
+            .Select(card => new ClientCreditCardPortfolioItemDto(
+                card.Id,
+                $"************{card.CardNumber[^4..]}",
+                card.Limit,
+                card.Debt,
+                card.ExpirationDate.ToString(
+                    "MM/yy",
+                    CultureInfo.InvariantCulture)))
+            .ToArray();
+    }
+
     private PagedResult<CreditCardSummaryDto> MapPage(
         PagedResult<CreditCardSummaryReadModel> page)
     {
@@ -120,60 +180,66 @@ public sealed class CreditCardService(
                 CreditCardErrors.AdministratorRequired);
         }
 
-        var clientExists = await repository.ClientExistsAsync(
-            request.ClientId,
+        return await financialTransaction.ExecuteAsync(
+            IsolationLevel.Serializable,
+            async transactionCancellationToken =>
+            {
+                var clientExists = await repository.ClientExistsAsync(
+                    request.ClientId,
+                    transactionCancellationToken);
+
+                if (!clientExists)
+                {
+                    return OperationResult<Guid>.Failure(
+                        CreditCardErrors.ClientNotFound);
+                }
+
+                var isActiveClient = await repository.IsActiveClientAsync(
+                    request.ClientId,
+                    transactionCancellationToken);
+
+                if (!isActiveClient)
+                {
+                    return OperationResult<Guid>.Failure(
+                        CreditCardErrors.ClientInactive);
+                }
+
+                var cardNumber = await GenerateUniqueCardNumberAsync(
+                    transactionCancellationToken);
+
+                if (cardNumber is null)
+                {
+                    return OperationResult<Guid>.Failure(
+                        CreditCardErrors.NumberGenerationFailed);
+                }
+
+                var cvc = cvcService.Generate();
+                var hashedCvc = cvcService.Hash(cvc);
+                var expirationDate = CalculateExpirationDate();
+
+                var card = new CreditCard
+                {
+                    ClientId = request.ClientId,
+                    CardNumber = cardNumber,
+                    CvcHash = hashedCvc,
+                    Limit = request.CreditLimit,
+                    Debt = 0m,
+                    ExpirationDate = expirationDate,
+                    Status = CreditCardStatus.Active,
+                    AssignedByUserId = assignedByUserId
+                };
+
+                var createdCard = await repository.AddAsync(
+                    card,
+                    transactionCancellationToken);
+
+                // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
+                // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
+                await unitOfWork.SaveChangesAsync(transactionCancellationToken);
+
+                return OperationResult<Guid>.Success(createdCard.Id);
+            },
             cancellationToken);
-
-        if (!clientExists)
-        {
-            return OperationResult<Guid>.Failure(
-                CreditCardErrors.ClientNotFound);
-        }
-
-        var isActiveClient = await repository.IsActiveClientAsync(
-            request.ClientId,
-            cancellationToken);
-
-        if (!isActiveClient)
-        {
-            return OperationResult<Guid>.Failure(
-                CreditCardErrors.ClientInactive);
-        }
-
-        var cardNumber = await GenerateUniqueCardNumberAsync(
-            cancellationToken);
-
-        if (cardNumber is null)
-        {
-            return OperationResult<Guid>.Failure(
-                CreditCardErrors.NumberGenerationFailed);
-        }
-
-        var cvc = cvcService.Generate();
-        var hashedCvc = cvcService.Hash(cvc);
-        var expirationDate = CalculateExpirationDate();
-
-        var card = new CreditCard
-        {
-            ClientId = request.ClientId,
-            CardNumber = cardNumber,
-            CvcHash = hashedCvc,
-            Limit = request.CreditLimit,
-            Debt = 0m,
-            ExpirationDate = expirationDate,
-            Status = CreditCardStatus.Active,
-            AssignedByUserId = assignedByUserId
-        };
-
-        var createdCard = await repository.AddAsync(
-            card,
-            cancellationToken);
-
-        // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
-        // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return OperationResult<Guid>.Success(createdCard.Id);
     }
 
     public async Task<OperationResult> UpdateLimitAsync(

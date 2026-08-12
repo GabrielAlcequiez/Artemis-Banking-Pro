@@ -316,6 +316,11 @@ public sealed class CreditCardsControllerTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
 
+        public Task<CreditCardDetailDto?> GetClientDetailAsync(
+            Guid creditCardId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Detail);
+
         public Task<OperationResult<Guid>> CreateAsync(
             CreateCreditCardRequest request,
             CancellationToken cancellationToken = default) =>

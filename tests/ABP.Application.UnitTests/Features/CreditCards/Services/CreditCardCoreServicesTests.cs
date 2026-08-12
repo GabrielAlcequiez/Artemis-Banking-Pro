@@ -1,3 +1,5 @@
+using System.Data;
+using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards;
 using ABP.Application.Features.CreditCards.DTOs;
@@ -145,6 +147,85 @@ public sealed class CreditCardCoreServicesTests
     }
 
     [Fact]
+    public async Task Client_detail_filters_by_authenticated_client_id()
+    {
+        var cardId = Guid.NewGuid();
+        var repository = new FakeCreditCardRepository
+        {
+            Detail = CreateDetail(cardId, "client-1")
+        };
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = "client-1",
+            Roles = [Roles.Client.ToString()]
+        };
+        var service = CreateService(
+            repository,
+            currentUser: currentUser);
+
+        var result = await service.GetClientDetailAsync(cardId);
+
+        Assert.NotNull(result);
+        Assert.Equal("client-1", repository.ReceivedDetailClientId);
+        Assert.Equal("************1234", result.MaskedCardNumber);
+    }
+
+    [Fact]
+    public async Task Client_detail_returns_null_for_another_clients_card()
+    {
+        var repository = new FakeCreditCardRepository
+        {
+            Detail = CreateDetail(Guid.NewGuid(), "client-1")
+        };
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = "client-2",
+            Roles = [Roles.Client.ToString()]
+        };
+        var service = CreateService(
+            repository,
+            currentUser: currentUser);
+
+        var result = await service.GetClientDetailAsync(repository.Detail.Id);
+
+        Assert.Null(result);
+        Assert.Equal("client-2", repository.ReceivedDetailClientId);
+    }
+
+    [Fact]
+    public async Task Client_portfolio_returns_safe_active_card_projection()
+    {
+        var activeCard = new CreditCard
+        {
+            ClientId = "client-1",
+            CardNumber = "4000000000001234",
+            Limit = 1_000m,
+            Debt = 200m,
+            ExpirationDate = new DateOnly(2029, 8, 31),
+            Status = CreditCardStatus.Active
+        };
+        var repository = new FakeCreditCardRepository
+        {
+            ActiveCards = [activeCard]
+        };
+        var service = CreateService(
+            repository,
+            currentUser: new FakeCurrentUserService
+            {
+                UserId = "client-1",
+                Roles = [Roles.Client.ToString()]
+            });
+
+        var cards = await service.GetClientActiveCardsAsync();
+
+        var card = Assert.Single(cards);
+        Assert.Equal(activeCard.Id, card.Id);
+        Assert.Equal("************1234", card.MaskedCardNumber);
+        Assert.Equal("08/29", card.ExpirationDate);
+        Assert.DoesNotContain("4000000000001234", card.ToString());
+    }
+
+    [Fact]
     public async Task List_rejects_invalid_request_through_shared_validator()
     {
         var service = CreateService(new FakeCreditCardRepository());
@@ -179,13 +260,15 @@ public sealed class CreditCardCoreServicesTests
         var currentUser = new FakeCurrentUserService { UserId = "admin-1" };
         var numberGenerator = new FakeCardNumberGeneratorService("0000000000001234");
         var cvcService = new FakeCvcService { GeneratedCvc = "007" };
+        var transaction = new FakeFinancialTransaction();
         var service = CreateService(
             repository,
             unitOfWork,
             clock,
             currentUser,
             numberGenerator,
-            cvcService);
+            cvcService,
+            transaction);
 
         var result = await service.CreateAsync(
             new CreateCreditCardRequest("client-1", 5_000m));
@@ -205,6 +288,7 @@ public sealed class CreditCardCoreServicesTests
         Assert.Equal("admin-1", card.AssignedByUserId);
         Assert.Equal(1, repository.AddCalls);
         Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(IsolationLevel.Serializable, transaction.IsolationLevel);
     }
 
     [Fact]
@@ -453,14 +537,16 @@ public sealed class CreditCardCoreServicesTests
         IClock? clock = null,
         ICurrentUserService? currentUser = null,
         ICardNumberGeneratorService? numberGenerator = null,
-        ICvcService? cvcService = null) =>
+        ICvcService? cvcService = null,
+        IFinancialTransaction? financialTransaction = null) =>
         CreateProvider(
             repository,
             unitOfWork,
             clock,
             currentUser,
             numberGenerator,
-            cvcService).GetRequiredService<ICreditCardService>();
+            cvcService,
+            financialTransaction).GetRequiredService<ICreditCardService>();
 
     private static IServiceProvider CreateProvider(
         FakeCreditCardRepository repository,
@@ -468,13 +554,16 @@ public sealed class CreditCardCoreServicesTests
         IClock? clock = null,
         ICurrentUserService? currentUser = null,
         ICardNumberGeneratorService? numberGenerator = null,
-        ICvcService? cvcService = null)
+        ICvcService? cvcService = null,
+        IFinancialTransaction? financialTransaction = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddApplicationServices();
         services.AddSingleton<ICreditCardRepository>(repository);
         services.AddSingleton<IUnitOfWork>(unitOfWork ?? new FakeUnitOfWork());
+        services.AddSingleton(
+            financialTransaction ?? new FakeFinancialTransaction());
         services.AddSingleton(clock ?? new FakeClock(new DateOnly(2026, 8, 8)));
         services.AddSingleton(
             currentUser ?? new FakeCurrentUserService());
@@ -483,6 +572,25 @@ public sealed class CreditCardCoreServicesTests
         services.AddSingleton<ICvcService>(
             cvcService ?? new FakeCvcService());
         return services.BuildServiceProvider();
+    }
+
+    private sealed class FakeFinancialTransaction : IFinancialTransaction
+    {
+        public IsolationLevel? IsolationLevel { get; private set; }
+
+        public Task<TResult> ExecuteAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default) =>
+            operation(cancellationToken);
+
+        public Task<TResult> ExecuteAsync<TResult>(
+            IsolationLevel isolationLevel,
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            IsolationLevel = isolationLevel;
+            return operation(cancellationToken);
+        }
     }
 
     private static CreditCard CreateCard(
@@ -514,6 +622,23 @@ public sealed class CreditCardCoreServicesTests
             CreditCardStatus.Active,
             new DateTimeOffset(2026, 8, 5, 12, 0, 0, TimeSpan.Zero));
 
+    private static CreditCardDetailReadModel CreateDetail(
+        Guid cardId,
+        string clientId) =>
+        new(
+            cardId,
+            "************1234",
+            "1234",
+            clientId,
+            "María Gómez",
+            500m,
+            350m,
+            150m,
+            new DateOnly(2029, 8, 31),
+            CreditCardStatus.Active,
+            new DateTimeOffset(2026, 8, 5, 10, 0, 0, TimeSpan.Zero),
+            Array.Empty<CardConsumptionReadModel>());
+
     private sealed class FakeCreditCardRepository : ICreditCardRepository
     {
         public bool ClientExists { get; init; } = true;
@@ -526,7 +651,12 @@ public sealed class CreditCardCoreServicesTests
 
         public CreditCardDetailReadModel? Detail { get; init; }
 
+        public string? ReceivedDetailClientId { get; private set; }
+
         public decimal ActiveDebt { get; init; }
+
+        public IReadOnlyCollection<CreditCard> ActiveCards { get; init; } =
+            Array.Empty<CreditCard>();
 
         public bool SearchWasCalled { get; private set; }
 
@@ -561,6 +691,10 @@ public sealed class CreditCardCoreServicesTests
         public Task AddPaymentAsync(CardPayment payment, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<CardPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CardPayment?>(null);
+        public Task<CardConsumption?> GetConsumptionByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CardConsumption?>(null);
+        public Task<IReadOnlyCollection<CreditCard>> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) => Task.FromResult(ActiveCards);
+
         public Task<string?> FindClientIdByIdentificationAsync(
             string identification,
             CancellationToken cancellationToken = default)
@@ -589,6 +723,16 @@ public sealed class CreditCardCoreServicesTests
             Guid creditCardId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
+
+        public Task<CreditCardDetailReadModel?> GetDetailsForClientAsync(
+            Guid creditCardId,
+            string clientId,
+            CancellationToken cancellationToken = default)
+        {
+            ReceivedDetailClientId = clientId;
+            return Task.FromResult(
+                Detail?.ClientId == clientId ? Detail : null);
+        }
 
         public Task<decimal> GetActiveDebtByClientIdAsync(
             string clientId,
