@@ -33,7 +33,9 @@ namespace ABP.Infrastructure.Identity.Services
             ISavingsAccountRepository savingsAccountRepository,
             IAccountBalanceService accountBalanceService,
             IAccountLedger accountLedger,
-            ILogger<BaseAccountService> logger)
+            ILogger<BaseAccountService> logger,
+            ICommerceRepository commerceRepository,
+            IValidator<CreateCommerceUserRequestDto> createCommerceUserValidator)
             : base(
                 mapper,
                 userManager,
@@ -48,7 +50,9 @@ namespace ABP.Infrastructure.Identity.Services
                 savingsAccountRepository,
                 accountBalanceService,
                 accountLedger,
-                logger)
+                logger,
+                commerceRepository,
+                createCommerceUserValidator)
         {
             _signInManager = signInManager;
             _loginDtoValidator = loginDtoValidator;

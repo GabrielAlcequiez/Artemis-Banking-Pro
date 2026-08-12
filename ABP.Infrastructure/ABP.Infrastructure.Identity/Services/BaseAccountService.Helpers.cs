@@ -44,7 +44,7 @@ public partial class BaseAccountService
         }
     }
 
-    private async Task<string?> SendActivationEmailAsync(string userId, CreateUserDto createUserDto, string token, string? origin, bool isApi)
+    private async Task<string?> SendActivationEmailAsync(string userId, string email, string recipientName, string firstName, string token, string? origin, bool isApi)
     {
         try
         {
@@ -53,20 +53,20 @@ public partial class BaseAccountService
                 string verificationUri = $"{origin}/Account/ConfirmAccount?userId={userId}&token={Uri.EscapeDataString(token)}";
                 await _emailService.SendAsync(new EmailRequestDto
                 {
-                    ToEmail = createUserDto.Email,
-                    RecipientName = $"{createUserDto.FirstName} {createUserDto.LastName}",
+                    ToEmail = email,
+                    RecipientName = recipientName,
                     Subject = "Activación de Cuenta - Artemis Banking",
-                    Body = $"Hola {createUserDto.FirstName},<br/><br/>Su cuenta ha sido creada correctamente.<br/>Para activarla, utilice el siguiente enlace:<br/><a href='{verificationUri}'>{verificationUri}</a>"
+                    Body = $"Hola {firstName},<br/><br/>Su cuenta ha sido creada correctamente.<br/>Para activarla, utilice el siguiente enlace:<br/><a href='{verificationUri}'>{verificationUri}</a>"
                 });
             }
             else
             {
                 await _emailService.SendAsync(new EmailRequestDto
                 {
-                    ToEmail = createUserDto.Email,
-                    RecipientName = $"{createUserDto.FirstName} {createUserDto.LastName}",
+                    ToEmail = email,
+                    RecipientName = recipientName,
                     Subject = "Token de Activación de Cuenta - Artemis Banking",
-                    Body = $"Hola {createUserDto.FirstName},<br/><br/>Su cuenta ha sido creada correctamente.<br/>Utilice el siguiente token para activar su cuenta desde la API:<br/><b>{token}</b>"
+                    Body = $"Hola {firstName},<br/><br/>Su cuenta ha sido creada correctamente.<br/>Utilice el siguiente token para activar su cuenta desde la API:<br/><b>{token}</b>"
                 });
             }
 
@@ -81,14 +81,29 @@ public partial class BaseAccountService
 
     private static Roles NormalizeRole(string role)
     {
-        return role switch
+        var normalized = role.Trim();
+
+        if (string.Equals(normalized, "Administrador", StringComparison.OrdinalIgnoreCase))
         {
-            "Administrador" => Roles.Administrator,
-            "Cajero" => Roles.Cashier,
-            "Cliente" => Roles.Client,
-            _ when Enum.TryParse<Roles>(role, ignoreCase: true, out var parsed) => parsed,
-            _ => throw new InvalidOperationException($"Rol no reconocido: {role}")
-        };
+            return Roles.Administrator;
+        }
+
+        if (string.Equals(normalized, "Cajero", StringComparison.OrdinalIgnoreCase))
+        {
+            return Roles.Cashier;
+        }
+
+        if (string.Equals(normalized, "Cliente", StringComparison.OrdinalIgnoreCase))
+        {
+            return Roles.Client;
+        }
+
+        if (Enum.TryParse<Roles>(normalized, ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new InvalidOperationException($"Rol no reconocido: {role}");
     }
 
     private async Task InitializePrincipalAccountAsync(string ownerUserId, decimal? initialBalance)
@@ -118,7 +133,7 @@ public partial class BaseAccountService
         var principalAccount = await _savingsAccountRepository.GetPrincipalAccountAsync(domainUser.Id);
         if (principalAccount is null)
         {
-            _logger.LogError("El usuario {UserId} de tipo Cliente no tiene cuenta de ahorro principal activa.", domainUser.Id);
+            _logger.LogError("El usuario {UserId} de tipo Cliente o Comercio no tiene cuenta de ahorro principal activa.", domainUser.Id);
             throw new InvalidOperationException("El cliente no tiene una cuenta de ahorro principal activa.");
         }
 

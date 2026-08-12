@@ -6,6 +6,7 @@ using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Common;
 using ABP.Domain.Entities;
+using ABP.Domain.Entities.Commerce;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Infrastructure.Identity.Entities;
@@ -24,6 +25,7 @@ namespace ABP.Infrastructure.Identity.Services
         protected readonly IValidator<CreateUserDto> _createUserValidator;
         protected readonly IValidator<EditUserDto> _editUserValidator;
         protected readonly IValidator<ResetPasswordDto> _resetPasswordValidator;
+        protected readonly IValidator<CreateCommerceUserRequestDto> _createCommerceUserValidator;
         protected readonly IUserRepository _userRepository;
         protected readonly IUnitOfWork _unitOfWork;
         protected readonly IAccountTokenService _accountTokenService;
@@ -33,7 +35,9 @@ namespace ABP.Infrastructure.Identity.Services
         protected readonly IAccountLedger _accountLedger;
         protected readonly ILogger<BaseAccountService> _logger;
 
-        public BaseAccountService(IMapper mapper, UserManager<AppUser> userManager, IEmailService emailService, IValidator<CreateUserDto> createUserValidator, IValidator<EditUserDto> editUserValidator, IValidator<ResetPasswordDto> resetPasswordValidator, IUserRepository userRepository, IUnitOfWork unitOfWork, IAccountTokenService accountTokenService, IPrimaryAccountProvisioner primaryAccountProvisioner, ISavingsAccountRepository savingsAccountRepository, IAccountBalanceService accountBalanceService, IAccountLedger accountLedger, ILogger<BaseAccountService> logger)
+        protected readonly ICommerceRepository _commerceRepository;
+
+        public BaseAccountService(IMapper mapper, UserManager<AppUser> userManager, IEmailService emailService, IValidator<CreateUserDto> createUserValidator, IValidator<EditUserDto> editUserValidator, IValidator<ResetPasswordDto> resetPasswordValidator, IUserRepository userRepository, IUnitOfWork unitOfWork, IAccountTokenService accountTokenService, IPrimaryAccountProvisioner primaryAccountProvisioner, ISavingsAccountRepository savingsAccountRepository, IAccountBalanceService accountBalanceService, IAccountLedger accountLedger, ILogger<BaseAccountService> logger, ICommerceRepository commerceRepository, IValidator<CreateCommerceUserRequestDto> createCommerceUserValidator)
         {
             _mapper = mapper;
             _userManager = userManager;
@@ -49,9 +53,11 @@ namespace ABP.Infrastructure.Identity.Services
             _accountBalanceService = accountBalanceService;
             _accountLedger = accountLedger;
             _logger = logger;
+            _commerceRepository = commerceRepository;
+            _createCommerceUserValidator = createCommerceUserValidator;
         }
 
-        public async Task<RegisterResponseDto> RegisterUserAsync(CreateUserDto createUserDto, string? origin, bool isApi = false)
+        public virtual async Task<RegisterResponseDto> RegisterUserAsync(CreateUserDto createUserDto, string? origin, bool isApi = false)
         {
             _logger.LogInformation("Iniciando solicitud de creación de usuario para {Username} con rol {Role} (isApi: {IsApi})", createUserDto.UserName, createUserDto.Role, isApi);
 
@@ -86,6 +92,7 @@ namespace ABP.Infrastructure.Identity.Services
                 {
                     Id = string.Empty,
                     HasError = true,
+                    IsConflict = true,
                     Error = "Ya existe un usuario registrado con este correo electrónico.",
                     ErrorList = new List<string> { "Ya existe un usuario registrado con este correo electrónico." }
                 };
@@ -99,6 +106,7 @@ namespace ABP.Infrastructure.Identity.Services
                 {
                     Id = string.Empty,
                     HasError = true,
+                    IsConflict = true,
                     Error = "Ya existe un usuario registrado con este nombre de usuario.",
                     ErrorList = new List<string> { "Ya existe un usuario registrado con este nombre de usuario." }
                 };
@@ -112,6 +120,7 @@ namespace ABP.Infrastructure.Identity.Services
                 {
                     Id = string.Empty,
                     HasError = true,
+                    IsConflict = true,
                     Error = "Ya existe un usuario registrado con este número de cédula.",
                     ErrorList = new List<string> { "Ya existe un usuario registrado con este número de cédula." }
                 };
@@ -165,7 +174,7 @@ namespace ABP.Infrastructure.Identity.Services
 
             scope.Complete();
 
-            string? emailError = await SendActivationEmailAsync(appUser.Id, createUserDto, token, origin, isApi);
+            string? emailError = await SendActivationEmailAsync(appUser.Id, createUserDto.Email, $"{createUserDto.FirstName} {createUserDto.LastName}", createUserDto.FirstName, token, origin, isApi);
 
             if (emailError is not null)
             {
@@ -188,7 +197,7 @@ namespace ABP.Infrastructure.Identity.Services
             };
         }
 
-        public async Task<UserResponseDto> EditUserAsync(EditUserDto editUserDto, string currentUserId, string? origin = null, bool isApi = false)
+        public virtual async Task<UserResponseDto> EditUserAsync(EditUserDto editUserDto, string currentUserId, string? origin = null, bool isApi = false)
         {
             _logger.LogInformation("Iniciando solicitud de edición del usuario {UserId}.", editUserDto.Id);
 
@@ -210,6 +219,7 @@ namespace ABP.Infrastructure.Identity.Services
                 return new UserResponseDto
                 {
                     HasError = true,
+                    IsForbidden = true,
                     Error = "No puede editar su propia cuenta desde este módulo."
                 };
             }
@@ -221,6 +231,7 @@ namespace ABP.Infrastructure.Identity.Services
                 return new UserResponseDto
                 {
                     HasError = true,
+                    IsNotFound = true,
                     Error = "El usuario seleccionado no existe."
                 };
             }
@@ -236,6 +247,7 @@ namespace ABP.Infrastructure.Identity.Services
                     return new UserResponseDto
                     {
                         HasError = true,
+                        IsConflict = true,
                         Error = "Ya existe otro usuario registrado con este nombre de usuario."
                     };
                 }
@@ -250,6 +262,7 @@ namespace ABP.Infrastructure.Identity.Services
                     return new UserResponseDto
                     {
                         HasError = true,
+                        IsConflict = true,
                         Error = "Ya existe otro usuario registrado con este correo electrónico."
                     };
                 }
@@ -262,6 +275,7 @@ namespace ABP.Infrastructure.Identity.Services
                 return new UserResponseDto
                 {
                     HasError = true,
+                    IsConflict = true,
                     Error = "Ya existe otro usuario registrado con esta cédula."
                 };
             }
@@ -275,6 +289,7 @@ namespace ABP.Infrastructure.Identity.Services
                 return new UserResponseDto
                 {
                     HasError = true,
+                    IsNotFound = true,
                     Error = "El usuario seleccionado no existe."
                 };
             }
@@ -308,7 +323,7 @@ namespace ABP.Infrastructure.Identity.Services
             await _userRepository.UpdateAsync(editUserDto.Id, domainUser);
             await _unitOfWork.SaveChangesAsync();
 
-            if (editUserDto.AdditionalAmount.GetValueOrDefault() > 0 && domainUser.Role == Roles.Client)
+            if (editUserDto.AdditionalAmount.GetValueOrDefault() > 0 && domainUser.Role is Roles.Client or Roles.Commerce)
             {
                 var actorRoles = await _userManager.GetRolesAsync(appUser);
                 var actorRole = actorRoles.FirstOrDefault() ?? Roles.Administrator.ToString();
@@ -333,6 +348,7 @@ namespace ABP.Infrastructure.Identity.Services
                 return new UserResponseDto
                 {
                     HasError = true,
+                    IsForbidden = true,
                     Error = "No puede modificar el estado de su propia cuenta."
                 };
             }
@@ -344,6 +360,7 @@ namespace ABP.Infrastructure.Identity.Services
                 return new UserResponseDto
                 {
                     HasError = true,
+                    IsNotFound = true,
                     Error = "El usuario seleccionado no existe."
                 };
             }
@@ -355,6 +372,7 @@ namespace ABP.Infrastructure.Identity.Services
                 return new UserResponseDto
                 {
                     HasError = true,
+                    IsNotFound = true,
                     Error = "El usuario seleccionado no existe."
                 };
             }
@@ -440,6 +458,32 @@ namespace ABP.Infrastructure.Identity.Services
 
             _logger.LogInformation("Cuenta del usuario {UserId} activada exitosamente.", userId);
             return string.Empty;
+        }
+
+        public async Task<string> ConfirmAccountAsync(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                _logger.LogWarning("Intento de confirmación de cuenta sin token.");
+                return "El token de activación es obligatorio.";
+            }
+
+            var validationResult = await _accountTokenService.ValidateByTokenAsync(token, AccountTokenPurpose.Activation);
+
+            if (validationResult.Status != AccountTokenValidationStatus.Valid || string.IsNullOrEmpty(validationResult.UserId))
+            {
+                _logger.LogWarning("Intento de confirmación de cuenta con token inválido o expirado.");
+                return validationResult.Status switch
+                {
+                    AccountTokenValidationStatus.NotFound => "El token de activación no fue encontrado.",
+                    AccountTokenValidationStatus.Used => "El token de activación ya ha sido utilizado.",
+                    AccountTokenValidationStatus.Expired => "El token de activación ha expirado.",
+                    AccountTokenValidationStatus.Invalid => "El token de activación es inválido.",
+                    _ => "El token de activación no es válido."
+                };
+            }
+
+            return await ConfirmAccountAsync(validationResult.UserId, token);
         }
 
         public async Task<string?> ValidateResetTokenAsync(string userId, string token)
@@ -557,6 +601,33 @@ namespace ABP.Infrastructure.Identity.Services
             return _mapper.Map<GetUserDto>(user);
         }
 
+        public virtual async Task<UserDetailDto?> GetUserDetailAsync(string userId)
+        {
+            _logger.LogInformation("Consultando el detalle del usuario {UserId}.", userId);
+
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user is null)
+            {
+                return null;
+            }
+
+            var detail = _mapper.Map<UserDetailDto>(user);
+
+            var principal = await _savingsAccountRepository.GetPrincipalAccountAsync(userId);
+            if (principal is not null)
+            {
+                detail.MainAccount = new UserMainAccountDto
+                {
+                    AccountNumber = principal.AccountNumber,
+                    Balance = principal.Balance,
+                    IsPrincipal = true,
+                    Status = principal.Status.ToString()
+                };
+            }
+
+            return detail;
+        }
+
         public async Task<GetUserDto?> GetUserByUsernameAsync(string username)
         {
             _logger.LogInformation("Consultando el usuario con nombre de usuario {Username}.", username);
@@ -576,14 +647,14 @@ namespace ABP.Infrastructure.Identity.Services
             return _mapper.Map<GetUserDto>(user);
         }
 
-        public async Task<PagedResultDto<GetUserDto>> GetUsersPagedAsync(UserQueryFilterDto filter)
+        public virtual async Task<PagedResultDto<GetUserDto>> GetUsersPagedAsync(UserQueryFilterDto filter)
         {
             _logger.LogInformation("Consultando usuarios paginados (página {Page}, tamaño {PageSize}, rol {Role}, solo comercio {IsCommerceOnly}).",
                 filter.Page, filter.PageSize, filter.Role, filter.IsCommerceOnly);
 
             var page = filter.Page < 1 ? 1 : filter.Page;
             var pageSize = filter.PageSize < 1 ? 20 : filter.PageSize;
-            pageSize = pageSize > 100 ? 100 : pageSize;
+            pageSize = pageSize > 20 ? 20 : pageSize;
 
             Roles? parsedRole = null;
             if (!string.IsNullOrEmpty(filter.Role) &&
@@ -612,17 +683,42 @@ namespace ABP.Infrastructure.Identity.Services
                 filter.IsCommerceOnly,
                 parsedRole);
 
+            var data = _mapper.Map<List<GetUserDto>>(result.Data);
+
+            var commerceIds = data
+                .Where(x => x.CommerceId.HasValue)
+                .Select(x => x.CommerceId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (commerceIds.Count > 0)
+            {
+                var commerces = await _commerceRepository.GetAllAsync(false);
+                var commerceNames = commerces
+                    .Where(commerce => commerceIds.Contains(commerce.Id))
+                    .ToDictionary(commerce => commerce.Id, commerce => commerce.Name);
+
+                foreach (var item in data)
+                {
+                    if (item.CommerceId.HasValue &&
+                        commerceNames.TryGetValue(item.CommerceId.Value, out var commerceName))
+                    {
+                        item.CommerceName = commerceName;
+                    }
+                }
+            }
+
             return new PagedResultDto<GetUserDto>
             {
                 Page = result.Page,
                 PageSize = result.PageSize,
                 TotalRecords = result.TotalRecords,
                 TotalPages = result.TotalPages,
-                Data = _mapper.Map<List<GetUserDto>>(result.Data)
+                Data = data
             };
         }
 
-        public async Task<string> ResetPasswordAsync(ResetPasswordDto resetPasswordDto)
+        public virtual async Task<string> ResetPasswordAsync(ResetPasswordDto resetPasswordDto)
         {
             _logger.LogInformation("Iniciando restablecimiento de contraseña para el usuario {UserId}.", resetPasswordDto.UserId);
 
@@ -686,6 +782,175 @@ namespace ABP.Infrastructure.Identity.Services
             _logger.LogInformation("Contraseña del usuario {UserId} restablecida exitosamente.", resetPasswordDto.UserId);
 
             return string.Empty;
+        }
+
+        public virtual async Task<RegisterResponseDto> RegisterCommerceUserAsync(CreateCommerceUserRequestDto createCommerceUserRequest, Guid commerceId, string? origin)
+        {
+            _logger.LogInformation("Iniciando solicitud de creación de usuario de comercio para el comercio {CommerceId}.", commerceId);
+
+            var validationResult = await _createCommerceUserValidator.ValidateAsync(createCommerceUserRequest);
+            if (!validationResult.IsValid)
+            {
+                var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
+                _logger.LogWarning(
+                    "Error de validación al registrar usuario de comercio para el comercio {CommerceId}: {Errors}",
+                    commerceId, string.Join("; ", errors));
+
+                return new RegisterResponseDto
+                {
+                    Id = string.Empty,
+                    HasError = true,
+                    ErrorList = errors,
+                    Error = string.Join("\n", errors)
+                };
+            }
+
+            // Verifica la existencia del comercio al que se asociará el usuario.
+            var commerce = await _commerceRepository.GetByIdAsync(commerceId);
+            if (commerce is null)
+            {
+                _logger.LogWarning("Intento de registro de usuario de comercio fallido: el comercio {CommerceId} no existe.", commerceId);
+                return new RegisterResponseDto
+                {
+                    Id = string.Empty,
+                    HasError = true,
+                    IsNotFound = true,
+                    Error = "El comercio indicado no existe."
+                };
+            }
+
+            if (await _userRepository.ExistsByCommerceIdAsync(commerceId))
+            {
+                _logger.LogWarning("Intento de registro de usuario de comercio fallido: el comercio {CommerceId} ya tiene un usuario asociado.", commerceId);
+                return new RegisterResponseDto
+                {
+                    Id = string.Empty,
+                    HasError = true,
+                    IsConflict = true,
+                    Error = "El comercio ya tiene un usuario asociado."
+                };
+            }
+
+            #region Validaciones de Duplicados
+
+            var userWithSameEmail = await _userManager.FindByEmailAsync(createCommerceUserRequest.Email);
+            if (userWithSameEmail != null)
+            {
+                _logger.LogWarning("Intento de registro de usuario de comercio fallido: El correo {Email} ya está registrado.", createCommerceUserRequest.Email);
+                return new RegisterResponseDto
+                {
+                    Id = string.Empty,
+                    HasError = true,
+                    IsConflict = true,
+                    Error = "Ya existe un usuario registrado con este correo electrónico."
+                };
+            }
+
+            var userWithSameUserName = await _userManager.FindByNameAsync(createCommerceUserRequest.UserName);
+            if (userWithSameUserName != null)
+            {
+                _logger.LogWarning("Intento de registro de usuario de comercio fallido: El nombre de usuario {Username} ya existe.", createCommerceUserRequest.UserName);
+                return new RegisterResponseDto
+                {
+                    Id = string.Empty,
+                    HasError = true,
+                    IsConflict = true,
+                    Error = "Ya existe un usuario registrado con este nombre de usuario."
+                };
+            }
+
+            var exitsUserByIdentification = await _userRepository.FindByIdentificationAsync(createCommerceUserRequest.Identification);
+            if (exitsUserByIdentification is not null)
+            {
+                _logger.LogWarning("Intento de registro de usuario de comercio fallido: La cédula {Identification} ya está registrada.", createCommerceUserRequest.Identification);
+                return new RegisterResponseDto
+                {
+                    Id = string.Empty,
+                    HasError = true,
+                    IsConflict = true,
+                    Error = "Ya existe un usuario registrado con este número de cédula."
+                };
+            }
+
+            #endregion
+
+            using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+
+            var appUser = new AppUser
+            {
+                UserName = createCommerceUserRequest.UserName,
+                Email = createCommerceUserRequest.Email,
+                EmailConfirmed = false,
+                IsActive = false
+            };
+
+            var result = await _userManager.CreateAsync(appUser, createCommerceUserRequest.Password);
+            if (!result.Succeeded)
+            {
+                var identityErrors = result.Errors.Select(e => e.Description).ToList();
+                _logger.LogWarning("Error de Identity al crear usuario de comercio {Username}: {Errors}", createCommerceUserRequest.UserName, string.Join("; ", identityErrors));
+
+                return new RegisterResponseDto
+                {
+                    Id = string.Empty,
+                    HasError = true,
+                    ErrorList = identityErrors,
+                    Error = string.Join("\n", identityErrors)
+                };
+            }
+
+            await _userManager.AddToRoleAsync(appUser, Roles.Commerce.ToString());
+
+            var domainUser = new User(appUser.Id)
+            {
+                Name = createCommerceUserRequest.FirstName,
+                LastName = createCommerceUserRequest.LastName,
+                Email = createCommerceUserRequest.Email,
+                UserName = createCommerceUserRequest.UserName,
+                Identification = createCommerceUserRequest.Identification,
+                Role = Roles.Commerce,
+                IsActive = false,
+                CommerceId = commerceId
+            };
+
+            await _userRepository.AddAsync(domainUser);
+            await _unitOfWork.SaveChangesAsync();
+
+            await InitializePrincipalAccountAsync(appUser.Id, createCommerceUserRequest.InitialAmount);
+
+            // Token de activación de cuenta
+            string token = await _accountTokenService.GenerateAsync(appUser.Id, AccountTokenPurpose.Activation);
+
+            scope.Complete();
+
+            string? emailError = await SendActivationEmailAsync(
+                appUser.Id,
+                createCommerceUserRequest.Email,
+                $"{createCommerceUserRequest.FirstName} {createCommerceUserRequest.LastName}",
+                createCommerceUserRequest.FirstName,
+                token,
+                origin,
+                isApi: true);
+
+            if (emailError is not null)
+            {
+                return new RegisterResponseDto
+                {
+                    Id = appUser.Id,
+                    HasError = true,
+                    Error = emailError,
+                    ErrorList = new List<string> { emailError }
+                };
+            }
+
+            _logger.LogInformation("Usuario de comercio {Username} con ID {UserId} creado exitosamente en estado Inactivo.", createCommerceUserRequest.UserName, appUser.Id);
+
+            return new RegisterResponseDto
+            {
+                Id = appUser.Id,
+                HasError = false,
+                IsVerified = false
+            };
         }
     }
 }

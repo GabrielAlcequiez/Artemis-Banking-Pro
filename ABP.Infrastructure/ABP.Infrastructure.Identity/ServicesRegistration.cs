@@ -148,17 +148,27 @@ namespace ABP.Infrastructure.Identity
             services.Configure<JwtSettings>(config.GetSection("JwtSettings"));
             #region Jwt Authentication
 
+            services.ConfigureOptions<ConfigureIdentityOptions>();
+
             services.AddIdentityCore<AppUser>()
                 .AddSignInManager()
                 .AddRoles<IdentityRole>()
                 .AddRoleManager<RoleManager<IdentityRole>>()
                 .AddEntityFrameworkStores<IdentityContext>()
-                .AddDefaultTokenProviders();
+                .AddDefaultTokenProviders()
+                .AddTokenProvider<PasswordResetTokenProvider<AppUser>>(
+                    IdentityTokenProviderNames.PasswordReset);
 
 
             services.Configure<DataProtectionTokenProviderOptions>(opt =>
             {
                 opt.TokenLifespan = TimeSpan.FromHours(2);
+            });
+
+            services.Configure<PasswordResetTokenProviderOptions>(opt =>
+            {
+                opt.Name = IdentityTokenProviderNames.PasswordReset;
+                opt.TokenLifespan = TimeSpan.FromMinutes(30);
             });
 
             services.AddAuthentication(opt =>
@@ -300,12 +310,23 @@ opt.Events = new JwtBearerEvents()
             var configuration = services.GetRequiredService<IConfiguration>();
 
             await DefaultUserRoles.SeedRolesAsync(roleManager);
+
+            var demoCommerceId = await DefaultCommerces.SeedDefaultCommercesAsync(
+                services.GetRequiredService<ICommerceRepository>(),
+                services.GetRequiredService<IUnitOfWork>());
+
             await DefaultUsers.SeedDefaultUsersAsync(
                 userManager,
-                services.GetRequiredService<IGenericRepository<User, string>>(),
+                services.GetRequiredService<IUserRepository>(),
                 services.GetRequiredService<IUnitOfWork>(),
                 services.GetRequiredService<IPrimaryAccountProvisioner>(),
                 configuration);
+
+            await DefaultCommerces.LinkCommerceApiUserAsync(
+                userManager,
+                services.GetRequiredService<IUserRepository>(),
+                services.GetRequiredService<IUnitOfWork>(),
+                demoCommerceId);
         }
     
     }
