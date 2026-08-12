@@ -8,6 +8,8 @@ namespace ABP.Application.Common.Interfaces.Identity
 
         Task<AccountTokenValidationResult> ValidateAsync(string userId, string token, AccountTokenPurpose purpose, CancellationToken cancellationToken = default);
 
+        Task<AccountTokenValidationResult> ValidateByTokenAsync(string token, AccountTokenPurpose purpose, CancellationToken cancellationToken = default);
+
         Task<bool> TryMarkAsUsedAsync(Guid accountTokenId, CancellationToken cancellationToken = default);
     }
 
@@ -22,5 +24,6 @@ namespace ABP.Application.Common.Interfaces.Identity
 
     public sealed record AccountTokenValidationResult(
         AccountTokenValidationStatus Status,
-        Guid? AccountTokenId = null);
+        Guid? AccountTokenId = null,
+        string? UserId = null);
 }

@@ -55,7 +55,7 @@ public static class DefaultUsers
 
     public static async Task SeedDefaultUsersAsync(
         UserManager<AppUser> userManager,
-        IGenericRepository<User, string> userRepository,
+        IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         IPrimaryAccountProvisioner primaryAccountProvisioner,
         IConfiguration configuration,
@@ -117,7 +117,7 @@ public static class DefaultUsers
 
     private static async Task SeedUserAsync(
         UserManager<AppUser> userManager,
-        IGenericRepository<User, string> userRepository,
+        IUserRepository userRepository,
         SeedUserDefinition definition,
         string password,
         CancellationToken cancellationToken)

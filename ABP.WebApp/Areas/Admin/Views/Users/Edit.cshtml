@@ -1,0 +1,80 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Users.EditUserViewModel
+@{
+    ViewData["Title"] = "Editar usuario";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Index">← Volver a la gestión de usuarios</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">Editar usuario</h1>
+        <p class="mt-1 text-sm text-ink-muted">El tipo de usuario no puede modificarse después de la creación.</p>
+    </div>
+
+    <form asp-action="Edit" method="post" class="card space-y-5 p-5" novalidate>
+        @Html.AntiForgeryToken()
+        <input asp-for="Id" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger empty:hidden" role="alert"></div>
+
+        <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+                <label asp-for="FirstName" class="mb-1 block text-sm font-medium text-ink-soft">Nombre</label>
+                <input asp-for="FirstName" class="input" autocomplete="given-name" />
+                <span asp-validation-for="FirstName" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="LastName" class="mb-1 block text-sm font-medium text-ink-soft">Apellido</label>
+                <input asp-for="LastName" class="input" autocomplete="family-name" />
+                <span asp-validation-for="LastName" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="Identification" class="mb-1 block text-sm font-medium text-ink-soft">Cédula</label>
+                <input asp-for="Identification" class="input" maxlength="20" placeholder="00000000000" />
+                <span asp-validation-for="Identification" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="Email" class="mb-1 block text-sm font-medium text-ink-soft">Correo electrónico</label>
+                <input asp-for="Email" class="input" type="email" autocomplete="email" />
+                <span asp-validation-for="Email" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="UserName" class="mb-1 block text-sm font-medium text-ink-soft">Nombre de usuario</label>
+                <input asp-for="UserName" class="input" autocomplete="username" />
+                <span asp-validation-for="UserName" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="Role" class="mb-1 block text-sm font-medium text-ink-soft">Tipo de usuario</label>
+                <input asp-for="Role" class="input" readonly />
+                <span asp-validation-for="Role" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="Password" class="mb-1 block text-sm font-medium text-ink-soft">Nueva contraseña</label>
+                <input asp-for="Password" class="input" type="password" autocomplete="new-password" />
+                <p class="mt-1 text-xs text-ink-muted">Deje el campo vacío para mantener la contraseña actual.</p>
+                <span asp-validation-for="Password" class="mt-1 block text-sm text-danger"></span>
+            </div>
+            <div>
+                <label asp-for="ConfirmPassword" class="mb-1 block text-sm font-medium text-ink-soft">Confirmar contraseña</label>
+                <input asp-for="ConfirmPassword" class="input" type="password" autocomplete="new-password" />
+                <span asp-validation-for="ConfirmPassword" class="mt-1 block text-sm text-danger"></span>
+            </div>
+        </div>
+
+        @if (Model.IsClientRole)
+        {
+            <div>
+                <label asp-for="AdditionalAmount" class="mb-1 block text-sm font-medium text-ink-soft">Monto adicional</label>
+                <div class="relative">
+                    <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-ink-muted">RD$</span>
+                    <input asp-for="AdditionalAmount" class="input pl-12 tnum" type="number" min="0" step="0.01" inputmode="decimal" />
+                </div>
+                <p class="mt-1 text-xs text-ink-muted">Se sumará al balance actual de la cuenta de ahorro principal del cliente.</p>
+                <span asp-validation-for="AdditionalAmount" class="mt-1 block text-sm text-danger"></span>
+            </div>
+        }
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <a class="btn btn-ghost" asp-action="Index">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+    </form>
+</div>

@@ -21,5 +21,9 @@ namespace ABP.Domain.Interfaces
 
         Task<int> CountActiveClientsAsync(
             CancellationToken cancellationToken = default);
+
+        Task<bool> ExistsByCommerceIdAsync(
+            Guid commerceId,
+            CancellationToken cancellationToken = default);
     }
 }

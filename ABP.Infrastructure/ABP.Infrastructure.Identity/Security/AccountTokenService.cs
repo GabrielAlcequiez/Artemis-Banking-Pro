@@ -4,7 +4,6 @@ using ABP.Application.Common.Interfaces.Identity;
 using ABP.Domain.Entities;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
-using ABP.Infrastructure.Identity.Context;
 using ABP.Infrastructure.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
@@ -13,7 +12,6 @@ namespace ABP.Infrastructure.Identity.Security;
 
 public sealed class AccountTokenService : IAccountTokenService
 {
-    private readonly IdentityContext identityContext;
     private readonly UserManager<AppUser> userManager;
     private readonly IdentityOptions identityOptions;
     private readonly DataProtectionTokenProviderOptions activationTokenOptions;
@@ -22,7 +20,6 @@ public sealed class AccountTokenService : IAccountTokenService
     private readonly IAccountTokenRepository _accountTokenRepository;
 
     public AccountTokenService(
-        IdentityContext identityContext,
         UserManager<AppUser> userManager,
         IOptions<IdentityOptions> identityOptions,
         IOptions<DataProtectionTokenProviderOptions> activationTokenOptions,
@@ -30,7 +27,6 @@ public sealed class AccountTokenService : IAccountTokenService
         TimeProvider timeProvider,
         IAccountTokenRepository accountTokenRepository)
     {
-        this.identityContext = identityContext;
         this.userManager = userManager;
         this.identityOptions = identityOptions.Value;
         this.activationTokenOptions = activationTokenOptions.Value;
@@ -70,8 +66,7 @@ public sealed class AccountTokenService : IAccountTokenService
             ExpiresAtUtc = now.Add(tokenLifespan)
         };
 
-        identityContext.AccountTokens.Add(accountToken);
-        await identityContext.SaveChangesAsync(cancellationToken);
+        await _accountTokenRepository.AddAsync(accountToken, cancellationToken);
 
         return token;
     }
@@ -135,6 +130,70 @@ public sealed class AccountTokenService : IAccountTokenService
                 ? AccountTokenValidationStatus.Valid
                 : AccountTokenValidationStatus.Invalid,
             accountToken.Id);
+    }
+
+    public async Task<AccountTokenValidationResult> ValidateByTokenAsync(
+        string token,
+        AccountTokenPurpose purpose,
+        CancellationToken cancellationToken = default)
+    {
+        var tokenHash = ComputeTokenHash(token);
+
+        var accountToken = await _accountTokenRepository.FindByTokenHashAsync(purpose, tokenHash, cancellationToken);
+
+        if (accountToken is null)
+        {
+            return new AccountTokenValidationResult(AccountTokenValidationStatus.NotFound);
+        }
+
+        if (accountToken.UsedAtUtc.HasValue)
+        {
+            return new AccountTokenValidationResult(
+                AccountTokenValidationStatus.Used,
+                accountToken.Id,
+                accountToken.UserId);
+        }
+
+        if (accountToken.ExpiresAtUtc <= timeProvider.GetUtcNow())
+        {
+            return new AccountTokenValidationResult(
+                AccountTokenValidationStatus.Expired,
+                accountToken.Id,
+                accountToken.UserId);
+        }
+
+        var user = await userManager.FindByIdAsync(accountToken.UserId);
+        if (user is null)
+        {
+            return new AccountTokenValidationResult(
+                AccountTokenValidationStatus.Invalid,
+                accountToken.Id,
+                accountToken.UserId);
+        }
+
+        var (provider, identityPurpose) = purpose switch
+        {
+            AccountTokenPurpose.Activation => (
+                identityOptions.Tokens.EmailConfirmationTokenProvider,
+                UserManager<AppUser>.ConfirmEmailTokenPurpose),
+            AccountTokenPurpose.PasswordReset => (
+                identityOptions.Tokens.PasswordResetTokenProvider,
+                UserManager<AppUser>.ResetPasswordTokenPurpose),
+            _ => throw new ArgumentOutOfRangeException(nameof(purpose), purpose, null)
+        };
+
+        var isValid = await userManager.VerifyUserTokenAsync(
+            user,
+            provider,
+            identityPurpose,
+            token);
+
+        return new AccountTokenValidationResult(
+            isValid
+                ? AccountTokenValidationStatus.Valid
+                : AccountTokenValidationStatus.Invalid,
+            accountToken.Id,
+            accountToken.UserId);
     }
 
     public async Task<bool> TryMarkAsUsedAsync(

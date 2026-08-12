@@ -15,11 +15,26 @@ namespace ABP.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
+        public async Task<AccountToken> AddAsync(AccountToken accountToken, CancellationToken cancellationToken = default)
+        {
+            _context.AccountTokens.Add(accountToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            return accountToken;
+        }
+
         public async Task<AccountToken?> ExistsAsync(string userId, AccountTokenPurpose purpose, string tokenHash, CancellationToken cancellationToken = default)
         {
             return await _context.AccountTokens
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.Purpose == purpose && x.TokenHash == tokenHash, cancellationToken);
+        }
+
+        public Task<AccountToken?> FindByTokenHashAsync(AccountTokenPurpose purpose, string tokenHash, CancellationToken cancellationToken = default)
+        {
+            return _context.AccountTokens
+                .AsNoTracking()
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .FirstOrDefaultAsync(x => x.Purpose == purpose && x.TokenHash == tokenHash, cancellationToken);
         }
 
         public Task<int> MarkAsUsedAsync(Guid accountTokenId, DateTimeOffset usedAtUtc, CancellationToken cancellationToken = default)

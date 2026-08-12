@@ -1,0 +1,45 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Users.ChangeUserStatusViewModel
+@{
+    ViewData["Title"] = Model.TargetIsActive ? "Activar usuario" : "Inactivar usuario";
+}
+
+<div class="mx-auto max-w-xl space-y-6">
+    <div>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Index">← Volver a la gestión de usuarios</a>
+        <h1 class="mt-2 text-2xl font-semibold text-ink">@(Model.TargetIsActive ? "Activar usuario" : "Inactivar usuario")</h1>
+    </div>
+
+    <section class="card space-y-5 p-6">
+        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning" aria-hidden="true">!</div>
+        <div>
+            <h2 class="text-lg font-semibold text-ink">
+                ¿Está seguro que desea @(Model.TargetIsActive ? "activar" : "inactivar") este usuario?
+            </h2>
+            <p class="mt-2 text-sm text-ink-muted">
+                Usuario <span class="font-medium text-ink">@Model.UserName</span>
+                @if (!string.IsNullOrWhiteSpace(Model.FullName))
+                {
+                    <span>(@Model.FullName)</span>
+                }
+            </p>
+            @if (!Model.TargetIsActive)
+            {
+                <p class="mt-2 text-sm text-ink-muted">
+                    El usuario no podrá iniciar sesión, pero conservará sus productos financieros e historial.
+                </p>
+            }
+        </div>
+
+        <div asp-validation-summary="All" class="alert alert-danger empty:hidden" role="alert"></div>
+
+        <form asp-action="ChangeStatus" method="post" class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            @Html.AntiForgeryToken()
+            <input asp-for="Id" type="hidden" />
+            <input asp-for="TargetIsActive" type="hidden" />
+            <a class="btn btn-ghost" asp-action="Index">Cancelar</a>
+            <button type="submit" class="btn border border-danger bg-danger text-white hover:opacity-90">
+                Aceptar
+            </button>
+        </form>
+    </section>
+</div>

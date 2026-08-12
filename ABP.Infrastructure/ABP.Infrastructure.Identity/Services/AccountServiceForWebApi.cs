@@ -1,3 +1,4 @@
+using ABP.Application.Common.DTOs.Common;
 using ABP.Application.Common.DTOs.Users;
 using ABP.Application.Common.Interfaces.Identity;
 using ABP.Application.Common.Interfaces.Services;
@@ -29,6 +30,10 @@ namespace ABP.Infrastructure.Identity.Services
         private readonly SignInManager<AppUser> _signInManager;
         private readonly IValidator<LoginDto> _loginDtoValidator;
         private readonly IJwtTokenService _jwtTokenService;
+        private readonly IValidator<ConfirmAccountRequestDto> _confirmAccountValidator;
+        private readonly IValidator<ForgotPasswordDto> _forgotPasswordValidator;
+        private readonly IValidator<ChangeUserStatusRequestDto> _changeUserStatusValidator;
+        private readonly IValidator<UserQueryFilterDto> _userQueryFilterValidator;
 
         public AccountServiceForWebApi(
             SignInManager<AppUser> signInManager,
@@ -47,7 +52,13 @@ namespace ABP.Infrastructure.Identity.Services
             ISavingsAccountRepository savingsAccountRepository,
             IAccountBalanceService accountBalanceService,
             IAccountLedger accountLedger,
-            ILogger<BaseAccountService> logger)
+            ILogger<BaseAccountService> logger,
+            ICommerceRepository commerceRepository,
+            IValidator<CreateCommerceUserRequestDto> createCommerceUserValidator,
+            IValidator<ConfirmAccountRequestDto> confirmAccountValidator,
+            IValidator<ForgotPasswordDto> forgotPasswordValidator,
+            IValidator<ChangeUserStatusRequestDto> changeUserStatusValidator,
+            IValidator<UserQueryFilterDto> userQueryFilterValidator)
             : base(
                 mapper,
                 userManager,
@@ -62,11 +73,17 @@ namespace ABP.Infrastructure.Identity.Services
                 savingsAccountRepository,
                 accountBalanceService,
                 accountLedger,
-                logger)
+                logger,
+                commerceRepository,
+                createCommerceUserValidator)
         {
             _signInManager = signInManager;
             _loginDtoValidator = loginDtoValidator;
             _jwtTokenService = jwtTokenService;
+            _confirmAccountValidator = confirmAccountValidator;
+            _forgotPasswordValidator = forgotPasswordValidator;
+            _changeUserStatusValidator = changeUserStatusValidator;
+            _userQueryFilterValidator = userQueryFilterValidator;
         }
 
         public async Task<AuthenticationResponseDto> LoginAsync(LoginDto loginRequestDto)
@@ -118,6 +135,146 @@ namespace ABP.Infrastructure.Identity.Services
             _logger.LogInformation("Inicio de sesión exitoso en la API para el usuario {UserName}.", loginRequestDto.Username);
 
             return new AuthenticationResponseDto { Jwt = jwt };
+        }
+
+        public async Task ConfirmAccountAsync(ConfirmAccountRequestDto request)
+        {
+            await _confirmAccountValidator.ValidateAndThrowAsync(request);
+
+            var error = await base.ConfirmAccountAsync(request.Token);
+            if (!string.IsNullOrEmpty(error))
+            {
+                throw new ApiException(error, StatusCodes.Status400BadRequest);
+            }
+        }
+
+        public async Task GetResetTokenAsync(ForgotPasswordDto forgotPasswordDto)
+        {
+            await _forgotPasswordValidator.ValidateAndThrowAsync(forgotPasswordDto);
+
+            var error = await base.ForgotPasswordAsync(forgotPasswordDto, origin: null, isApi: true);
+            if (!string.IsNullOrEmpty(error))
+            {
+                throw new ApiException(error, StatusCodes.Status400BadRequest);
+            }
+        }
+
+        public override async Task<string> ResetPasswordAsync(ResetPasswordDto resetPasswordDto)
+        {
+            var error = await base.ResetPasswordAsync(resetPasswordDto);
+            if (!string.IsNullOrEmpty(error))
+            {
+                throw new ApiException(error, StatusCodes.Status400BadRequest);
+            }
+
+            return string.Empty;
+        }
+
+        public override async Task<RegisterResponseDto> RegisterUserAsync(CreateUserDto createUserDto, string? origin, bool isApi = false)
+        {
+            var response = await base.RegisterUserAsync(createUserDto, origin, isApi: true);
+
+            if (response.IsConflict)
+            {
+                throw new ApiException(response.Error ?? "Conflicto con los datos del usuario.", StatusCodes.Status409Conflict);
+            }
+
+            if (response.HasError)
+            {
+                throw new ApiException(response.Error ?? "Solicitud inválida.", StatusCodes.Status400BadRequest);
+            }
+
+            return response;
+        }
+
+        public override async Task<RegisterResponseDto> RegisterCommerceUserAsync(CreateCommerceUserRequestDto createCommerceUserRequest, Guid commerceId, string? origin)
+        {
+            var response = await base.RegisterCommerceUserAsync(createCommerceUserRequest, commerceId, origin);
+
+            if (response.IsNotFound)
+            {
+                throw new ApiException("El comercio indicado no existe.", StatusCodes.Status404NotFound);
+            }
+
+            if (response.IsConflict)
+            {
+                throw new ApiException(response.Error ?? "Conflicto con los datos del usuario de comercio.", StatusCodes.Status409Conflict);
+            }
+
+            if (response.HasError)
+            {
+                throw new ApiException(response.Error ?? "Solicitud inválida.", StatusCodes.Status400BadRequest);
+            }
+
+            return response;
+        }
+
+        public override async Task<UserResponseDto> EditUserAsync(EditUserDto editUserDto, string currentUserId, string? origin = null, bool isApi = false)
+        {
+            var response = await base.EditUserAsync(editUserDto, currentUserId, origin, isApi: true);
+
+            if (response.IsForbidden)
+            {
+                throw new ApiException("No puede editar su propia cuenta desde este módulo.", StatusCodes.Status403Forbidden);
+            }
+
+            if (response.IsNotFound)
+            {
+                throw new ApiException("El usuario seleccionado no existe.", StatusCodes.Status404NotFound);
+            }
+
+            if (response.IsConflict)
+            {
+                throw new ApiException(response.Error ?? "Conflicto con los datos del usuario.", StatusCodes.Status409Conflict);
+            }
+
+            if (response.HasError)
+            {
+                throw new ApiException(response.Error ?? "Solicitud inválida.", StatusCodes.Status400BadRequest);
+            }
+
+            return response;
+        }
+
+        public async Task ChangeUserStatusAsync(string userId, ChangeUserStatusRequestDto request, string currentUserId)
+        {
+            await _changeUserStatusValidator.ValidateAndThrowAsync(request);
+
+            var response = await base.ChangeUserStatusAsync(userId, request.Status!.Value, currentUserId);
+
+            if (response.IsForbidden)
+            {
+                throw new ApiException("No puede modificar el estado de su propia cuenta.", StatusCodes.Status403Forbidden);
+            }
+
+            if (response.IsNotFound)
+            {
+                throw new ApiException("El usuario seleccionado no existe.", StatusCodes.Status404NotFound);
+            }
+
+            if (response.HasError)
+            {
+                throw new ApiException(response.Error ?? "Solicitud inválida.", StatusCodes.Status400BadRequest);
+            }
+        }
+
+        public override async Task<PagedResultDto<GetUserDto>> GetUsersPagedAsync(UserQueryFilterDto filter)
+        {
+            await _userQueryFilterValidator.ValidateAndThrowAsync(filter);
+
+            return await base.GetUsersPagedAsync(filter);
+        }
+
+        // La variante API nunca devuelve null: lanza ApiException(404) cuando el usuario no existe.
+        public override async Task<UserDetailDto?> GetUserDetailAsync(string userId)
+        {
+            var detail = await base.GetUserDetailAsync(userId);
+            if (detail is null)
+            {
+                throw new ApiException("El usuario seleccionado no existe.", StatusCodes.Status404NotFound);
+            }
+
+            return detail;
         }
     }
 }
