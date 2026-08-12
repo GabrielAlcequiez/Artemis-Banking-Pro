@@ -65,8 +65,13 @@ public class AccountServiceForWebApiTests
             null!, // savingsAccountRepository
             null!, // accountBalanceService
             null!, // accountLedger
-            NullLogger<BaseAccountService>.Instance);
-    }
+            NullLogger<BaseAccountService>.Instance,
+            null!, // commerceRepository
+            null!, // createCommerceUserValidator
+            new ConfirmAccountRequestValidator(),
+            new ForgotPasswordDtoValidator(),
+            new ChangeUserStatusRequestValidator(),
+            new UserQueryFilterApiValidator());    }
 
     private void SeedUser(string userName, string role, bool isActive = true, bool emailConfirmed = true, Guid? commerceId = null)
     {
@@ -366,6 +371,9 @@ public class AccountServiceForWebApiTests
         public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(_usersById.Values.Count(user =>
                 user.Role == Roles.Client && user.IsActive));
+
+        public Task<bool> ExistsByCommerceIdAsync(Guid commerceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_usersById.Values.Any(user => user.CommerceId == commerceId));
 
         public IQueryable<User> GetAllQueryable(bool trackChanges = false) => new List<User>().AsQueryable();
 

@@ -38,6 +38,20 @@ namespace ABP.Infrastructure.Persistence.Repositories
             return await Entities.AnyAsync(a => a.AccountNumber == accountNumber, cancellationToken);
         }
 
+        public async Task<IReadOnlyCollection<SavingsAccount>> GetActiveByOwnerIdAsync(
+            string ownerUserId,
+            CancellationToken cancellationToken = default)
+        {
+            return await Entities
+                .AsNoTracking()
+                .Where(account =>
+                    account.OwnerUserId == ownerUserId &&
+                    account.Status == SavingsAccountStatus.Active)
+                .OrderBy(account => account.Type == SavingsAccountType.Principal ? 0 : 1)
+                .ThenBy(account => account.AccountNumber)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<PagedResult<SavingsAccount>> GetPagedAsync(
             PagedRequest request,
             string? ownerIdentification = null,

@@ -108,5 +108,16 @@ namespace ABP.Infrastructure.Persistence.Repositories
                     user => user.Role == Roles.Client && user.IsActive,
                     cancellationToken);
         }
+
+        public Task<bool> ExistsByCommerceIdAsync(
+            Guid commerceId,
+            CancellationToken cancellationToken = default)
+        {
+            return _context.Users
+                .AsNoTracking()
+                .AnyAsync(
+                    user => user.CommerceId == commerceId,
+                    cancellationToken);
+        }
     }
 }

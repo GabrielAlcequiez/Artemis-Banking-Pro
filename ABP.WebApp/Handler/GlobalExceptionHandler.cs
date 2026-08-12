@@ -1,5 +1,6 @@
 using System.Net;
 using ABP.Application.Common.Contracts;
+using ABP.Application.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 
 namespace ABP.WebApp.Handler
@@ -15,8 +16,7 @@ namespace ABP.WebApp.Handler
 
         public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
         {
-            _logger.LogError(exception, "Unhandled exception occurred for request {Path} with correlation id {CorrelationId}",
-                httpContext.Request.Path, httpContext.TraceIdentifier);
+            LogSafely(exception, httpContext);
 
             var problemDetails = ProblemDetailsFactory.Create(
                 exception,
@@ -35,6 +35,27 @@ namespace ABP.WebApp.Handler
             await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: cancellationToken);
 
             return true;
+        }
+
+        private void LogSafely(Exception exception, HttpContext httpContext)
+        {
+            if (exception is FinancialConcurrencyException or
+                PersistenceConflictException or
+                PersistenceFailureException)
+            {
+                _logger.LogError(
+                    "Persistence exception {ExceptionType} for request {Path} with correlation id {CorrelationId}",
+                    exception.GetType().Name,
+                    httpContext.Request.Path,
+                    httpContext.TraceIdentifier);
+                return;
+            }
+
+            _logger.LogError(
+                exception,
+                "Unhandled exception occurred for request {Path} with correlation id {CorrelationId}",
+                httpContext.Request.Path,
+                httpContext.TraceIdentifier);
         }
 
         private static bool WantsHtml(HttpRequest request)

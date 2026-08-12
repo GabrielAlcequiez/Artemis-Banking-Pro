@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ABP.Application.Common.DTOs.Users
 {
     public class CreateUserDto
@@ -12,7 +14,10 @@ namespace ABP.Application.Common.DTOs.Users
         public required string Role { get; set; }
 
         // Si el usuario es cliente o comercio
+        [JsonIgnore]
         public decimal? InitialBalance { get; set; }
+
+        [JsonPropertyName("initialAmount")]
         public decimal? InitialAmount { get => InitialBalance; set => InitialBalance = value; }
         public Guid? CommerceId { get; set; }
     }

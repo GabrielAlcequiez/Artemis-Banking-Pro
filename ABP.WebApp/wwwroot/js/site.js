@@ -29,6 +29,32 @@
     localStorage.setItem(STORAGE_KEY, collapsed ? "collapsed" : "expanded");
   });
 
+  // Al escribir en un campo, limpia el mensaje de validación asociado para que
+  // desaparezca de inmediato.
+  document.addEventListener("input", function (event) {
+    var field = event.target;
+    if (!(field instanceof HTMLInputElement) && !(field instanceof HTMLSelectElement) && !(field instanceof HTMLTextAreaElement)) {
+      return;
+    }
+
+    if (!field.name) {
+      return;
+    }
+
+    var form = field.closest("form");
+    if (!form) {
+      return;
+    }
+
+    var message = form.querySelector('span[data-valmsg-for="' + field.name + '"]');
+    if (message) {
+      message.textContent = "";
+    }
+
+    field.classList.remove("input-validation-error");
+    field.setAttribute("aria-invalid", "false");
+  });
+
   // Sincroniza el estado persistido (el atributo ya se restauró inline en <head>).
   apply(isCollapsed());
 })();

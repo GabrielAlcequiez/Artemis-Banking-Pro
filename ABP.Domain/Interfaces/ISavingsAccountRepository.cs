@@ -12,6 +12,10 @@ public interface ISavingsAccountRepository : IGenericRepository<SavingsAccount, 
 
     Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<SavingsAccount>> GetActiveByOwnerIdAsync(
+        string ownerUserId,
+        CancellationToken cancellationToken = default);
+
     Task<PagedResult<SavingsAccount>> GetPagedAsync(PagedRequest request,string? ownerIdentification = null,Domain.Enums.SavingsAccountStatus? status = null,
         Domain.Enums.SavingsAccountType? type = null,
         CancellationToken cancellationToken = default);

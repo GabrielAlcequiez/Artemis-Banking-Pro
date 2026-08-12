@@ -1,4 +1,5 @@
 using ABP.Domain.Entities;
+using ABP.Domain.Entities.Commerce;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -55,6 +56,15 @@ namespace ABP.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.CommerceId)
                 .IsRequired(false);
+
+            builder.HasOne<Commerce>()
+                .WithOne()
+                .HasForeignKey<User>(x => x.CommerceId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasIndex(x => x.CommerceId)
+                .IsUnique()
+                .HasFilter("[CommerceId] IS NOT NULL");
 
             // Relaciones
             builder.HasMany(u => u.SavingsAccounts)

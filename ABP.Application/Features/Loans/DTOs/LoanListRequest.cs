@@ -6,4 +6,4 @@ public sealed record LoanListRequest(
     int Page = 1,
     int PageSize = 20,
     string? Identification = null,
-    LoanStatus? Status = null);
+    LoanStatusFilter? Status = null);

@@ -4,6 +4,12 @@ using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Domain.Common;
 using ABP.WebApp.Areas.Admin.Controllers;
 using ABP.WebApp.Areas.Admin.ViewModels.CreditCards;
+using ClientCreditCardDetailViewModel = ABP.WebApp.Areas.Client.ViewModels.CreditCards.CreditCardDetailViewModel;
+using CashierPaymentConfirmationViewModel = ABP.WebApp.Areas.Cashier.ViewModels.CreditCards.CashierCreditCardPaymentConfirmationViewModel;
+using CashierPaymentViewModel = ABP.WebApp.Areas.Cashier.ViewModels.CreditCards.CashierCreditCardPaymentViewModel;
+using ClientCashAdvanceViewModel = ABP.WebApp.Areas.Client.ViewModels.CreditCards.CashAdvanceViewModel;
+using ClientPaymentViewModel = ABP.WebApp.Areas.Client.ViewModels.CreditCards.CreditCardPaymentViewModel;
+using ClientHomeViewModel = ABP.WebApp.Areas.Client.ViewModels.Home.ClientHomeViewModel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -30,7 +36,46 @@ public sealed class CreditCardViewsTests
         object model,
         string expectedText)
     {
-        var html = await RenderAsync(viewName, model);
+        var html = await RenderAsync("Admin", "CreditCards", viewName, model);
+
+        Assert.Contains(expectedText, html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Artemis Banking", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("4000000000001234", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("CvcHash", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hashed-cvc", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Client_detail_view_renders_consumptions_with_safe_card_data()
+    {
+        var html = await RenderAsync(
+            "Client",
+            "CreditCards",
+            "Details",
+            new ClientCreditCardDetailViewModel { Card = CreateDetail() });
+
+        Assert.Contains("Supermercado Demo", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("← Volver al Home", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("************1234", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("4000000000001234", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("CvcHash", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hashed-cvc", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [MemberData(nameof(OperationViewCases))]
+    public async Task Card_operation_view_renders_with_role_layout_and_safe_data(
+        string area,
+        string controller,
+        string viewName,
+        object model,
+        string expectedText)
+    {
+        var html = await RenderAsync(
+            area,
+            controller,
+            viewName,
+            model);
 
         Assert.Contains(expectedText, html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Artemis Banking", html, StringComparison.OrdinalIgnoreCase);
@@ -99,7 +144,87 @@ public sealed class CreditCardViewsTests
         }
     };
 
-    private static async Task<string> RenderAsync(string viewName, object model)
+    public static TheoryData<string, string, string, object, string>
+        OperationViewCases => new()
+        {
+            {
+                "Client",
+                "Home",
+                "Index",
+                new ClientHomeViewModel
+                {
+                    CreditCards =
+                    [
+                        new ClientCreditCardPortfolioItemDto(
+                            CardId,
+                            "************1234",
+                            1_000m,
+                            200m,
+                            "08/29")
+                    ]
+                },
+                "Ver detalles"
+            },
+            {
+                "Client",
+                "CreditCardPayments",
+                "Create",
+                new ClientPaymentViewModel
+                {
+                    OperationId = Guid.NewGuid(),
+                    CreditCards = [CreateCardOption()],
+                    SavingsAccounts = [CreateAccountOption()]
+                },
+                "Realizar pago"
+            },
+            {
+                "Client",
+                "CashAdvances",
+                "Create",
+                new ClientCashAdvanceViewModel
+                {
+                    OperationId = Guid.NewGuid(),
+                    Amount = 100m,
+                    CreditCards = [CreateCardOption()],
+                    SavingsAccounts = [CreateAccountOption()]
+                },
+                "Interés 6.25%"
+            },
+            {
+                "Cashier",
+                "CreditCardPayments",
+                "Create",
+                new CashierPaymentViewModel
+                {
+                    OperationId = Guid.NewGuid()
+                },
+                "El número completo no se mostrará"
+            },
+            {
+                "Cashier",
+                "CreditCardPayments",
+                "Confirm",
+                new CashierPaymentConfirmationViewModel
+                {
+                    CreditCardId = Guid.NewGuid(),
+                    SourceAccountId = Guid.NewGuid(),
+                    OperationId = Guid.NewGuid(),
+                    AccountOwnerFullName = "Luis Díaz",
+                    AccountNumber = "123456789",
+                    CardOwnerFullName = "Ana Pérez",
+                    CardLastFourDigits = "1234",
+                    RequestedAmount = 1_000m,
+                    EffectiveAmount = 500m
+                },
+                "Terminada en 1234"
+            }
+        };
+
+    private static async Task<string> RenderAsync(
+        string area,
+        string controller,
+        string viewName,
+        object model)
     {
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
@@ -126,8 +251,8 @@ public sealed class CreditCardViewsTests
         };
         var routeData = new RouteData();
         routeData.Routers.Add(new TestRouter());
-        routeData.Values["area"] = "Admin";
-        routeData.Values["controller"] = "CreditCards";
+        routeData.Values["area"] = area;
+        routeData.Values["controller"] = controller;
         routeData.Values["action"] = viewName;
         var actionContext = new ActionContext(
             httpContext,
@@ -137,7 +262,7 @@ public sealed class CreditCardViewsTests
         var viewEngine = provider.GetRequiredService<IRazorViewEngine>();
         var viewResult = viewEngine.GetView(
             executingFilePath: null,
-            viewPath: $"/Areas/Admin/Views/CreditCards/{viewName}.cshtml",
+            viewPath: $"/Areas/{area}/Views/{controller}/{viewName}.cshtml",
             isMainPage: true);
         Assert.True(viewResult.Success, string.Join(Environment.NewLine, viewResult.SearchedLocations ?? []));
 
@@ -173,6 +298,20 @@ public sealed class CreditCardViewsTests
             "08/29",
             "Activa",
             CreatedAt);
+
+    private static CreditCardOperationOptionDto CreateCardOption() =>
+        new(
+            CardId,
+            "************1234",
+            200m,
+            800m,
+            "08/29");
+
+    private static SavingsAccountOperationOptionDto CreateAccountOption() =>
+        new(
+            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            "123456789",
+            1_000m);
 
     private static CreditCardClientCandidateDto CreateClient() =>
         new("client-1", "00100000001", "Ana Pérez", "ana@example.com", 350m);

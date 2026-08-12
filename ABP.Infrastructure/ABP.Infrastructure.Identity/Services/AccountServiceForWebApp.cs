@@ -33,7 +33,9 @@ namespace ABP.Infrastructure.Identity.Services
             ISavingsAccountRepository savingsAccountRepository,
             IAccountBalanceService accountBalanceService,
             IAccountLedger accountLedger,
-            ILogger<BaseAccountService> logger)
+            ILogger<BaseAccountService> logger,
+            ICommerceRepository commerceRepository,
+            IValidator<CreateCommerceUserRequestDto> createCommerceUserValidator)
             : base(
                 mapper,
                 userManager,
@@ -48,7 +50,9 @@ namespace ABP.Infrastructure.Identity.Services
                 savingsAccountRepository,
                 accountBalanceService,
                 accountLedger,
-                logger)
+                logger,
+                commerceRepository,
+                createCommerceUserValidator)
         {
             _signInManager = signInManager;
             _loginDtoValidator = loginDtoValidator;
@@ -138,6 +142,53 @@ namespace ABP.Infrastructure.Identity.Services
         public async Task LogoutAsync()
         {
             await _signInManager.SignOutAsync();
+        }
+
+        public async Task<UserUniquenessResponseDto> CheckRegistrationUniquenessAsync(
+            string? identification,
+            string? email,
+            string? userName,
+            string? excludeUserId = null)
+        {
+            var response = new UserUniquenessResponseDto();
+
+            var normalizedIdentification = identification?.Trim();
+            if (!string.IsNullOrEmpty(normalizedIdentification))
+            {
+                var userWithSameIdentification = await _userRepository.FindByIdentificationAsync(normalizedIdentification);
+                if (userWithSameIdentification is not null && userWithSameIdentification.Id != excludeUserId)
+                {
+                    response.IdentificationError = excludeUserId is null
+                        ? "Ya existe un usuario registrado con este número de cédula."
+                        : "Ya existe otro usuario registrado con esta cédula.";
+                }
+            }
+
+            var normalizedEmail = email?.Trim();
+            if (!string.IsNullOrEmpty(normalizedEmail))
+            {
+                var userWithSameEmail = await _userManager.FindByEmailAsync(normalizedEmail);
+                if (userWithSameEmail is not null && userWithSameEmail.Id != excludeUserId)
+                {
+                    response.EmailError = excludeUserId is null
+                        ? "Ya existe un usuario registrado con este correo electrónico."
+                        : "Ya existe otro usuario registrado con este correo electrónico.";
+                }
+            }
+
+            var normalizedUserName = userName?.Trim();
+            if (!string.IsNullOrEmpty(normalizedUserName))
+            {
+                var userWithSameUserName = await _userManager.FindByNameAsync(normalizedUserName);
+                if (userWithSameUserName is not null && userWithSameUserName.Id != excludeUserId)
+                {
+                    response.UserNameError = excludeUserId is null
+                        ? "Ya existe un usuario registrado con este nombre de usuario."
+                        : "Ya existe otro usuario registrado con este nombre de usuario.";
+                }
+            }
+
+            return response;
         }
     }
 }

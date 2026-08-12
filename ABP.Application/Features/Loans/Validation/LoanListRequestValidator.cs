@@ -10,20 +10,20 @@ public sealed class LoanListRequestValidator : AbstractValidator<LoanListRequest
     {
         RuleFor(request => request.Page)
             .GreaterThan(0)
-            .WithMessage("La p?gina debe ser mayor que cero.");
+            .WithMessage("La página debe ser mayor que cero.");
 
         RuleFor(request => request.PageSize)
             .InclusiveBetween(1, 20)
-            .WithMessage("El tama?o de p?gina debe estar entre 1 y 20.");
+            .WithMessage("El tamaño de página debe estar entre 1 y 20.");
 
         RuleFor(request => request.Identification)
             .Must(HasValidLengthAfterTrim)
-            .WithMessage("La c?dula debe contener un m?ximo de 11 caracteres.");
+            .WithMessage("La cédula debe contener un máximo de 11 caracteres.");
 
         RuleFor(request => request.Status)
             .Must(status => !status.HasValue
-                || Enum.IsDefined(typeof(LoanStatus), status.Value))
-            .WithMessage("El estado del pr?stamo no es v?lido.");
+                || Enum.IsDefined(typeof(LoanStatusFilter), status.Value))
+            .WithMessage("El estado del préstamo no es válido.");
     }
 
     private static bool HasValidLengthAfterTrim(string? identification) =>

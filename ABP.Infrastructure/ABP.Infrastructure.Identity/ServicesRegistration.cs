@@ -20,6 +20,7 @@ using ABP.Infrastructure.Identity.Seeds;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Entities;
 using ABP.Application.Common.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Infrastructure.Identity.Services;
 
@@ -148,17 +149,27 @@ namespace ABP.Infrastructure.Identity
             services.Configure<JwtSettings>(config.GetSection("JwtSettings"));
             #region Jwt Authentication
 
+            services.ConfigureOptions<ConfigureIdentityOptions>();
+
             services.AddIdentityCore<AppUser>()
                 .AddSignInManager()
                 .AddRoles<IdentityRole>()
                 .AddRoleManager<RoleManager<IdentityRole>>()
                 .AddEntityFrameworkStores<IdentityContext>()
-                .AddDefaultTokenProviders();
+                .AddDefaultTokenProviders()
+                .AddTokenProvider<PasswordResetTokenProvider<AppUser>>(
+                    IdentityTokenProviderNames.PasswordReset);
 
 
             services.Configure<DataProtectionTokenProviderOptions>(opt =>
             {
                 opt.TokenLifespan = TimeSpan.FromHours(2);
+            });
+
+            services.Configure<PasswordResetTokenProviderOptions>(opt =>
+            {
+                opt.Name = IdentityTokenProviderNames.PasswordReset;
+                opt.TokenLifespan = TimeSpan.FromMinutes(30);
             });
 
             services.AddAuthentication(opt =>
@@ -192,7 +203,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
-                        Title = "Unauthorized",
+                        Title = "No autorizado",
                         Status = StatusCodes.Status401Unauthorized,
                         Detail = "No tiene autorización para acceder a este recurso.",
                         Instance = context.Request.Path
@@ -216,7 +227,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7235#section-3.1",
-                        Title = "Unauthorized",
+                        Title = "No autorizado",
                         Status = StatusCodes.Status401Unauthorized,
                         Detail = "No tiene autorización para acceder a este recurso.",
                         Instance = context.Request.Path
@@ -235,7 +246,7 @@ opt.Events = new JwtBearerEvents()
                     var problem = new ProblemDetails
                     {
                         Type = "https://tools.ietf.org/html/rfc7231#section-6.5.3",
-                        Title = "Forbidden",
+                        Title = "Acceso denegado",
                         Status = StatusCodes.Status403Forbidden,
                         Detail = "Acceso denegado. No tiene permisos para utilizar este recurso.",
                         Instance = context.Request.Path
@@ -280,6 +291,10 @@ opt.Events = new JwtBearerEvents()
             },
             contextLifetime: ServiceLifetime.Scoped,
             optionsLifetime: ServiceLifetime.Scoped);
+
+            services.AddScoped<
+                ICommerceUserInactivationService,
+                CommerceUserInactivationService>();
         }
 
         private static async Task RejectPrincipalAsync(
@@ -300,12 +315,23 @@ opt.Events = new JwtBearerEvents()
             var configuration = services.GetRequiredService<IConfiguration>();
 
             await DefaultUserRoles.SeedRolesAsync(roleManager);
+
+            var demoCommerceId = await DefaultCommerces.SeedDefaultCommercesAsync(
+                services.GetRequiredService<ICommerceRepository>(),
+                services.GetRequiredService<IUnitOfWork>());
+
             await DefaultUsers.SeedDefaultUsersAsync(
                 userManager,
-                services.GetRequiredService<IGenericRepository<User, string>>(),
+                services.GetRequiredService<IUserRepository>(),
                 services.GetRequiredService<IUnitOfWork>(),
                 services.GetRequiredService<IPrimaryAccountProvisioner>(),
                 configuration);
+
+            await DefaultCommerces.LinkCommerceApiUserAsync(
+                userManager,
+                services.GetRequiredService<IUserRepository>(),
+                services.GetRequiredService<IUnitOfWork>(),
+                demoCommerceId);
         }
     
     }

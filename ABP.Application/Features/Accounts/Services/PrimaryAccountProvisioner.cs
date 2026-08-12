@@ -1,4 +1,5 @@
 using ABP.Application.Common;
+using ABP.Application.Features.Accounts;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Entities.Accounts;
 using ABP.Domain.Enums;
@@ -36,8 +37,7 @@ namespace ABP.Application.Features.Accounts.Services
         {
             if (initialBalance < 0)
             {
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.invalid_amount", "The initial balance cannot be negative."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.InvalidAmount);
             }
 
             var existing = await _accounts.GetPrincipalAccountAsync(ownerUserId, cancellationToken);
@@ -45,8 +45,7 @@ namespace ABP.Application.Features.Accounts.Services
             {
                 _logger.LogWarning(
                     "Apertura de cuenta principal rechazada: el usuario {OwnerUserId} ya tiene una.", ownerUserId);
-                return OperationResult<FinancialOperationReceipt>.Failure(
-                    new Error("accounts.principal_already_exists", $"User '{ownerUserId}' already has a Principal account."));
+                return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.PrincipalAlreadyExists);
             }
 
             var accountNumber = await _identifierGenerator.GenerateNineDigitIdentifierAsync(

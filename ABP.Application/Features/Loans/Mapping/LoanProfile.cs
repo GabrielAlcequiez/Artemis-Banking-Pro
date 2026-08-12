@@ -1,6 +1,7 @@
 using ABP.Application.Features.Loans.DTOs;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
+using ABP.Domain.ReadModels.Loans;
 using AutoMapper;
 
 namespace ABP.Application.Features.Loans.Mapping;
@@ -20,20 +21,7 @@ public sealed class LoanProfile : Profile
                 nameof(LoanInstallmentDto.PaymentStatus),
                 options => options.MapFrom(source => MapInstallmentStatus(source.PaymentStatus)));
 
-        CreateMap<Loan, LoanSummaryDto>()
-            .ForCtorParam(
-                nameof(LoanSummaryDto.ClientFullName),
-                options => options.MapFrom(source => GetClientFullName(source)))
-            .ForCtorParam(
-                nameof(LoanSummaryDto.CapitalAmount),
-                options => options.MapFrom(source => source.Capital))
-            .ForCtorParam(
-                nameof(LoanSummaryDto.TotalInstallments),
-                options => options.MapFrom(source => source.Installments.Count))
-            .ForCtorParam(
-                nameof(LoanSummaryDto.PaidInstallments),
-                options => options.MapFrom(source => source.Installments.Count(
-                    installment => installment.PaymentStatus == InstallmentPaymentStatus.Paid)))
+        CreateMap<LoanSummaryReadModel, LoanSummaryDto>()
             .ForCtorParam(
                 nameof(LoanSummaryDto.Status),
                 options => options.MapFrom(source => MapLoanStatus(source.Status)))
@@ -42,7 +30,7 @@ public sealed class LoanProfile : Profile
                 options => options.MapFrom(source => MapClientPaymentStatus(source)))
             .ForCtorParam(
                 nameof(LoanSummaryDto.CreatedAt),
-                options => options.MapFrom(source => source.CreatedAtUtc));
+                options => options.MapFrom(source => source.CreatedAt));
 
         CreateMap<Loan, LoanDetailDto>()
             .ForCtorParam(
@@ -97,7 +85,19 @@ public sealed class LoanProfile : Profile
         return loan.Installments.Any(
             installment => installment.IsLate && installment.PendingAmount > 0m)
             ? "En mora"
-            : "Al d?a";
+            : "Al día";
+    }
+
+    private static string MapClientPaymentStatus(LoanSummaryReadModel loan)
+    {
+        if (loan.Status == LoanStatus.Completed || loan.PendingAmount == 0m)
+        {
+            return "Saldado";
+        }
+
+        return loan.HasLateInstallments
+            ? "En mora"
+            : "Al día";
     }
 
     private static string MapInstallmentStatus(InstallmentPaymentStatus status) => status switch
