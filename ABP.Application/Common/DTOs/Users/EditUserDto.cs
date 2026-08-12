@@ -1,8 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace ABP.Application.Common.DTOs.Users
 {
     public class EditUserDto
     {
-         public required string Id { get; set; }
+        // El id viene de la ruta directamente y el controller lo asigna.
+        [JsonIgnore]
+        public required string Id { get; set; }
         public required string FirstName { get; set; }
         public required string LastName { get; set; }   
         public required string Identification { get; set; }
@@ -12,7 +16,8 @@ namespace ABP.Application.Common.DTOs.Users
         public string? ConfirmPassword { get; set; }
         public string? Role { get; set; }
 
-        // Si el usuario es cliente o comercio
+        // No usado por la API (el contrato de edición usa additionalAmount)
+        [JsonIgnore]
         public decimal? InitialBalance { get; set; }
         public decimal? AdditionalAmount { get; set; }
     }
