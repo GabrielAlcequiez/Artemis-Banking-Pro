@@ -1,3 +1,4 @@
+using ABP.Application.Features.Accounts;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Domain.Entities;
 using ABP.Domain.Enums;
@@ -109,7 +110,8 @@ public static class DefaultUsers
             cancellationToken);
 
         if (result.IsFailure &&
-            !string.Equals(result.Error.Code, "accounts.principal_already_exists", StringComparison.Ordinal))
+            !string.Equals(result.Error.Code, AccountErrors.PrincipalAlreadyExists.Code, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(result.Error.Code, "accounts.principal_already_exists", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(result.Error.Description);
         }
