@@ -45,6 +45,7 @@ namespace ABP.Infrastructure.Persistence
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IAccountTokenRepository, AccountTokenRepository>();
             services.AddScoped<ISavingsAccountRepository, SavingsAccountRepository>();
+            services.AddScoped<ICommerceRepository, CommerceRepository>();
             services.AddScoped<IAccountTransactionRepository, AccountTransactionRepository>();
             services.AddScoped<IBeneficiaryRepository, BeneficiaryRepository>();
             services.AddScoped<IFinancialIdentifierGenerator, FinancialIdentifierGenerator>();
