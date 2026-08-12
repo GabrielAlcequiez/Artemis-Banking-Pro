@@ -1,3 +1,4 @@
+using System.Data;
 using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Infrastructure.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,15 @@ public sealed class EfFinancialTransaction(AppDbContext context)
     : IFinancialTransaction
 {
     public async Task<TResult> ExecuteAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation,
+        CancellationToken cancellationToken = default) =>
+        await ExecuteAsync(
+            IsolationLevel.ReadCommitted,
+            operation,
+            cancellationToken);
+
+    public async Task<TResult> ExecuteAsync<TResult>(
+        IsolationLevel isolationLevel,
         Func<CancellationToken, Task<TResult>> operation,
         CancellationToken cancellationToken = default)
     {
@@ -24,7 +34,7 @@ public sealed class EfFinancialTransaction(AppDbContext context)
         return await strategy.ExecuteAsync(async () =>
         {
             await using var transaction = await context.Database
-                .BeginTransactionAsync(cancellationToken);
+                .BeginTransactionAsync(isolationLevel, cancellationToken);
 
             try
             {
@@ -35,6 +45,7 @@ public sealed class EfFinancialTransaction(AppDbContext context)
             catch
             {
                 await transaction.RollbackAsync(cancellationToken);
+                context.ChangeTracker.Clear();
                 throw;
             }
         });

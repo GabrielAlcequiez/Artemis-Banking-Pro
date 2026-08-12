@@ -2,6 +2,7 @@ using System.Globalization;
 using ABP.Application.Common;
 using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
+using ABP.Application.Exceptions;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
@@ -75,17 +76,9 @@ public sealed class CashAdvanceService(
         var previousConsumption = await creditCards.GetConsumptionByOperationIdAsync(
             request.OperationId,
             cancellationToken);
-        if (previousConsumption is not null &&
-            previousConsumption.CreditCardId == request.CreditCardId)
+        if (previousConsumption is not null)
         {
-            return previousConsumption.Status == ConsumptionStatus.Approved
-                ? OperationResult<FinancialOperationReceipt>.Success(
-                    new FinancialOperationReceipt(
-                        request.OperationId,
-                        request.Amount,
-                        previousConsumption.OccurredAtUtc))
-                : OperationResult<FinancialOperationReceipt>.Failure(
-                    CardFinancialOperationErrors.InsufficientCredit);
+            return ResolveReplay(previousConsumption, request, clientId);
         }
 
         var card = await creditCards.GetByIdAsync(
@@ -106,20 +99,10 @@ public sealed class CashAdvanceService(
                 CardFinancialOperationErrors.AccountNotFound);
         }
 
-        var validationError = ValidateProducts(
-            card,
-            account,
-            clientId,
-            request.Amount,
-            clock.Today);
-        if (validationError is not null &&
-            validationError != CardFinancialOperationErrors.InsufficientCredit)
+        try
         {
-            return OperationResult<FinancialOperationReceipt>.Failure(validationError);
-        }
-
-        return await financialTransaction.ExecuteAsync(
-            async transactionCancellationToken =>
+            return await financialTransaction.ExecuteAsync(
+                async transactionCancellationToken =>
             {
                 var trackedCard = await creditCards.GetForUpdateAsync(
                     request.CreditCardId,
@@ -146,25 +129,19 @@ public sealed class CashAdvanceService(
                     request.Amount);
                 var processedAtUtc = clock.UtcNow;
 
-                if (currentValidationError ==
-                    CardFinancialOperationErrors.InsufficientCredit)
+                if (currentValidationError is not null)
                 {
                     await creditCards.AddConsumptionAsync(
                         CreateConsumption(
-                            trackedCard.Id,
-                            request.OperationId,
+                            request,
+                            clientId,
                             totalCharge,
                             ConsumptionStatus.Rejected,
-                            processedAtUtc),
+                            processedAtUtc,
+                            currentValidationError),
                         transactionCancellationToken);
                     await unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
-                    return OperationResult<FinancialOperationReceipt>.Failure(
-                        currentValidationError);
-                }
-
-                if (currentValidationError is not null)
-                {
                     return OperationResult<FinancialOperationReceipt>.Failure(
                         currentValidationError);
                 }
@@ -175,15 +152,27 @@ public sealed class CashAdvanceService(
                     transactionCancellationToken);
                 if (creditResult.IsFailure)
                 {
+                    var error = CardFinancialOperationErrors.AccountInactive;
+                    await creditCards.AddConsumptionAsync(
+                        CreateConsumption(
+                            request,
+                            clientId,
+                            totalCharge,
+                            ConsumptionStatus.Rejected,
+                            processedAtUtc,
+                            error),
+                        transactionCancellationToken);
+                    await unitOfWork.SaveChangesAsync(transactionCancellationToken);
+
                     return OperationResult<FinancialOperationReceipt>.Failure(
-                        CardFinancialOperationErrors.AccountInactive);
+                        error);
                 }
 
                 trackedCard.Debt += totalCharge;
                 await creditCards.AddConsumptionAsync(
                     CreateConsumption(
-                        trackedCard.Id,
-                        request.OperationId,
+                        request,
+                        clientId,
                         totalCharge,
                         ConsumptionStatus.Approved,
                         processedAtUtc),
@@ -209,6 +198,21 @@ public sealed class CashAdvanceService(
                         processedAtUtc));
             },
             cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is PersistenceConflictException or
+                  FinancialConcurrencyException)
+        {
+            var concurrentConsumption = await creditCards.GetConsumptionByOperationIdAsync(
+                request.OperationId,
+                cancellationToken);
+            if (concurrentConsumption is null)
+            {
+                throw;
+            }
+
+            return ResolveReplay(concurrentConsumption, request, clientId);
+        }
     }
 
     private string? GetCurrentClientId() =>
@@ -252,21 +256,53 @@ public sealed class CashAdvanceService(
     }
 
     private static CardConsumption CreateConsumption(
-        Guid cardId,
-        Guid operationId,
+        CashAdvanceRequest request,
+        string actorUserId,
         decimal amount,
         ConsumptionStatus status,
-        DateTimeOffset occurredAtUtc) =>
+        DateTimeOffset occurredAtUtc,
+        Error? error = null) =>
         new()
         {
-            CreditCardId = cardId,
+            CreditCardId = request.CreditCardId,
             CommerceId = null,
+            TargetAccountId = request.TargetAccountId,
             CommerceName = "AVANCE",
+            RequestedAmount = request.Amount,
             Amount = amount,
             Status = status,
             OccurredAtUtc = occurredAtUtc,
-            OperationId = operationId
+            OperationId = request.OperationId,
+            ActorUserId = actorUserId,
+            FailureCode = error?.Code,
+            FailureDescription = error?.Description
         };
+
+    private static OperationResult<FinancialOperationReceipt> ResolveReplay(
+        CardConsumption consumption,
+        CashAdvanceRequest request,
+        string actorUserId)
+    {
+        if (consumption.ActorUserId != actorUserId ||
+            consumption.CreditCardId != request.CreditCardId ||
+            consumption.TargetAccountId != request.TargetAccountId ||
+            consumption.RequestedAmount != request.Amount)
+        {
+            return OperationResult<FinancialOperationReceipt>.Failure(
+                CardFinancialOperationErrors.OperationIdConflict);
+        }
+
+        return consumption.Status == ConsumptionStatus.Approved
+            ? OperationResult<FinancialOperationReceipt>.Success(
+                new FinancialOperationReceipt(
+                    consumption.OperationId,
+                    consumption.RequestedAmount.Value,
+                    consumption.OccurredAtUtc))
+            : OperationResult<FinancialOperationReceipt>.Failure(
+                CardFinancialOperationErrors.ResolvePersisted(
+                    consumption.FailureCode,
+                    consumption.FailureDescription));
+    }
 
     private static ClientCardOperationOptions EmptyOptions() =>
         new(

@@ -25,6 +25,10 @@ namespace ABP.Infrastructure.Persistence.Repositories
             {
                 throw new PersistenceConflictException(exception);
             }
+            catch (DbUpdateException exception)
+            {
+                throw new PersistenceFailureException(exception);
+            }
         }
 
         private static bool IsUniqueConstraintViolation(

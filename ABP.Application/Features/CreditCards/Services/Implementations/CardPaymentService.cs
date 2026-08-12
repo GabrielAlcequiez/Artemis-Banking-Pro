@@ -2,6 +2,7 @@ using System.Globalization;
 using ABP.Application.Common;
 using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
+using ABP.Application.Exceptions;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
@@ -16,7 +17,6 @@ public sealed class CardPaymentService(
     ICreditCardRepository creditCards,
     ISavingsAccountRepository accounts,
     IUserRepository users,
-    IAccountTransactionRepository accountTransactions,
     IAccountBalanceService balances,
     IAccountLedger ledger,
     IUnitOfWork unitOfWork,
@@ -150,25 +150,9 @@ public sealed class CardPaymentService(
         var previousPayment = await creditCards.GetPaymentByOperationIdAsync(
             request.OperationId,
             cancellationToken);
-        if (previousPayment is not null &&
-            previousPayment.ActorUserId == actor.Value.UserId)
+        if (previousPayment is not null)
         {
-            return OperationResult<FinancialOperationReceipt>.Success(
-                new FinancialOperationReceipt(
-                    previousPayment.OperationId,
-                    previousPayment.EffectiveAmount,
-                    previousPayment.PaidAtUtc));
-        }
-
-        var previousLedgerEntries = await accountTransactions.GetByOperationIdAsync(
-            request.OperationId,
-            cancellationToken);
-        if (previousLedgerEntries.Any(entry =>
-                entry.ActorUserId == actor.Value.UserId &&
-                entry.Status == TransactionStatus.Rejected))
-        {
-            return OperationResult<FinancialOperationReceipt>.Failure(
-                CardFinancialOperationErrors.InsufficientFunds);
+            return ResolveReplay(previousPayment, request, actor.Value.UserId);
         }
 
         var card = await creditCards.GetByIdAsync(
@@ -189,25 +173,10 @@ public sealed class CardPaymentService(
                 CardFinancialOperationErrors.AccountNotFound);
         }
 
-        var ownershipError = ValidateOwnership(
-            actor.Value.Role,
-            actor.Value.UserId,
-            card.ClientId,
-            account.OwnerUserId);
-        if (ownershipError is not null)
+        try
         {
-            return OperationResult<FinancialOperationReceipt>.Failure(ownershipError);
-        }
-
-        var validationError = ValidateProducts(card, account, request.Amount);
-        if (validationError is not null &&
-            validationError != CardFinancialOperationErrors.InsufficientFunds)
-        {
-            return OperationResult<FinancialOperationReceipt>.Failure(validationError);
-        }
-
-        return await financialTransaction.ExecuteAsync(
-            async transactionCancellationToken =>
+            return await financialTransaction.ExecuteAsync(
+                async transactionCancellationToken =>
             {
                 var trackedCard = await creditCards.GetForUpdateAsync(
                     request.CreditCardId,
@@ -224,43 +193,31 @@ public sealed class CardPaymentService(
                             : CardFinancialOperationErrors.AccountNotFound);
                 }
 
-                var currentOwnershipError = ValidateOwnership(
+                var currentValidationError = ValidateOwnership(
                     actor.Value.Role,
                     actor.Value.UserId,
                     trackedCard.ClientId,
-                    currentAccount.OwnerUserId);
-                if (currentOwnershipError is not null)
-                {
-                    return OperationResult<FinancialOperationReceipt>.Failure(
-                        currentOwnershipError);
-                }
-
-                var currentValidationError = ValidateProducts(
-                    trackedCard,
-                    currentAccount,
-                    request.Amount);
-                var effectiveAmount = Math.Min(request.Amount, trackedCard.Debt);
-
-                if (currentValidationError ==
-                    CardFinancialOperationErrors.InsufficientFunds)
-                {
-                    await ledger.RecordRejectedAsync(
-                        currentAccount.Id,
-                        request.OperationId,
-                        effectiveAmount,
-                        TransactionDirection.Debit,
-                        FinancialOperationType.CreditCardPayment,
-                        CardFinancialOperationErrors.InsufficientFunds.Description,
-                        actor.Value.UserId,
-                        actor.Value.Role,
-                        transactionCancellationToken);
-
-                    return OperationResult<FinancialOperationReceipt>.Failure(
-                        currentValidationError);
-                }
+                    currentAccount.OwnerUserId)
+                    ?? ValidateProducts(
+                        trackedCard,
+                        currentAccount,
+                        request.Amount);
+                var effectiveAmount = trackedCard.Debt > 0m
+                    ? Math.Min(request.Amount, trackedCard.Debt)
+                    : 0m;
+                var processedAtUtc = clock.UtcNow;
 
                 if (currentValidationError is not null)
                 {
+                    await PersistRejectedPaymentAsync(
+                        request,
+                        actor.Value.UserId,
+                        effectiveAmount,
+                        processedAtUtc,
+                        currentValidationError,
+                        actor.Value.Role,
+                        transactionCancellationToken);
+
                     return OperationResult<FinancialOperationReceipt>.Failure(
                         currentValidationError);
                 }
@@ -272,14 +229,12 @@ public sealed class CardPaymentService(
 
                 if (debitResult.IsFailure)
                 {
-                    await ledger.RecordRejectedAsync(
-                        currentAccount.Id,
-                        request.OperationId,
-                        effectiveAmount,
-                        TransactionDirection.Debit,
-                        FinancialOperationType.CreditCardPayment,
-                        CardFinancialOperationErrors.InsufficientFunds.Description,
+                    await PersistRejectedPaymentAsync(
+                        request,
                         actor.Value.UserId,
+                        effectiveAmount,
+                        processedAtUtc,
+                        CardFinancialOperationErrors.InsufficientFunds,
                         actor.Value.Role,
                         transactionCancellationToken);
 
@@ -288,16 +243,17 @@ public sealed class CardPaymentService(
                 }
 
                 trackedCard.Debt -= effectiveAmount;
-                var processedAtUtc = clock.UtcNow;
                 await creditCards.AddPaymentAsync(
                     new CardPayment
                     {
                         CreditCardId = trackedCard.Id,
                         SourceAccountId = currentAccount.Id,
+                        RequestedAmount = request.Amount,
                         EffectiveAmount = effectiveAmount,
                         ActorUserId = actor.Value.UserId,
                         PaidAtUtc = processedAtUtc,
-                        OperationId = request.OperationId
+                        OperationId = request.OperationId,
+                        Status = TransactionStatus.Approved
                     },
                     transactionCancellationToken);
                 await unitOfWork.SaveChangesAsync(transactionCancellationToken);
@@ -321,6 +277,92 @@ public sealed class CardPaymentService(
                         processedAtUtc));
             },
             cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is PersistenceConflictException or
+                  FinancialConcurrencyException)
+        {
+            var concurrentPayment = await creditCards.GetPaymentByOperationIdAsync(
+                request.OperationId,
+                cancellationToken);
+
+            if (concurrentPayment is null)
+            {
+                throw;
+            }
+
+            return ResolveReplay(
+                concurrentPayment,
+                request,
+                actor.Value.UserId);
+        }
+    }
+
+    private async Task PersistRejectedPaymentAsync(
+        CreditCardPaymentRequest request,
+        string actorUserId,
+        decimal effectiveAmount,
+        DateTimeOffset processedAtUtc,
+        Error error,
+        string actorRole,
+        CancellationToken cancellationToken)
+    {
+        await creditCards.AddPaymentAsync(
+            new CardPayment
+            {
+                CreditCardId = request.CreditCardId,
+                SourceAccountId = request.SourceAccountId,
+                RequestedAmount = request.Amount,
+                EffectiveAmount = effectiveAmount,
+                ActorUserId = actorUserId,
+                PaidAtUtc = processedAtUtc,
+                OperationId = request.OperationId,
+                Status = TransactionStatus.Rejected,
+                FailureCode = error.Code,
+                FailureDescription = error.Description
+            },
+            cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (error == CardFinancialOperationErrors.InsufficientFunds)
+        {
+            await ledger.RecordRejectedAsync(
+                request.SourceAccountId,
+                request.OperationId,
+                effectiveAmount,
+                TransactionDirection.Debit,
+                FinancialOperationType.CreditCardPayment,
+                error.Description,
+                actorUserId,
+                actorRole,
+                cancellationToken);
+        }
+    }
+
+    private static OperationResult<FinancialOperationReceipt> ResolveReplay(
+        CardPayment payment,
+        CreditCardPaymentRequest request,
+        string actorUserId)
+    {
+        if (payment.ActorUserId != actorUserId ||
+            payment.CreditCardId != request.CreditCardId ||
+            payment.SourceAccountId != request.SourceAccountId ||
+            payment.RequestedAmount != request.Amount)
+        {
+            return OperationResult<FinancialOperationReceipt>.Failure(
+                CardFinancialOperationErrors.OperationIdConflict);
+        }
+
+        return payment.Status == TransactionStatus.Approved
+            ? OperationResult<FinancialOperationReceipt>.Success(
+                new FinancialOperationReceipt(
+                    payment.OperationId,
+                    payment.EffectiveAmount,
+                    payment.PaidAtUtc))
+            : OperationResult<FinancialOperationReceipt>.Failure(
+                CardFinancialOperationErrors.ResolvePersisted(
+                    payment.FailureCode,
+                    payment.FailureDescription));
     }
 
     private string? GetCurrentClientId() =>

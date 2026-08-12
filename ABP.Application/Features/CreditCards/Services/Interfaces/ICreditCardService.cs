@@ -17,6 +17,12 @@ public interface ICreditCardService
         Guid creditCardId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<ClientCreditCardPortfolioItemDto>>
+        GetClientActiveCardsAsync(
+            CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyCollection<ClientCreditCardPortfolioItemDto>>(
+            Array.Empty<ClientCreditCardPortfolioItemDto>());
+
     Task<OperationResult<Guid>> CreateAsync(
         CreateCreditCardRequest request,
         CancellationToken cancellationToken = default);

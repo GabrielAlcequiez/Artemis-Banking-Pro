@@ -47,4 +47,43 @@ public static class CardFinancialOperationErrors
     public static readonly Error InsufficientCredit = new(
         "CreditCards.InsufficientCredit",
         "El avance solicitado excede el crédito disponible de la tarjeta seleccionada.");
+
+    public static readonly Error OperationIdConflict = new(
+        "CreditCards.OperationIdConflict",
+        "El identificador de operación ya fue utilizado con datos diferentes.");
+
+    public static Error ResolvePersisted(
+        string? code,
+        string? description)
+    {
+        var knownError = All.FirstOrDefault(error => error.Code == code);
+        if (knownError is not null)
+        {
+            return knownError;
+        }
+
+        return new Error(
+            string.IsNullOrWhiteSpace(code)
+                ? "CreditCards.OperationRejected"
+                : code,
+            string.IsNullOrWhiteSpace(description)
+                ? "La operación fue rechazada."
+                : description);
+    }
+
+    private static readonly Error[] All =
+    [
+        AuthenticationRequired,
+        RoleNotAllowed,
+        CardNotFound,
+        AccountNotFound,
+        OwnershipRequired,
+        CardInactive,
+        AccountInactive,
+        CardWithoutDebt,
+        InsufficientFunds,
+        CardExpired,
+        InsufficientCredit,
+        OperationIdConflict
+    ];
 }
