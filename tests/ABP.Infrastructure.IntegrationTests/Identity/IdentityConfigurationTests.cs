@@ -1,8 +1,10 @@
 using ABP.Application.Common.Interfaces.Identity;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Domain.Entities;
 using ABP.Infrastructure.Identity;
 using ABP.Infrastructure.Identity.Context;
 using ABP.Infrastructure.Identity.Security;
+using ABP.Infrastructure.Identity.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -61,6 +63,12 @@ public class IdentityConfigurationTests
             descriptor =>
                 descriptor.ServiceType == typeof(IAccountTokenService) &&
                 descriptor.ImplementationType == typeof(AccountTokenService) &&
+                descriptor.Lifetime == ServiceLifetime.Scoped);
+        Assert.Contains(
+            services,
+            descriptor =>
+                descriptor.ServiceType == typeof(ICommerceUserInactivationService) &&
+                descriptor.ImplementationType == typeof(CommerceUserInactivationService) &&
                 descriptor.Lifetime == ServiceLifetime.Scoped);
     }
 
