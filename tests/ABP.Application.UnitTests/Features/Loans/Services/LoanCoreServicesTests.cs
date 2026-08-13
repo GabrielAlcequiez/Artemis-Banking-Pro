@@ -335,6 +335,8 @@ public sealed class LoanCoreServicesTests
 
         public Task<Loan?> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+        public Task<Loan?> GetDetailsForClientAsync(Guid id, string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
         public Task<LoanPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
@@ -372,6 +374,9 @@ public sealed class LoanCoreServicesTests
             throw new NotImplementedException();
 
         public Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<ClientLoanPortfolioReadModel?> GetActivePortfolioForClientAsync(string clientId, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
         public Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default) =>

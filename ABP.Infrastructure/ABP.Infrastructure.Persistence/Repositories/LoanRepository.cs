@@ -34,6 +34,20 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
             .SingleOrDefaultAsync(loan => loan.Id == id, cancellationToken);
     }
 
+    public Task<Loan?> GetDetailsForClientAsync(
+        Guid id,
+        string clientId,
+        CancellationToken cancellationToken = default)
+    {
+        return Entities
+            .AsNoTracking()
+            .Include(loan => loan.Client)
+            .Include(loan => loan.Installments.OrderBy(installment => installment.Number))
+            .SingleOrDefaultAsync(
+                loan => loan.Id == id && loan.ClientId == clientId,
+                cancellationToken);
+    }
+
     public Task<LoanPayment?> GetPaymentByOperationIdAsync(
         Guid operationId,
         CancellationToken cancellationToken = default)
@@ -51,6 +65,29 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
         return Entities.AsNoTracking().FirstOrDefaultAsync(
             loan => loan.ClientId == clientId && loan.Status == LoanStatus.Active,
             cancellationToken);
+    }
+
+    public Task<ClientLoanPortfolioReadModel?> GetActivePortfolioForClientAsync(
+        string clientId,
+        CancellationToken cancellationToken = default)
+    {
+        return Entities
+            .AsNoTracking()
+            .Where(loan =>
+                loan.ClientId == clientId
+                && loan.Status == LoanStatus.Active)
+            .Select(loan => new ClientLoanPortfolioReadModel(
+                loan.Id,
+                loan.LoanNumber,
+                loan.Capital,
+                loan.PendingAmount,
+                loan.Installments
+                    .OrderBy(installment => installment.Number)
+                    .Select(installment => installment.InstallmentAmount)
+                    .FirstOrDefault(),
+                loan.AnnualInterestRate,
+                loan.TermInMonths))
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default)

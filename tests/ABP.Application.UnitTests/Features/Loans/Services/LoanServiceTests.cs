@@ -1,3 +1,4 @@
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Loans.DTOs;
 using ABP.Application.Features.Loans.Mapping;
 using ABP.Application.Features.Loans.Services.Implementations;
@@ -107,8 +108,104 @@ public sealed class LoanServiceTests
         Assert.Null(result);
     }
 
-    private ILoanService CreateService(FakeLoanRepository repository) =>
-        new LoanService(repository, mapper, new LoanListRequestValidator());
+    [Fact]
+    public async Task Get_client_detail_filters_by_authenticated_client_and_maps_loan()
+    {
+        var loan = CreateLoan();
+        var repository = new FakeLoanRepository { ClientDetail = loan };
+        var currentUser = new FakeCurrentUserService
+        {
+            UserId = "client-1"
+        };
+        var service = CreateService(repository, currentUser);
+
+        var result = await service.GetClientDetailAsync(loan.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(loan.Id, repository.ReceivedClientLoanId);
+        Assert.Equal("client-1", repository.ReceivedClientId);
+        Assert.Equal("123456789", result.LoanNumber);
+    }
+
+    [Fact]
+    public async Task Get_client_detail_does_not_query_when_user_is_unauthenticated()
+    {
+        var repository = new FakeLoanRepository { ClientDetail = CreateLoan() };
+        var service = CreateService(
+            repository,
+            new FakeCurrentUserService { IsAuthenticated = false });
+
+        var result = await service.GetClientDetailAsync(Guid.NewGuid());
+
+        Assert.Null(result);
+        Assert.Equal(0, repository.GetClientDetailsCalls);
+    }
+
+    [Fact]
+    public async Task Get_client_detail_does_not_query_when_user_is_not_a_client()
+    {
+        var repository = new FakeLoanRepository { ClientDetail = CreateLoan() };
+        var service = CreateService(
+            repository,
+            new FakeCurrentUserService
+            {
+                UserRoles = [nameof(Roles.Administrator)]
+            });
+
+        var result = await service.GetClientDetailAsync(Guid.NewGuid());
+
+        Assert.Null(result);
+        Assert.Equal(0, repository.GetClientDetailsCalls);
+    }
+
+    [Fact]
+    public async Task Get_client_active_loan_filters_by_user_and_maps_portfolio_item()
+    {
+        var loanId = Guid.NewGuid();
+        var repository = new FakeLoanRepository
+        {
+            ActivePortfolio = new ClientLoanPortfolioReadModel(
+                loanId,
+                "123456789",
+                10_000m,
+                7_500m,
+                900m,
+                12m,
+                12)
+        };
+        var service = CreateService(repository);
+
+        var result = await service.GetClientActiveLoanAsync();
+
+        Assert.NotNull(result);
+        Assert.Equal("client-1", repository.ReceivedPortfolioClientId);
+        Assert.Equal(loanId, result.Id);
+        Assert.Equal(7_500m, result.PendingAmount);
+        Assert.Equal(900m, result.MonthlyInstallment);
+    }
+
+    [Fact]
+    public async Task Get_client_active_loan_does_not_query_for_unauthenticated_user()
+    {
+        var repository = new FakeLoanRepository();
+        var service = CreateService(
+            repository,
+            new FakeCurrentUserService { IsAuthenticated = false });
+
+        var result = await service.GetClientActiveLoanAsync();
+
+        Assert.Null(result);
+        Assert.Equal(0, repository.GetActivePortfolioCalls);
+    }
+
+    private ILoanService CreateService(
+        FakeLoanRepository repository,
+        FakeCurrentUserService? currentUser = null) =>
+        new LoanService(
+            repository,
+            mapper,
+            new LoanListRequestValidator(),
+            currentUser ?? new FakeCurrentUserService());
 
     private static Loan CreateLoan() => new()
     {
@@ -148,11 +245,25 @@ public sealed class LoanServiceTests
 
         public Loan? Detail { get; init; }
 
+        public Loan? ClientDetail { get; init; }
+
+        public ClientLoanPortfolioReadModel? ActivePortfolio { get; init; }
+
         public int GetPagedCalls { get; private set; }
 
         public string? ReceivedIdentification { get; private set; }
 
         public LoanStatusFilter? ReceivedStatus { get; private set; }
+
+        public Guid? ReceivedClientLoanId { get; private set; }
+
+        public string? ReceivedClientId { get; private set; }
+
+        public int GetClientDetailsCalls { get; private set; }
+
+        public string? ReceivedPortfolioClientId { get; private set; }
+
+        public int GetActivePortfolioCalls { get; private set; }
 
         public Task<PagedResult<LoanSummaryReadModel>> GetPagedAsync(
             PagedRequest request,
@@ -176,6 +287,17 @@ public sealed class LoanServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
 
+        public Task<Loan?> GetDetailsForClientAsync(
+            Guid id,
+            string clientId,
+            CancellationToken cancellationToken = default)
+        {
+            GetClientDetailsCalls++;
+            ReceivedClientLoanId = id;
+            ReceivedClientId = clientId;
+            return Task.FromResult(ClientDetail);
+        }
+
         public Task<LoanPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
@@ -184,6 +306,15 @@ public sealed class LoanServiceTests
 
         public Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+
+        public Task<ClientLoanPortfolioReadModel?> GetActivePortfolioForClientAsync(
+            string clientId,
+            CancellationToken cancellationToken = default)
+        {
+            GetActivePortfolioCalls++;
+            ReceivedPortfolioClientId = clientId;
+            return Task.FromResult(ActivePortfolio);
+        }
 
         public Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
@@ -235,5 +366,24 @@ public sealed class LoanServiceTests
 
         public Task<Loan?> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
+    }
+
+    private sealed class FakeCurrentUserService : ICurrentUserService
+    {
+        public bool IsAuthenticated { get; init; } = true;
+
+        public string? UserId { get; init; } = "client-1";
+
+        public string? UserName => null;
+
+        public Guid? CommerceId => null;
+
+        public IReadOnlyCollection<string> UserRoles { get; init; } =
+            [nameof(ABP.Domain.Enums.Roles.Client)];
+
+        public IReadOnlyCollection<string> Roles => UserRoles;
+
+        public bool IsInRole(string role) =>
+            UserRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
     }
 }
