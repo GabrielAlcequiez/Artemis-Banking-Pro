@@ -1,0 +1,79 @@
+@model ABP.WebApp.Areas.Client.ViewModels.Loans.LoanPaymentViewModel
+@{
+    ViewData["Title"] = "Pago de préstamo";
+    var canPay = Model.Loans.Count > 0 && Model.SavingsAccounts.Count > 0;
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink"
+           asp-area="Client"
+           asp-controller="Home"
+           asp-action="Index">← Volver al Home</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Pago de préstamo</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Utiliza fondos de una de tus cuentas activas para reducir el balance de tu préstamo.
+        </p>
+    </header>
+
+    <form asp-action="Create" method="post" class="card space-y-5 p-6">
+        @Html.AntiForgeryToken()
+        <input asp-for="OperationId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        @if (Model.Loans.Count == 0)
+        {
+            <div class="alert" role="status">No tienes préstamos activos pendientes de pago.</div>
+        }
+        else
+        {
+            <div class="space-y-2">
+                <label asp-for="LoanId" class="text-sm font-medium text-ink">Préstamo</label>
+                <select asp-for="LoanId" class="input" required>
+                    <option value="">Seleccione un préstamo</option>
+                    @foreach (var loan in Model.Loans)
+                    {
+                        <option value="@loan.Id">
+                            @loan.LoanNumber · Pendiente RD$ @loan.PendingAmount.ToString("N2")
+                        </option>
+                    }
+                </select>
+                <span asp-validation-for="LoanId" class="text-sm text-danger"></span>
+            </div>
+        }
+
+        @if (Model.SavingsAccounts.Count == 0)
+        {
+            <div class="alert" role="status">No tienes cuentas de ahorro activas disponibles.</div>
+        }
+        else
+        {
+            <div class="space-y-2">
+                <label asp-for="SourceAccountId" class="text-sm font-medium text-ink">Cuenta de origen</label>
+                <select asp-for="SourceAccountId" class="input" required>
+                    <option value="">Seleccione una cuenta</option>
+                    @foreach (var account in Model.SavingsAccounts)
+                    {
+                        <option value="@account.Id">
+                            @account.AccountNumber · Disponible RD$ @account.Balance.ToString("N2")
+                        </option>
+                    }
+                </select>
+                <span asp-validation-for="SourceAccountId" class="text-sm text-danger"></span>
+            </div>
+        }
+
+        <div class="space-y-2">
+            <label asp-for="Amount" class="text-sm font-medium text-ink">Monto a pagar</label>
+            <input asp-for="Amount" class="input" type="number" min="0.01" step="0.01" />
+            <span asp-validation-for="Amount" class="text-sm text-danger"></span>
+            <p class="text-xs text-ink-muted">
+                Si ingresas más que el balance pendiente, solo se debitará la deuda real.
+            </p>
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@(!canPay)">
+            Realizar pago
+        </button>
+    </form>
+</div>
