@@ -1,6 +1,8 @@
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Loans.DTOs;
 using ABP.Application.Features.Loans.Services.Interfaces;
 using ABP.Domain.Common;
+using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using AutoMapper;
 using FluentValidation;
@@ -10,7 +12,8 @@ namespace ABP.Application.Features.Loans.Services.Implementations;
 public sealed class LoanService(
     ILoanRepository repository,
     IMapper mapper,
-    IValidator<LoanListRequest> listValidator) : ILoanService
+    IValidator<LoanListRequest> listValidator,
+    ICurrentUserService currentUser) : ILoanService
 {
     public async Task<PagedResult<LoanSummaryDto>> ListAsync(
         LoanListRequest request,
@@ -46,6 +49,52 @@ public sealed class LoanService(
         return loan is null
             ? null
             : mapper.Map<LoanDetailDto>(loan);
+    }
+
+    public async Task<LoanDetailDto?> GetClientDetailAsync(
+        Guid loanId,
+        CancellationToken cancellationToken = default)
+    {
+        var clientId = currentUser.IsAuthenticated
+            && currentUser.IsInRole(nameof(Roles.Client))
+                ? currentUser.UserId
+                : null;
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return null;
+        }
+
+        var loan = await repository.GetDetailsForClientAsync(
+            loanId,
+            clientId,
+            cancellationToken);
+
+        return loan is null
+            ? null
+            : mapper.Map<LoanDetailDto>(loan);
+    }
+
+    public async Task<ClientLoanPortfolioItemDto?> GetClientActiveLoanAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var clientId = currentUser.IsAuthenticated
+            && currentUser.IsInRole(nameof(Roles.Client))
+                ? currentUser.UserId
+                : null;
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return null;
+        }
+
+        var loan = await repository.GetActivePortfolioForClientAsync(
+            clientId,
+            cancellationToken);
+
+        return loan is null
+            ? null
+            : mapper.Map<ClientLoanPortfolioItemDto>(loan);
     }
 
     private static string? NormalizeIdentification(string? identification) =>

@@ -367,6 +367,15 @@ public sealed class LoansControllerTests
             Guid loanId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
+
+        public Task<LoanDetailDto?> GetClientDetailAsync(
+            Guid loanId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<ClientLoanPortfolioItemDto?> GetClientActiveLoanAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
     }
 
     private sealed class FakeClientSelectionService

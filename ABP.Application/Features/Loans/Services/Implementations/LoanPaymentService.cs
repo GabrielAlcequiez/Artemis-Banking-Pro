@@ -16,6 +16,7 @@ namespace ABP.Application.Features.Loans.Services.Implementations;
 public sealed class LoanPaymentService(
     ILoanRepository loanRepository,
     ISavingsAccountRepository savingsAccountRepository,
+    IUserRepository userRepository,
     IAccountBalanceService accountBalanceService,
     IAccountLedger accountLedger,
     IUnitOfWork unitOfWork,
@@ -25,6 +26,130 @@ public sealed class LoanPaymentService(
     ILogger<LoanPaymentService> logger)
     : ILoanPaymentService
 {
+    public async Task<ClientLoanPaymentOptions> GetClientOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var clientId = GetCurrentClientId();
+
+        if (clientId is null)
+        {
+            return EmptyClientOptions();
+        }
+
+        var loan = await loanRepository.GetActiveByClientIdAsync(
+            clientId,
+            cancellationToken);
+        var accounts = await savingsAccountRepository.GetActiveByOwnerIdAsync(
+            clientId,
+            cancellationToken);
+        var loans = loan is null
+            ? Array.Empty<LoanOperationOptionDto>()
+            :
+            [
+                new LoanOperationOptionDto(
+                    loan.Id,
+                    loan.LoanNumber,
+                    loan.PendingAmount)
+            ];
+
+        return new ClientLoanPaymentOptions(
+            loans,
+            accounts
+                .Select(account => new SavingsAccountOperationOptionDto(
+                    account.Id,
+                    account.AccountNumber,
+                    account.Balance))
+                .ToArray());
+    }
+
+    public async Task<OperationResult<CashierLoanPaymentPreview>> PrepareCashierPaymentAsync(
+        string sourceAccountNumber,
+        string loanNumber,
+        decimal amount,
+        Guid operationId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsCurrentCashier())
+        {
+            return OperationResult<CashierLoanPaymentPreview>.Failure(
+                LoanErrors.CashierRequired);
+        }
+
+        if (amount <= 0m || operationId == Guid.Empty)
+        {
+            return OperationResult<CashierLoanPaymentPreview>.Failure(
+                LoanErrors.InvalidPayment);
+        }
+
+        var normalizedAccountNumber = sourceAccountNumber?.Trim() ?? string.Empty;
+        var normalizedLoanNumber = loanNumber?.Trim() ?? string.Empty;
+
+        if (!IsNineDigitNumber(normalizedAccountNumber))
+        {
+            return OperationResult<CashierLoanPaymentPreview>.Failure(
+                LoanErrors.SourceAccountNotFound);
+        }
+
+        if (!IsNineDigitNumber(normalizedLoanNumber))
+        {
+            return OperationResult<CashierLoanPaymentPreview>.Failure(
+                LoanErrors.NotFound);
+        }
+
+        var account = await savingsAccountRepository.GetByAccountNumberAsync(
+            normalizedAccountNumber,
+            cancellationToken);
+
+        if (account is null)
+        {
+            return OperationResult<CashierLoanPaymentPreview>.Failure(
+                LoanErrors.SourceAccountNotFound);
+        }
+
+        var loan = await loanRepository.GetByLoanNumberAsync(
+            normalizedLoanNumber,
+            cancellationToken);
+
+        if (loan is null)
+        {
+            return OperationResult<CashierLoanPaymentPreview>.Failure(
+                LoanErrors.NotFound);
+        }
+
+        var validationError = ValidateProducts(loan, account, amount);
+
+        if (validationError != Error.None)
+        {
+            return OperationResult<CashierLoanPaymentPreview>.Failure(
+                validationError);
+        }
+
+        var accountOwner = await userRepository.GetByIdAsync(
+            account.OwnerUserId,
+            cancellationToken);
+        var loanOwner = await userRepository.GetByIdAsync(
+            loan.ClientId,
+            cancellationToken);
+
+        if (accountOwner is null || loanOwner is null)
+        {
+            return OperationResult<CashierLoanPaymentPreview>.Failure(
+                LoanErrors.NotFound);
+        }
+
+        return OperationResult<CashierLoanPaymentPreview>.Success(
+            new CashierLoanPaymentPreview(
+                loan.Id,
+                account.Id,
+                operationId,
+                FullName(accountOwner.Name, accountOwner.LastName),
+                account.AccountNumber,
+                FullName(loanOwner.Name, loanOwner.LastName),
+                loan.LoanNumber,
+                amount,
+                Math.Min(amount, loan.PendingAmount)));
+    }
+
     public async Task<OperationResult<LoanPaymentResult>> ProcessPaymentAsync(
         LoanPaymentRequest request,
         CancellationToken cancellationToken = default)
@@ -91,6 +216,16 @@ public sealed class LoanPaymentService(
         {
             return OperationResult<LoanPaymentResult>.Failure(
                 authorizationError);
+        }
+
+        var productError = ValidateProducts(
+            loan,
+            sourceAccount,
+            request.Amount);
+
+        if (productError != Error.None)
+        {
+            return OperationResult<LoanPaymentResult>.Failure(productError);
         }
 
         var outstandingAmount = loan.Installments.Sum(
@@ -236,6 +371,56 @@ public sealed class LoanPaymentService(
         return currentUser.IsInRole(Roles.Cashier.ToString())
             ? (currentUser.UserId, Roles.Cashier.ToString())
             : null;
+    }
+
+    private string? GetCurrentClientId() =>
+        currentUser.IsAuthenticated
+        && currentUser.IsInRole(nameof(Roles.Client))
+        && !string.IsNullOrWhiteSpace(currentUser.UserId)
+            ? currentUser.UserId
+            : null;
+
+    private bool IsCurrentCashier() =>
+        currentUser.IsAuthenticated
+        && currentUser.IsInRole(nameof(Roles.Cashier))
+        && !string.IsNullOrWhiteSpace(currentUser.UserId);
+
+    private static ClientLoanPaymentOptions EmptyClientOptions() =>
+        new(
+            Array.Empty<LoanOperationOptionDto>(),
+            Array.Empty<SavingsAccountOperationOptionDto>());
+
+    private static bool IsNineDigitNumber(string value) =>
+        value.Length == 9 && value.All(char.IsDigit);
+
+    private static string FullName(string name, string lastName) =>
+        $"{name} {lastName}".Trim();
+
+    private static Error ValidateProducts(
+        Loan loan,
+        SavingsAccount sourceAccount,
+        decimal requestedAmount)
+    {
+        if (loan.Status != LoanStatus.Active)
+        {
+            return LoanErrors.Inactive;
+        }
+
+        if (sourceAccount.Status != SavingsAccountStatus.Active)
+        {
+            return LoanErrors.SourceAccountInactive;
+        }
+
+        if (loan.PendingAmount <= 0m)
+        {
+            return LoanErrors.NoOutstandingBalance;
+        }
+
+        var effectiveAmount = Math.Min(requestedAmount, loan.PendingAmount);
+
+        return sourceAccount.Balance < effectiveAmount
+            ? LoanErrors.InsufficientFunds
+            : Error.None;
     }
 
     private static Error ValidateOwnership(

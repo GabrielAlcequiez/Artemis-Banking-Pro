@@ -10,8 +10,10 @@ public interface ILoanRepository : IGenericRepository<Loan, Guid>
     Task<Loan?> GetByLoanNumberAsync(string loanNumber, CancellationToken cancellationToken = default);
     Task<Loan?> GetWithInstallmentsAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Loan?> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<Loan?> GetDetailsForClientAsync(Guid id, string clientId, CancellationToken cancellationToken = default);
     Task<LoanPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default);
     Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default);
+    Task<ClientLoanPortfolioReadModel?> GetActivePortfolioForClientAsync(string clientId, CancellationToken cancellationToken = default);
     Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default);
     Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default);
     Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(IReadOnlyCollection<string> clientIds, CancellationToken cancellationToken = default);

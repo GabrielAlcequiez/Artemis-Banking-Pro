@@ -132,11 +132,18 @@ public sealed class GetLoanDetailQueryTests
             return Task.FromResult(Detail);
         }
 
+        public Task<Loan?> GetDetailsForClientAsync(
+            Guid id,
+            string clientId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
         public Task<LoanPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task<Loan?> GetByLoanNumberAsync(string loanNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Loan?> GetWithInstallmentsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<ClientLoanPortfolioReadModel?> GetActivePortfolioForClientAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(IReadOnlyCollection<string> clientIds, CancellationToken cancellationToken = default) => throw new NotImplementedException();

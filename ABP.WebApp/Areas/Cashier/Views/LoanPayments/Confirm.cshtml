@@ -1,0 +1,58 @@
+@model ABP.WebApp.Areas.Cashier.ViewModels.Loans.CashierLoanPaymentConfirmationViewModel
+@{
+    ViewData["Title"] = "Confirmar pago de préstamo";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="Create">← Cancelar y volver</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Confirmar pago</h1>
+        <p class="mt-1 text-sm text-ink-muted">¿Está seguro que desea realizar este pago?</p>
+    </header>
+
+    <section class="card p-6">
+        <dl class="grid gap-5 text-sm sm:grid-cols-2">
+            <div>
+                <dt class="text-ink-muted">Titular de la cuenta</dt>
+                <dd class="mt-1 font-medium text-ink">@Model.AccountOwnerFullName</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Cuenta origen</dt>
+                <dd class="mt-1 font-mono text-ink">@Model.AccountNumber</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Titular del préstamo</dt>
+                <dd class="mt-1 font-medium text-ink">@Model.LoanOwnerFullName</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Préstamo destino</dt>
+                <dd class="mt-1 font-mono text-ink">@Model.LoanNumber</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Monto ingresado</dt>
+                <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.RequestedAmount.ToString("N2")</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Monto efectivo</dt>
+                <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.EffectiveAmount.ToString("N2")</dd>
+            </div>
+        </dl>
+    </section>
+
+    @if (Model.EffectiveAmount < Model.RequestedAmount)
+    {
+        <div class="alert" role="status">
+            El monto efectivo fue ajustado al balance pendiente. El excedente no será debitado.
+        </div>
+    }
+
+    <form asp-action="Execute" method="post" class="flex gap-3">
+        @Html.AntiForgeryToken()
+        <input asp-for="LoanId" type="hidden" />
+        <input asp-for="SourceAccountId" type="hidden" />
+        <input asp-for="OperationId" type="hidden" />
+        <input asp-for="RequestedAmount" type="hidden" />
+        <a class="btn btn-ghost border border-border" asp-action="Create">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Confirmar pago</button>
+    </form>
+</div>

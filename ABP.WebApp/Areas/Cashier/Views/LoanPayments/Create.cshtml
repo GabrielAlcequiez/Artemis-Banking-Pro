@@ -1,0 +1,56 @@
+@model ABP.WebApp.Areas.Cashier.ViewModels.Loans.CashierLoanPaymentViewModel
+@{
+    ViewData["Title"] = "Pago de préstamo";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink"
+           asp-area="Cashier"
+           asp-controller="Home"
+           asp-action="Index">← Volver al Home</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Pago de préstamo</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Registra un pago desde una cuenta de ahorro activa hacia un préstamo activo.
+        </p>
+    </header>
+
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <form asp-action="Confirm" method="post" class="card space-y-5 p-6">
+        @Html.AntiForgeryToken()
+        <input asp-for="OperationId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        <div class="space-y-2">
+            <label asp-for="SourceAccountNumber" class="text-sm font-medium text-ink">Número de cuenta origen</label>
+            <input asp-for="SourceAccountNumber"
+                   class="input"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   maxlength="9" />
+        </div>
+
+        <div class="space-y-2">
+            <label asp-for="LoanNumber" class="text-sm font-medium text-ink">Número de préstamo</label>
+            <input asp-for="LoanNumber"
+                   class="input"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   maxlength="9" />
+        </div>
+
+        <div class="space-y-2">
+            <label asp-for="Amount" class="text-sm font-medium text-ink">Monto a pagar</label>
+            <input asp-for="Amount" class="input" type="number" min="0.01" step="0.01" />
+            <p class="text-xs text-ink-muted">
+                La cuenta y el préstamo pueden pertenecer a clientes diferentes.
+            </p>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Continuar</button>
+    </form>
+</div>

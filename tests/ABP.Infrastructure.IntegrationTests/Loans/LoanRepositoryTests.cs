@@ -96,6 +96,27 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetActivePortfolioForClient_projects_only_the_clients_active_loan()
+    {
+        var seeded = await SeedAsync(_context);
+        _context.ChangeTracker.Clear();
+
+        var result = await _repository.GetActivePortfolioForClientAsync(
+            seeded.ActiveNew.ClientId);
+        var clientWithoutLoan = await _repository.GetActivePortfolioForClientAsync(
+            "client-without-loans");
+
+        Assert.NotNull(result);
+        Assert.Equal(seeded.ActiveNew.Id, result.Id);
+        Assert.Equal(seeded.ActiveNew.LoanNumber, result.LoanNumber);
+        Assert.Equal(10_000m, result.CapitalAmount);
+        Assert.Equal(10_000m, result.PendingAmount);
+        Assert.Equal(900m, result.MonthlyInstallment);
+        Assert.Null(clientWithoutLoan);
+        Assert.Empty(_context.ChangeTracker.Entries());
+    }
+
+    [Fact]
     public async Task HasActiveLoan_returns_expected_result()
     {
         var seeded = await SeedAsync(_context);
@@ -142,6 +163,26 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
         Assert.NotNull(result);
         Assert.Equal("María", result.Client.Name);
         Assert.Equal([1, 2], result.Installments.Select(x => x.Number).ToArray());
+        Assert.Empty(_context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task GetDetailsForClient_returns_only_the_owners_loan_without_tracking()
+    {
+        var seeded = await SeedAsync(_context);
+        _context.ChangeTracker.Clear();
+
+        var ownersResult = await _repository.GetDetailsForClientAsync(
+            seeded.ActiveNew.Id,
+            seeded.ActiveNew.ClientId);
+        var anotherClientsResult = await _repository.GetDetailsForClientAsync(
+            seeded.ActiveNew.Id,
+            seeded.ActiveOld.ClientId);
+
+        Assert.NotNull(ownersResult);
+        Assert.Equal("María", ownersResult.Client.Name);
+        Assert.Equal([1, 2], ownersResult.Installments.Select(x => x.Number).ToArray());
+        Assert.Null(anotherClientsResult);
         Assert.Empty(_context.ChangeTracker.Entries());
     }
 
