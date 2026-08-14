@@ -1,0 +1,58 @@
+@model ABP.WebApp.Areas.Client.ViewModels.Accounts.TransferViewModel
+@{
+    ViewData["Title"] = "Transferencia express";
+    var canTransfer = Model.SourceAccounts.Count > 0;
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink"
+           asp-area="Client" asp-controller="Home" asp-action="Index">← Volver al Home</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Transferencia express</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Envía dinero a cualquier cuenta de ahorro indicando su número de cuenta.
+        </p>
+    </header>
+
+    <form asp-action="Express" method="post" class="card space-y-5 p-6">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        @if (Model.SourceAccounts.Count == 0)
+        {
+            <div class="alert" role="status">No tienes cuentas de ahorro activas disponibles.</div>
+        }
+        else
+        {
+            <div class="space-y-2">
+                <label asp-for="SourceAccountId" class="text-sm font-medium text-ink">Cuenta de origen</label>
+                <select asp-for="SourceAccountId" class="input" required>
+                    <option value="">Seleccione una cuenta</option>
+                    @foreach (var account in Model.SourceAccounts)
+                    {
+                        <option value="@account.Id">
+                            @account.AccountNumber · Disponible RD$ @account.Balance.ToString("N2")
+                        </option>
+                    }
+                </select>
+                <span asp-validation-for="SourceAccountId" class="text-sm text-danger"></span>
+            </div>
+        }
+
+        <div class="space-y-2">
+            <label asp-for="DestinationAccountNumber" class="text-sm font-medium text-ink">Cuenta destino</label>
+            <input asp-for="DestinationAccountNumber" class="input" maxlength="9" placeholder="000000000" />
+            <span asp-validation-for="DestinationAccountNumber" class="text-sm text-danger"></span>
+        </div>
+
+        <div class="space-y-2">
+            <label asp-for="Amount" class="text-sm font-medium text-ink">Monto a transferir</label>
+            <input asp-for="Amount" class="input" type="number" min="0.01" step="0.01" />
+            <span asp-validation-for="Amount" class="text-sm text-danger"></span>
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@(!canTransfer)">
+            Transferir
+        </button>
+    </form>
+</div>
