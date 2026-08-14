@@ -25,6 +25,7 @@ public sealed class GlobalExceptionHandlerSecurityTests
         context.Response.Body.Position = 0;
         var response = await new StreamReader(context.Response.Body).ReadToEndAsync();
 
+        Assert.Equal("application/problem+json", context.Response.ContentType);
         Assert.DoesNotContain(fullPan, response);
         Assert.DoesNotContain(fullPan, string.Join(' ', logger.Messages));
         Assert.All(logger.Exceptions, Assert.Null);

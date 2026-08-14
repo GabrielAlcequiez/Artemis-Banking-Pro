@@ -1,4 +1,6 @@
 using ABP.Application.Behaviors;
+using ABP.Application.Features.Commerce.Services.Interfaces;
+using ABP.Application.Features.HermesPay.Services.Implementations;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,6 +22,10 @@ public sealed class ApplicationRegistrationTests
         Assert.DoesNotContain(
             services,
             descriptor => descriptor.ServiceType == typeof(IPipelineBehavior<,>));
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(ICommerceAuthorizationResolverService)
+                && descriptor.ImplementationType == typeof(CommerceAuthorizationResolverService));
     }
 
     [Fact]
