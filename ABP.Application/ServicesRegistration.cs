@@ -11,6 +11,8 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.Accounts.Services;
+using ABP.Application.Features.Commerce.Services.Interfaces;
+using ABP.Application.Features.HermesPay.Services.Implementations;
 
 namespace ABP.Application
 {
@@ -27,6 +29,7 @@ namespace ABP.Application
             services.AddScoped<ICardPaymentService, CardPaymentService>();
             services.AddScoped<ICashAdvanceService, CashAdvanceService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
+            services.AddScoped<ICommerceAuthorizationResolverService, CommerceAuthorizationResolverService>();
 
             services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
             services.AddScoped<ILoanService, LoanService>();

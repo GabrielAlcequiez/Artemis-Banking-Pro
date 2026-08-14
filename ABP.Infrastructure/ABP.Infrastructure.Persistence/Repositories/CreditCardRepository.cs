@@ -21,6 +21,15 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
             .FirstOrDefaultAsync(card => card.CardNumber == cardNumber, cancellationToken);
     }
 
+    public Task<CreditCard?> GetByCardNumberForUpdateAsync(
+        string cardNumber,
+        CancellationToken cancellationToken = default)
+    {
+        return Entities.SingleOrDefaultAsync(
+            card => card.CardNumber == cardNumber,
+            cancellationToken);
+    }
+
     public Task<bool> CardNumberExistsAsync(string cardNumber, CancellationToken cancellationToken = default)
     {
         return Entities

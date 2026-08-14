@@ -43,6 +43,7 @@ namespace ABP.Infrastructure.Persistence
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped<IFinancialTransaction, EfFinancialTransaction>();
             services.AddScoped<ICreditCardRepository, CreditCardRepository>();
+            services.AddScoped<IHermesTransactionRepository, HermesTransactionRepository>();
             services.AddScoped<ICommerceRepository, CommerceRepository>();
             services.AddScoped<ICvcService, CvcService>();
 

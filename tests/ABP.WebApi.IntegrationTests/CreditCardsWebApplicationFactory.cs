@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using ABP.Application.Common.DTOs;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Infrastructure.Persistence.Context;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -46,22 +48,35 @@ public sealed class CreditCardsWebApplicationFactory
             services.RemoveAll<DbContextOptions>();
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();
+            services.RemoveAll<IEmailService>();
             services.AddDbContext<AppDbContext>(options =>
                 options.UseInMemoryDatabase(_databaseName));
+            services.AddSingleton<IEmailService, NoOpEmailService>();
         });
     }
 
-    public static string CreateJwt(string role)
+    public static string CreateJwt(
+        string role,
+        string? userId = null,
+        Guid? commerceId = null)
     {
+        userId ??= $"test-{role.ToLowerInvariant()}";
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Name, userId),
+            new(ClaimTypes.Role, role)
+        };
+
+        if (commerceId.HasValue)
+        {
+            claims.Add(new Claim("CommerceId", commerceId.Value.ToString()));
+        }
+
         var token = new JwtSecurityToken(
             issuer: Issuer,
             audience: Audience,
-            claims:
-            [
-                new Claim(ClaimTypes.NameIdentifier, $"test-{role.ToLowerInvariant()}"),
-                new Claim(ClaimTypes.Name, $"test-{role.ToLowerInvariant()}"),
-                new Claim(ClaimTypes.Role, role)
-            ],
+            claims: claims,
             notBefore: DateTime.UtcNow.AddMinutes(-1),
             expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: new SigningCredentials(
@@ -69,5 +84,11 @@ public sealed class CreditCardsWebApplicationFactory
                 SecurityAlgorithms.HmacSha256));
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private sealed class NoOpEmailService : IEmailService
+    {
+        public Task SendAsync(EmailRequestDto emailRequestDto) =>
+            Task.CompletedTask;
     }
 }
