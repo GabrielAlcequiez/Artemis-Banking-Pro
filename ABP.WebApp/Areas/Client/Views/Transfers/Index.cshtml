@@ -1,0 +1,66 @@
+@model ABP.WebApp.Areas.Client.ViewModels.Accounts.OwnAccountTransferViewModel
+@{
+    ViewData["Title"] = "Transferencia entre mis cuentas";
+    var canTransfer = Model.Accounts.Count > 1;
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink"
+           asp-area="Client" asp-controller="Home" asp-action="Index">← Volver al Home</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Transferencia entre mis cuentas</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Mueve dinero entre tus propias cuentas de ahorro activas.
+        </p>
+    </header>
+
+    <form asp-action="Index" method="post" class="card space-y-5 p-6">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        @if (Model.Accounts.Count < 2)
+        {
+            <div class="alert" role="status">Necesitas al menos dos cuentas de ahorro activas para transferir entre ellas.</div>
+        }
+        else
+        {
+            <div class="space-y-2">
+                <label asp-for="SourceAccountId" class="text-sm font-medium text-ink">Cuenta de origen</label>
+                <select asp-for="SourceAccountId" class="input" required>
+                    <option value="">Seleccione una cuenta</option>
+                    @foreach (var account in Model.Accounts)
+                    {
+                        <option value="@account.Id">
+                            @account.AccountNumber · Disponible RD$ @account.Balance.ToString("N2")
+                        </option>
+                    }
+                </select>
+                <span asp-validation-for="SourceAccountId" class="text-sm text-danger"></span>
+            </div>
+
+            <div class="space-y-2">
+                <label asp-for="DestinationAccountId" class="text-sm font-medium text-ink">Cuenta de destino</label>
+                <select asp-for="DestinationAccountId" class="input" required>
+                    <option value="">Seleccione una cuenta</option>
+                    @foreach (var account in Model.Accounts)
+                    {
+                        <option value="@account.Id">
+                            @account.AccountNumber · Disponible RD$ @account.Balance.ToString("N2")
+                        </option>
+                    }
+                </select>
+                <span asp-validation-for="DestinationAccountId" class="text-sm text-danger"></span>
+            </div>
+        }
+
+        <div class="space-y-2">
+            <label asp-for="Amount" class="text-sm font-medium text-ink">Monto a transferir</label>
+            <input asp-for="Amount" class="input" type="number" min="0.01" step="0.01" />
+            <span asp-validation-for="Amount" class="text-sm text-danger"></span>
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@(!canTransfer)">
+            Transferir
+        </button>
+    </form>
+</div>
