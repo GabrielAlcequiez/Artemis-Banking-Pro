@@ -372,6 +372,10 @@ public class AccountServiceForWebApiTests
             Task.FromResult(_usersById.Values.Count(user =>
                 user.Role == Roles.Client && user.IsActive));
 
+        public Task<int> CountInactiveClientsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(_usersById.Values.Count(user =>
+                user.Role == Roles.Client && !user.IsActive));
+
         public Task<bool> ExistsByCommerceIdAsync(Guid commerceId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_usersById.Values.Any(user => user.CommerceId == commerceId));
 
