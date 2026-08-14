@@ -13,6 +13,8 @@ using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.Accounts.Services;
 using ABP.Application.Features.Commerce.Services.Interfaces;
 using ABP.Application.Features.HermesPay.Services.Implementations;
+using ABP.Application.Features.Dashboards.Services.Interfaces;
+using ABP.Application.Features.Dashboards.Services.Implementations;
 
 namespace ABP.Application
 {
@@ -52,6 +54,9 @@ namespace ABP.Application
             services.AddScoped<IClientAccountOptionsService, ClientAccountOptionsService>();
             services.AddScoped<IAccountsMetricsReader, AccountsMetricsReader>();
             services.AddScoped<ITransactionsMetricsReader, TransactionsMetricsReader>();
+
+            services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+            services.AddScoped<IClientPortfolioService, ClientPortfolioService>();
 
             // Other services here
 
