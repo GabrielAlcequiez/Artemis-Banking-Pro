@@ -15,5 +15,12 @@ public interface IAccountTransactionRepository : IGenericRepository<AccountTrans
 
     Task<decimal> SumAmountByActorTodayAsync( string actorUserId, DateOnly today, CancellationToken cancellationToken = default);
 
+    Task<int> CountAllAsync(CancellationToken cancellationToken = default);
+
+    Task<int> CountByDateAsync(DateOnly date, CancellationToken cancellationToken = default);
+
+    Task<int> CountPaymentsAsync(CancellationToken cancellationToken = default);
+
+    Task<int> CountPaymentsByDateAsync(DateOnly date, CancellationToken cancellationToken = default);
 
 }

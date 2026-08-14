@@ -82,6 +82,18 @@ namespace ABP.Application.UnitTests.Features.Accounts.Queries.GetAccountTransact
             public Task<decimal> SumAmountByActorTodayAsync(string actorUserId, DateOnly today, CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
 
+            public Task<int> CountAllAsync(CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
+            public Task<int> CountByDateAsync(DateOnly date, CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
+            public Task<int> CountPaymentsAsync(CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
+            public Task<int> CountPaymentsByDateAsync(DateOnly date, CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
             public IQueryable<AccountTransaction> GetAllQueryable(bool trackChanges = false) =>
                 throw new NotImplementedException();
 
