@@ -1,4 +1,4 @@
-using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Application.Features.Dashboards.Services.Interfaces;
 using ABP.WebApp.Areas.Client.ViewModels.Home;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,17 +8,19 @@ namespace ABP.WebApp.Areas.Client.Controllers
     [Area("Client")]
     [Authorize(Roles = "Client")]
     public class HomeController(
-        ICreditCardService creditCardService) : Controller
+        IClientPortfolioService portfolioService) : Controller
     {
         public async Task<IActionResult> Index(
             CancellationToken cancellationToken)
         {
-            var cards = await creditCardService.GetClientActiveCardsAsync(
+            var portfolio = await portfolioService.GetPortfolioAsync(
                 cancellationToken);
 
             return View(new ClientHomeViewModel
             {
-                CreditCards = cards
+                Accounts = portfolio.Accounts,
+                ActiveLoan = portfolio.ActiveLoan,
+                CreditCards = portfolio.CreditCards
             });
         }
     }

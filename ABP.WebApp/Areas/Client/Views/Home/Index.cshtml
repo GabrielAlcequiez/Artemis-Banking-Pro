@@ -1,6 +1,7 @@
 @model ABP.WebApp.Areas.Client.ViewModels.Home.ClientHomeViewModel
 @{
     ViewData["Title"] = "Home";
+    var isPrincipal = ABP.Domain.Enums.SavingsAccountType.Principal;
 }
 
 <div class="space-y-6">
@@ -18,49 +19,136 @@
         <p class="mt-1 text-sm text-ink-muted">Consulta tus productos financieros activos.</p>
     </header>
 
-    @if (Model.CreditCards.Count > 0)
+    @if (!Model.HasProducts)
     {
-        <section class="space-y-4" aria-labelledby="credit-cards-heading">
-            <div>
-                <h2 id="credit-cards-heading" class="text-lg font-semibold text-ink">Tarjetas de crédito</h2>
-                <p class="text-sm text-ink-muted">Tarjetas activas asociadas a tu usuario.</p>
-            </div>
+        <div class="card p-10 text-center">
+            <h2 class="font-medium text-ink">No posee productos financieros activos.</h2>
+            <p class="mt-1 text-sm text-ink-muted">Cuando cuentes con cuentas, préstamos o tarjetas activas, aparecerán aquí.</p>
+        </div>
+    }
+    else
+    {
+        @if (Model.Accounts.Count > 0)
+        {
+            <section class="space-y-4" aria-labelledby="accounts-heading">
+                <div>
+                    <h2 id="accounts-heading" class="text-lg font-semibold text-ink">Cuentas de ahorro</h2>
+                    <p class="text-sm text-ink-muted">Cuentas activas asociadas a tu usuario.</p>
+                </div>
 
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                @foreach (var card in Model.CreditCards)
-                {
+                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    @foreach (var account in Model.Accounts)
+                    {
+                        <article class="card space-y-4 p-5">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="font-mono text-base font-semibold text-ink">@account.AccountNumber</p>
+                                    <p class="mt-1 text-xs text-ink-muted">
+                                        @(account.Type == isPrincipal ? "Cuenta principal" : "Cuenta secundaria")
+                                    </p>
+                                </div>
+                                <span class="badge badge-success">Activa</span>
+                            </div>
+                            <dl class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <dt class="text-ink-muted">Balance actual</dt>
+                                    <dd class="tnum mt-1 font-medium text-ink">RD$ @account.Balance.ToString("N2")</dd>
+                                </div>
+                            </dl>
+                            <a class="btn btn-ghost w-full border border-border"
+                               asp-area="Client"
+                               asp-controller="SavingsAccounts"
+                               asp-action="Details"
+                               asp-route-id="@account.Id">Ver detalles</a>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (Model.ActiveLoan is not null)
+        {
+            <section class="space-y-4" aria-labelledby="loans-heading">
+                <div>
+                    <h2 id="loans-heading" class="text-lg font-semibold text-ink">Préstamos</h2>
+                    <p class="text-sm text-ink-muted">Préstamo activo asociado a tu usuario.</p>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     <article class="card space-y-4 p-5">
                         <div class="flex items-start justify-between gap-3">
                             <div>
-                                <p class="font-mono text-base font-semibold text-ink">@card.MaskedCardNumber</p>
-                                <p class="mt-1 text-xs text-ink-muted">Expira @card.ExpirationDate</p>
+                                <p class="font-mono text-base font-semibold text-ink">@Model.ActiveLoan.LoanNumber</p>
+                                <p class="mt-1 text-xs text-ink-muted">Plazo @Model.ActiveLoan.TermInMonths meses</p>
                             </div>
-                            <span class="badge badge-success">Activa</span>
+                            <span class="badge badge-success">Activo</span>
                         </div>
                         <dl class="grid grid-cols-2 gap-4 text-sm">
                             <div>
-                                <dt class="text-ink-muted">Límite</dt>
-                                <dd class="tnum mt-1 font-medium text-ink">RD$ @card.CreditLimit.ToString("N2")</dd>
+                                <dt class="text-ink-muted">Capital aprobado</dt>
+                                <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.ActiveLoan.CapitalAmount.ToString("N2")</dd>
                             </div>
                             <div>
-                                <dt class="text-ink-muted">Deuda</dt>
-                                <dd class="tnum mt-1 font-medium text-ink">RD$ @card.CurrentDebt.ToString("N2")</dd>
+                                <dt class="text-ink-muted">Monto pendiente</dt>
+                                <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.ActiveLoan.PendingAmount.ToString("N2")</dd>
+                            </div>
+                            <div>
+                                <dt class="text-ink-muted">Cuota mensual</dt>
+                                <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.ActiveLoan.MonthlyInstallment.ToString("N2")</dd>
+                            </div>
+                            <div>
+                                <dt class="text-ink-muted">Tasa anual</dt>
+                                <dd class="tnum mt-1 font-medium text-ink">@Model.ActiveLoan.AnnualInterestRate.ToString("N2")%</dd>
                             </div>
                         </dl>
                         <a class="btn btn-ghost w-full border border-border"
                            asp-area="Client"
-                           asp-controller="CreditCards"
+                           asp-controller="Loans"
                            asp-action="Details"
-                           asp-route-id="@card.Id">Ver detalles</a>
+                           asp-route-id="@Model.ActiveLoan.Id">Ver detalles</a>
                     </article>
-                }
-            </div>
-        </section>
-    }
-    else
-    {
-        <div class="card p-8 text-center">
-            <p class="text-sm text-ink-muted">No tienes tarjetas de crédito activas.</p>
-        </div>
+                </div>
+            </section>
+        }
+
+        @if (Model.CreditCards.Count > 0)
+        {
+            <section class="space-y-4" aria-labelledby="credit-cards-heading">
+                <div>
+                    <h2 id="credit-cards-heading" class="text-lg font-semibold text-ink">Tarjetas de crédito</h2>
+                    <p class="text-sm text-ink-muted">Tarjetas activas asociadas a tu usuario.</p>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    @foreach (var card in Model.CreditCards)
+                    {
+                        <article class="card space-y-4 p-5">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="font-mono text-base font-semibold text-ink">@card.MaskedCardNumber</p>
+                                    <p class="mt-1 text-xs text-ink-muted">Expira @card.ExpirationDate</p>
+                                </div>
+                                <span class="badge badge-success">Activa</span>
+                            </div>
+                            <dl class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <dt class="text-ink-muted">Límite</dt>
+                                    <dd class="tnum mt-1 font-medium text-ink">RD$ @card.CreditLimit.ToString("N2")</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-ink-muted">Deuda</dt>
+                                    <dd class="tnum mt-1 font-medium text-ink">RD$ @card.CurrentDebt.ToString("N2")</dd>
+                                </div>
+                            </dl>
+                            <a class="btn btn-ghost w-full border border-border"
+                               asp-area="Client"
+                               asp-controller="CreditCards"
+                               asp-action="Details"
+                               asp-route-id="@card.Id">Ver detalles</a>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
     }
 </div>
