@@ -31,6 +31,7 @@ namespace ABP.Application.Common.Validation.Users
                 .Equal(x => x.Password).WithMessage("La contraseña y la confirmación de contraseña deben coincidir.");
 
             RuleFor(x => x.InitialAmount)
+                .NotNull().WithMessage("El monto inicial es obligatorio.")
                 .GreaterThanOrEqualTo(0).WithMessage("El monto inicial no puede ser negativo.");
         }
     }
