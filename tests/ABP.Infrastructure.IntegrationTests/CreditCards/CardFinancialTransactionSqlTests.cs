@@ -1,3 +1,4 @@
+using ABP.Application.Common.DTOs;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
@@ -102,7 +103,9 @@ public sealed class CardFinancialTransactionSqlTests : IAsyncLifetime
                 new EfFinancialTransaction(operationContext),
                 new TestCurrentUser(),
                 new TestClock(),
-                new CreditCardPaymentRequestValidator());
+                new CreditCardPaymentRequestValidator(),
+                new NoOpEmailService(),
+                NullLogger<CardPaymentService>.Instance);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.ProcessPaymentAsync(
@@ -192,6 +195,12 @@ public sealed class CardFinancialTransactionSqlTests : IAsyncLifetime
             string? actorUserId,
             string? actorRole,
             CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class NoOpEmailService : IEmailService
+    {
+        public Task SendAsync(EmailRequestDto emailRequestDto) =>
             Task.CompletedTask;
     }
 }
