@@ -130,12 +130,12 @@ public sealed class ClientCreditCardsControllerTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<OperationResult<Guid>> CreateAsync(
+        public Task<CardOperationResult<Guid>> CreateAsync(
             CreateCreditCardRequest request,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<OperationResult> UpdateLimitAsync(
+        public Task<CardOperationResult> UpdateLimitAsync(
             UpdateCreditLimitRequest request,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
