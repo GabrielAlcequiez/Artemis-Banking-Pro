@@ -7,4 +7,7 @@ public sealed record ClientLoanPortfolioItemDto(
     decimal PendingAmount,
     decimal MonthlyInstallment,
     decimal AnnualInterestRate,
-    int TermInMonths);
+    int TermInMonths,
+    int TotalInstallments,
+    int PaidInstallments,
+    bool IsInArrears);

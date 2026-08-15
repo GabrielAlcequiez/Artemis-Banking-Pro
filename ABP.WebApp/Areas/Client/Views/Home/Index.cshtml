@@ -81,7 +81,9 @@
                                 <p class="font-mono text-base font-semibold text-ink">@Model.ActiveLoan.LoanNumber</p>
                                 <p class="mt-1 text-xs text-ink-muted">Plazo @Model.ActiveLoan.TermInMonths meses</p>
                             </div>
-                            <span class="badge badge-success">Activo</span>
+                            <span class="badge @(Model.ActiveLoan.IsInArrears ? "badge-danger" : "badge-success")">
+                                @(Model.ActiveLoan.IsInArrears ? "En mora" : "Al día")
+                            </span>
                         </div>
                         <dl class="grid grid-cols-2 gap-4 text-sm">
                             <div>
@@ -91,6 +93,14 @@
                             <div>
                                 <dt class="text-ink-muted">Monto pendiente</dt>
                                 <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.ActiveLoan.PendingAmount.ToString("N2")</dd>
+                            </div>
+                            <div>
+                                <dt class="text-ink-muted">Cantidad total de cuotas</dt>
+                                <dd class="tnum mt-1 font-medium text-ink">@Model.ActiveLoan.TotalInstallments.ToString("N0")</dd>
+                            </div>
+                            <div>
+                                <dt class="text-ink-muted">Cuotas pagadas</dt>
+                                <dd class="tnum mt-1 font-medium text-ink">@Model.ActiveLoan.PaidInstallments.ToString("N0")</dd>
                             </div>
                             <div>
                                 <dt class="text-ink-muted">Cuota mensual</dt>

@@ -7,4 +7,7 @@ public sealed record ClientLoanPortfolioReadModel(
     decimal PendingAmount,
     decimal MonthlyInstallment,
     decimal AnnualInterestRate,
-    int TermInMonths);
+    int TermInMonths,
+    int TotalInstallments,
+    int PaidInstallments,
+    bool HasLateInstallments);

@@ -48,6 +48,15 @@ namespace ABP.Infrastructure.Persistence.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<IReadOnlyCollection<AccountTransaction>> GetAllByAccountAsync(Guid accountId, CancellationToken cancellationToken = default)
+        {
+            return await Entities
+                .AsNoTracking()
+                .Where(t => t.AccountId == accountId)
+                .OrderByDescending(t => t.CreatedAtUtc)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<int> CountByActorTodayAsync( string actorUserId, DateOnly today, CancellationToken cancellationToken = default)
         {
             var start = new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);

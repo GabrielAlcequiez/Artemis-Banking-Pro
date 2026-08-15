@@ -11,6 +11,8 @@ public interface IAccountTransactionRepository : IGenericRepository<AccountTrans
 
     Task<IReadOnlyCollection<AccountTransaction>> GetMostRecentByAccountAsync(Guid accountId,int count,CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<AccountTransaction>> GetAllByAccountAsync(Guid accountId, CancellationToken cancellationToken = default);
+
     Task<int> CountByActorTodayAsync( string actorUserId, DateOnly today, CancellationToken cancellationToken = default);
 
     Task<decimal> SumAmountByActorTodayAsync( string actorUserId, DateOnly today, CancellationToken cancellationToken = default);

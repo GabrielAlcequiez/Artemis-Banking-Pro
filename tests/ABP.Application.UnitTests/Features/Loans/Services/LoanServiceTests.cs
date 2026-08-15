@@ -171,7 +171,10 @@ public sealed class LoanServiceTests
                 7_500m,
                 900m,
                 12m,
-                12)
+                12,
+                12,
+                3,
+                false)
         };
         var service = CreateService(repository);
 

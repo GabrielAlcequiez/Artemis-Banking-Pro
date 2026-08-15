@@ -86,7 +86,12 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
                     .Select(installment => installment.InstallmentAmount)
                     .FirstOrDefault(),
                 loan.AnnualInterestRate,
-                loan.TermInMonths))
+                loan.TermInMonths,
+                loan.Installments.Count,
+                loan.Installments.Count(installment =>
+                    installment.PaymentStatus == InstallmentPaymentStatus.Paid),
+                loan.Installments.Any(installment =>
+                    installment.IsLate && installment.PendingAmount > 0m)))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
