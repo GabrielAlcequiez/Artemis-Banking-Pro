@@ -307,6 +307,9 @@ public class BaseAccountServiceTests
         public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(0);
 
+        public Task<int> CountInactiveClientsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
         public Task<bool> ExistsByCommerceIdAsync(Guid commerceId, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 

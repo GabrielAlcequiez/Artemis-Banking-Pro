@@ -234,6 +234,7 @@ public sealed class CommerceAuthorizationResolverServiceTests
         public Task<PagedResult<User>> GetActiveClientsPagedAsync(PagedRequest request, string? identification = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<User?> GetActiveClientByIdAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> CountInactiveClientsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsByCommerceIdAsync(Guid commerceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public IQueryable<User> GetAllQueryable(bool trackChanges = false) => throw new NotImplementedException();
         public Task<IReadOnlyList<User>> GetAllAsync(bool trackChanges = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();

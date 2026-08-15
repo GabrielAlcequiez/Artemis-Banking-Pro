@@ -327,6 +327,7 @@ public sealed class LoanOriginationServiceTests
         public Task<PagedResult<User>> GetActiveClientsPagedAsync(PagedRequest request, string? identification = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<User?> GetActiveClientByIdAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> CountInactiveClientsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> ExistsByCommerceIdAsync(Guid commerceId, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task<User> AddAsync(User entity, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<User>> GetAllAsync(bool trackChanges = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();

@@ -150,7 +150,7 @@ namespace ABP.Application.Features.Accounts.Services
 
             await _ledger.RecordApprovedAsync(
                 operationId, destination.Id, request.Amount, TransactionDirection.Credit,
-                FinancialOperationType.Deposit, "CAJA", destination.AccountNumber,
+                FinancialOperationType.Deposit, "DEPÓSITO", destination.AccountNumber,
                 request.ActorUserId, request.ActorRole, cancellationToken);
 
             _logger.LogInformation(
@@ -194,7 +194,7 @@ namespace ABP.Application.Features.Accounts.Services
 
             await _ledger.RecordApprovedAsync(
                 operationId, source.Id, request.Amount, TransactionDirection.Debit,
-                FinancialOperationType.Withdrawal, source.AccountNumber, "CAJA",
+                FinancialOperationType.Withdrawal, source.AccountNumber, "RETIRO",
                 request.ActorUserId, request.ActorRole, cancellationToken);
 
             _logger.LogInformation(

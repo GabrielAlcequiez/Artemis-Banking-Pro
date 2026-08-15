@@ -380,6 +380,10 @@ namespace ABP.Infrastructure.Identity.Services
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
 
             appUser.IsActive = isActive;
+            if (isActive)
+            {
+                appUser.EmailConfirmed = true;
+            }
             var appUpdateResult = await _userManager.UpdateAsync(appUser);
             if (!appUpdateResult.Succeeded)
             {

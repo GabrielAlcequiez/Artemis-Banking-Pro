@@ -26,6 +26,6 @@ namespace ABP.Application.Common.DTOs.Users
         public required string ConfirmPassword { get; set; }
 
         [JsonPropertyName("initialAmount")]
-        public decimal InitialAmount { get; set; }
+        public decimal? InitialAmount { get; set; }
     }
 }

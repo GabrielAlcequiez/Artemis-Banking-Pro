@@ -14,8 +14,6 @@ namespace ABP.Application.Features.Accounts.Services
         ICurrentUserService currentUser,
         IMapper mapper) : IClientAccountOptionsService
     {
-        private const int RecentTransactionsCount = 10;
-
         public async Task<IReadOnlyCollection<SavingsAccountOperationOptionDto>> GetMyActiveAccountsAsync(
             CancellationToken cancellationToken = default)
         {
@@ -52,11 +50,11 @@ namespace ABP.Application.Features.Accounts.Services
                 return null;
             }
 
-            var recent = await transactions.GetMostRecentByAccountAsync(
-                account.Id, RecentTransactionsCount, cancellationToken);
+            var transactionsList = await transactions.GetAllByAccountAsync(
+                account.Id, cancellationToken);
 
             var dto = mapper.Map<SavingsAccountDetailDto>(account);
-            dto.RecentTransactions = mapper.Map<IReadOnlyCollection<AccountTransactionDto>>(recent);
+            dto.RecentTransactions = mapper.Map<IReadOnlyCollection<AccountTransactionDto>>(transactionsList);
 
             return dto;
         }
