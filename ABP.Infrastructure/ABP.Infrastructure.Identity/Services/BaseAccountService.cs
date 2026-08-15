@@ -377,6 +377,31 @@ namespace ABP.Infrastructure.Identity.Services
                 };
             }
 
+            if (isActive && domainUser.Role == Roles.Commerce)
+            {
+                var commerceActivationError = await GetCommerceActivationErrorAsync(domainUser);
+                if (commerceActivationError is not null)
+                {
+                    return new UserResponseDto
+                    {
+                        HasError = true,
+                        Error = commerceActivationError
+                    };
+                }
+
+                if (!appUser.IsActive || !domainUser.IsActive)
+                {
+                    return new UserResponseDto
+                    {
+                        HasError = true,
+                        Error = "Los usuarios de comercio deben reactivarse mediante confirmación o restablecimiento de contraseña."
+                    };
+                }
+
+                // Ya está activo en ambos almacenes: la solicitud es idempotente.
+                return new UserResponseDto();
+            }
+
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
 
             appUser.IsActive = isActive;
@@ -437,9 +462,25 @@ namespace ABP.Infrastructure.Identity.Services
                 };
             }
 
+            var domainUser = await _userRepository.GetByIdAsync(userId);
+            if (domainUser is null)
+            {
+                _logger.LogWarning("Intento de confirmación fallido: el usuario de dominio {UserId} no existe.", userId);
+                return "El usuario no existe.";
+            }
+
+            var commerceActivationError = await GetCommerceActivationErrorAsync(domainUser);
+            if (commerceActivationError is not null)
+            {
+                return commerceActivationError;
+            }
+
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
 
-            await _accountTokenService.TryMarkAsUsedAsync(validationResult.AccountTokenId!.Value);
+            if (!await _accountTokenService.TryMarkAsUsedAsync(validationResult.AccountTokenId!.Value))
+            {
+                return "El token de activación ya ha sido utilizado.";
+            }
 
             var result = await _userManager.ConfirmEmailAsync(user, token);
             if (!result.Succeeded)
@@ -448,15 +489,15 @@ namespace ABP.Infrastructure.Identity.Services
             }
 
             user.IsActive = true;
-            await _userManager.UpdateAsync(user);
-
-            var domainUser = await _userRepository.GetByIdAsync(userId);
-            if (domainUser != null)
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
             {
-                domainUser.IsActive = true;
-                await _userRepository.UpdateAsync(userId, domainUser);
-                await _unitOfWork.SaveChangesAsync();
+                return string.Join("\n", updateResult.Errors.Select(error => error.Description));
             }
+
+            domainUser.IsActive = true;
+            await _userRepository.UpdateAsync(userId, domainUser);
+            await _unitOfWork.SaveChangesAsync();
 
             scope.Complete();
 
@@ -756,9 +797,25 @@ namespace ABP.Infrastructure.Identity.Services
                 return "El enlace de restablecimiento no es válido.";
             }
 
+            var domainUser = await _userRepository.GetByIdAsync(resetPasswordDto.UserId);
+            if (domainUser is null)
+            {
+                _logger.LogWarning("Intento de restablecimiento fallido: el usuario de dominio {UserId} no existe.", resetPasswordDto.UserId);
+                return "El enlace de restablecimiento no es válido.";
+            }
+
+            var commerceActivationError = await GetCommerceActivationErrorAsync(domainUser);
+            if (commerceActivationError is not null)
+            {
+                return commerceActivationError;
+            }
+
             using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
 
-            await _accountTokenService.TryMarkAsUsedAsync(tokenValidation.AccountTokenId!.Value);
+            if (!await _accountTokenService.TryMarkAsUsedAsync(tokenValidation.AccountTokenId!.Value))
+            {
+                return "Este enlace de restablecimiento ya fue utilizado.";
+            }
 
             var resetResult = await _userManager.ResetPasswordAsync(user, resetPasswordDto.Token, resetPasswordDto.Password);
             if (!resetResult.Succeeded)
@@ -771,15 +828,15 @@ namespace ABP.Infrastructure.Identity.Services
             // Reactivar la cuenta (se desactivó temporalmente al solicitar el restablecimiento).
             user.IsActive = true;
             user.EmailConfirmed = true;
-            await _userManager.UpdateAsync(user);
-
-            var domainUser = await _userRepository.GetByIdAsync(resetPasswordDto.UserId);
-            if (domainUser is not null)
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
             {
-                domainUser.IsActive = true;
-                await _userRepository.UpdateAsync(resetPasswordDto.UserId, domainUser);
-                await _unitOfWork.SaveChangesAsync();
+                return string.Join("\n", updateResult.Errors.Select(error => error.Description));
             }
+
+            domainUser.IsActive = true;
+            await _userRepository.UpdateAsync(resetPasswordDto.UserId, domainUser);
+            await _unitOfWork.SaveChangesAsync();
 
             scope.Complete();
 
@@ -903,7 +960,23 @@ namespace ABP.Infrastructure.Identity.Services
                 };
             }
 
-            await _userManager.AddToRoleAsync(appUser, Roles.Commerce.ToString());
+            var roleResult = await _userManager.AddToRoleAsync(appUser, Roles.Commerce.ToString());
+            if (!roleResult.Succeeded)
+            {
+                var roleErrors = roleResult.Errors.Select(error => error.Description).ToList();
+                _logger.LogWarning(
+                    "No fue posible asignar el rol Comercio al usuario {UserId}: {Errors}",
+                    appUser.Id,
+                    string.Join("; ", roleErrors));
+
+                return new RegisterResponseDto
+                {
+                    Id = string.Empty,
+                    HasError = true,
+                    ErrorList = roleErrors,
+                    Error = string.Join("\n", roleErrors)
+                };
+            }
 
             var domainUser = new User(appUser.Id)
             {
@@ -938,13 +1011,11 @@ namespace ABP.Infrastructure.Identity.Services
 
             if (emailError is not null)
             {
-                return new RegisterResponseDto
-                {
-                    Id = appUser.Id,
-                    HasError = true,
-                    Error = emailError,
-                    ErrorList = new List<string> { emailError }
-                };
+                // Sin Outbox, el estado confirmado en base de datos es la fuente de verdad.
+                // Reportar un fallo HTTP provocaría que el cliente reintentara una creación ya completada.
+                _logger.LogWarning(
+                    "El usuario de comercio {UserId} fue creado, pero el correo de activación no pudo enviarse.",
+                    appUser.Id);
             }
 
             _logger.LogInformation("Usuario de comercio {Username} con ID {UserId} creado exitosamente en estado Inactivo.", createCommerceUserRequest.UserName, appUser.Id);
@@ -955,6 +1026,29 @@ namespace ABP.Infrastructure.Identity.Services
                 HasError = false,
                 IsVerified = false
             };
+        }
+
+        private async Task<string?> GetCommerceActivationErrorAsync(User domainUser)
+        {
+            if (domainUser.Role != Roles.Commerce)
+            {
+                return null;
+            }
+
+            if (domainUser.CommerceId is null)
+            {
+                return "El usuario de comercio no tiene un comercio asociado.";
+            }
+
+            var commerce = await _commerceRepository.GetByIdAsync(domainUser.CommerceId.Value);
+            if (commerce is null)
+            {
+                return "El comercio asociado al usuario no existe.";
+            }
+
+            return commerce.Status == CommerceStatus.Active
+                ? null
+                : "El usuario de comercio no puede activarse mientras el comercio esté inactivo.";
         }
     }
 }

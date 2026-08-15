@@ -2,12 +2,14 @@ using System.Data;
 using ABP.Application.Common;
 using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
+using ABP.Application.Features.CreditCards.Notifications;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Rules.Cards;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.CreditCards.Commands.CreateCreditCard;
 
@@ -18,7 +20,10 @@ public sealed class CreateCreditCardCommandHandler(
     IUnitOfWork unitOfWork,
     IFinancialTransaction financialTransaction,
     IClock clock,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    IUserRepository users,
+    IEmailService emailService,
+    ILogger<CreateCreditCardCommandHandler> logger)
     : IRequestHandler<CreateCreditCardCommand, OperationResult<Guid>>
 {
     private const int MaxCardNumberGenerationAttempts = 10;
@@ -41,7 +46,9 @@ public sealed class CreateCreditCardCommandHandler(
                 CreditCardErrors.AdministratorRequired);
         }
 
-        return await financialTransaction.ExecuteAsync(
+        AssignmentNotification? notification = null;
+
+        var result = await financialTransaction.ExecuteAsync(
             IsolationLevel.Serializable,
             async transactionCancellationToken =>
             {
@@ -75,6 +82,7 @@ public sealed class CreateCreditCardCommandHandler(
                 }
 
                 var cvc = cvcService.Generate();
+                var expirationDate = CreditCardRules.CalculateExpirationDate(clock.Today);
                 var card = new CreditCard
                 {
                     ClientId = request.ClientId,
@@ -82,7 +90,7 @@ public sealed class CreateCreditCardCommandHandler(
                     CvcHash = cvcService.Hash(cvc),
                     Limit = request.CreditLimit,
                     Debt = 0m,
-                    ExpirationDate = CreditCardRules.CalculateExpirationDate(clock.Today),
+                    ExpirationDate = expirationDate,
                     Status = CreditCardStatus.Active,
                     AssignedByUserId = assignedByUserId
                 };
@@ -91,13 +99,39 @@ public sealed class CreateCreditCardCommandHandler(
                     card,
                     transactionCancellationToken);
 
-                // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
-                // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
+                var client = await users.GetByIdAsync(
+                    request.ClientId,
+                    transactionCancellationToken);
+                notification = new AssignmentNotification(
+                    createdCard.Id,
+                    ToRecipient(client, request.ClientId),
+                    LastFour(cardNumber),
+                    request.CreditLimit,
+                    expirationDate,
+                    clock.Now);
+
                 await unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
                 return OperationResult<Guid>.Success(createdCard.Id);
             },
             cancellationToken);
+
+        if (result.IsSuccess && notification is not null)
+        {
+            await CardNotificationEmails.SendBestEffortAsync(
+                emailService,
+                logger,
+                CardNotificationEmails.Assignment(
+                    notification.Recipient,
+                    notification.CardLastFourDigits,
+                    notification.CreditLimit,
+                    notification.ExpirationDate,
+                    notification.AssignedAtBankingTime),
+                "asignación de tarjeta",
+                notification.CreditCardId.ToString("N"));
+        }
+
+        return result;
     }
 
     private async Task<string?> GenerateUniqueCardNumberAsync(
@@ -120,4 +154,24 @@ public sealed class CreateCreditCardCommandHandler(
 
         return null;
     }
+
+    private static CardNotificationRecipient ToRecipient(
+        Domain.Entities.User? user,
+        string userId) =>
+        new(
+            userId,
+            user?.Email ?? string.Empty,
+            user is null
+                ? string.Empty
+                : $"{user.Name} {user.LastName}".Trim());
+
+    private static string LastFour(string cardNumber) => cardNumber[^4..];
+
+    private sealed record AssignmentNotification(
+        Guid CreditCardId,
+        CardNotificationRecipient Recipient,
+        string CardLastFourDigits,
+        decimal CreditLimit,
+        DateOnly ExpirationDate,
+        DateTimeOffset AssignedAtBankingTime);
 }

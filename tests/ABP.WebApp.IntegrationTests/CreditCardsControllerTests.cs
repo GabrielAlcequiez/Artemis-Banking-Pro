@@ -173,6 +173,59 @@ public sealed class CreditCardsControllerTests
     }
 
     [Fact]
+    public async Task Create_post_notification_warning_preserves_successful_prg()
+    {
+        var client = CreateClient();
+        var controller = CreateController(
+            new FakeCreditCardService
+            {
+                CreateResult = OperationResult<Guid>.Success(Guid.NewGuid()),
+                HasNotificationWarning = true
+            },
+            new FakeClientSelectionService { Client = client });
+
+        var result = await controller.Create(
+            new CreateCreditCardViewModel
+            {
+                ClientId = client.Id,
+                CreditLimit = 2_000m
+            },
+            CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(
+            "La tarjeta fue creada correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
+    }
+
+    [Fact]
+    public async Task EditLimit_notification_warning_preserves_confirmed_change()
+    {
+        var detail = CreateDetail();
+        var controller = CreateController(
+            new FakeCreditCardService
+            {
+                Detail = detail,
+                UpdateResult = OperationResult.Success(),
+                HasNotificationWarning = true
+            },
+            new FakeClientSelectionService());
+
+        var result = await controller.EditLimit(
+            new EditCreditLimitViewModel
+            {
+                CreditCardId = detail.Id,
+                CreditLimit = 1_500m
+            },
+            CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(
+            "El límite fue actualizado correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
+    }
+
+    [Fact]
     public async Task EditLimit_domain_failure_returns_view_with_spanish_model_error()
     {
         var detail = CreateDetail();
@@ -297,6 +350,8 @@ public sealed class CreditCardsControllerTests
 
         public OperationResult UpdateResult { get; init; } = OperationResult.Success();
 
+        public bool HasNotificationWarning { get; init; }
+
         public OperationResult CancelResult { get; init; } = OperationResult.Success();
 
         public ValidationException? CreateException { get; init; }
@@ -321,17 +376,23 @@ public sealed class CreditCardsControllerTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
 
-        public Task<OperationResult<Guid>> CreateAsync(
+        public Task<CardOperationResult<Guid>> CreateAsync(
             CreateCreditCardRequest request,
             CancellationToken cancellationToken = default) =>
             CreateException is null
-                ? Task.FromResult(CreateResult)
-                : Task.FromException<OperationResult<Guid>>(CreateException);
+                ? Task.FromResult(
+                    new CardOperationResult<Guid>(
+                        CreateResult,
+                        HasNotificationWarning))
+                : Task.FromException<CardOperationResult<Guid>>(CreateException);
 
-        public Task<OperationResult> UpdateLimitAsync(
+        public Task<CardOperationResult> UpdateLimitAsync(
             UpdateCreditLimitRequest request,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(UpdateResult);
+            Task.FromResult(
+                new CardOperationResult(
+                    UpdateResult,
+                    HasNotificationWarning));
 
         public Task<OperationResult> CancelAsync(
             CancelCreditCardRequest request,
