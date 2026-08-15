@@ -18,6 +18,43 @@
         <p class="mt-1 text-sm text-ink-muted">Consulta tus productos financieros activos.</p>
     </header>
 
+    @if (Model.SavingsAccounts.Count > 0)
+    {
+        <section class="space-y-4" aria-labelledby="savings-accounts-heading">
+            <div>
+                <h2 id="savings-accounts-heading" class="text-lg font-semibold text-ink">Cuentas de ahorro</h2>
+                <p class="text-sm text-ink-muted">Cuentas activas asociadas a tu usuario.</p>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                @foreach (var account in Model.SavingsAccounts)
+                {
+                    <article class="card space-y-4 p-5">
+                        <div class="flex items-start justify-between gap-3">
+                            <p class="font-mono text-base font-semibold text-ink">@account.AccountNumber</p>
+                            <span class="badge badge-success">Activa</span>
+                        </div>
+                        <dl class="text-sm">
+                            <dt class="text-ink-muted">Disponible</dt>
+                            <dd class="tnum mt-1 font-medium text-ink">RD$ @account.Balance.ToString("N2")</dd>
+                        </dl>
+                        <a class="btn btn-ghost w-full border border-border"
+                           asp-area="Client"
+                           asp-controller="SavingsAccounts"
+                           asp-action="Details"
+                           asp-route-id="@account.Id">Ver detalles</a>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+    else
+    {
+        <div class="card p-8 text-center">
+            <p class="text-sm text-ink-muted">No tienes cuentas de ahorro activas.</p>
+        </div>
+    }
+
     @if (Model.CreditCards.Count > 0)
     {
         <section class="space-y-4" aria-labelledby="credit-cards-heading">
