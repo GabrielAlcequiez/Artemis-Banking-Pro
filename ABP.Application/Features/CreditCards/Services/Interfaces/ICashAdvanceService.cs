@@ -8,7 +8,7 @@ namespace ABP.Application.Features.CreditCards.Services.Interfaces
         Task<ClientCardOperationOptions> GetClientOptionsAsync(
             CancellationToken cancellationToken = default);
 
-        Task<OperationResult<FinancialOperationReceipt>> ProcessCashAdvanceAsync(
+        Task<CardOperationResult<FinancialOperationReceipt>> ProcessCashAdvanceAsync(
             CashAdvanceRequest request,
             CancellationToken cancellationToken = default);
     }

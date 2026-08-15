@@ -15,7 +15,7 @@ namespace ABP.Application.Features.CreditCards.Services.Interfaces
             Guid operationId,
             CancellationToken cancellationToken = default);
 
-        Task<OperationResult<FinancialOperationReceipt>> ProcessPaymentAsync(
+        Task<CardOperationResult<FinancialOperationReceipt>> ProcessPaymentAsync(
             CreditCardPaymentRequest request,
             CancellationToken cancellationToken = default);
     }
