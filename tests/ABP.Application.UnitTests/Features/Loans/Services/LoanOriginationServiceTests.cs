@@ -7,6 +7,7 @@ using ABP.Application.Features.Loans.Mapping;
 using ABP.Application.Features.Loans.Services.Implementations;
 using ABP.Application.Features.Loans.Services.Interfaces;
 using ABP.Application.Features.Loans.Validation;
+using ABP.Application.UnitTests.Features.Loans;
 using ABP.Domain.Common;
 using ABP.Domain.Entities;
 using ABP.Domain.Entities.Accounts;
@@ -44,6 +45,29 @@ public sealed class LoanOriginationServiceTests
         Assert.Equal(1, dependencies.UnitOfWork.SaveCalls);
         Assert.Equal("123456789", result.Value.LoanNumber);
         Assert.Equal(12, result.Value.Amortization.Count);
+        Assert.False(result.HasNotificationWarning);
+        var email = Assert.Single(dependencies.Emails.SentEmails);
+        Assert.Equal("ana@example.com", email.ToEmail);
+        Assert.Equal("Préstamo aprobado", email.Subject);
+        Assert.Contains("123456789", email.Body);
+        Assert.False(dependencies.Emails.WasCalledBeforeCommit);
+    }
+
+    [Fact]
+    public async Task CreateAsync_keeps_loan_confirmed_when_email_fails()
+    {
+        var dependencies = CreateDependencies();
+        dependencies.Emails.ThrowOnSend = true;
+        var service = dependencies.CreateService();
+
+        var result = await service.CreateAsync(CreateRequest());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.HasNotificationWarning);
+        Assert.Equal(1, dependencies.UnitOfWork.SaveCalls);
+        Assert.NotNull(dependencies.Loans.AddedLoan);
+        Assert.Equal(1, dependencies.Emails.SendAttempts);
+        Assert.False(dependencies.Emails.WasCalledBeforeCommit);
     }
 
     [Fact]
@@ -133,6 +157,7 @@ public sealed class LoanOriginationServiceTests
                 {
                     Name = "Ana",
                     LastName = "Pérez",
+                    Email = "ana@example.com",
                     Role = Roles.Client,
                     IsActive = true
                 }
@@ -151,7 +176,8 @@ public sealed class LoanOriginationServiceTests
             Balance = new StubAccountBalanceService(),
             Ledger = new StubAccountLedger(),
             Risk = new StubLoanRiskService(),
-            UnitOfWork = new StubUnitOfWork()
+            UnitOfWork = new StubUnitOfWork(),
+            Emails = new RecordingLoanEmailService()
         };
     }
 
@@ -165,22 +191,29 @@ public sealed class LoanOriginationServiceTests
         public required StubAccountLedger Ledger { get; init; }
         public required StubLoanRiskService Risk { get; init; }
         public required StubUnitOfWork UnitOfWork { get; init; }
+        public required RecordingLoanEmailService Emails { get; init; }
 
-        public LoanOriginationService CreateService() => new(
-            Loans,
-            Users,
-            Accounts,
-            Identifier,
-            Balance,
-            Ledger,
-            Risk,
-            new AmortizationCalculator(),
-            UnitOfWork,
-            new StubCurrentUser(),
-            new StubClock(new DateOnly(2026, 8, 11)),
-            new CreateLoanRequestValidator(),
-            CreateMapper(),
-            NullLogger<LoanOriginationService>.Instance);
+        public LoanOriginationService CreateService()
+        {
+            Emails.IsOperationCommitted = () => UnitOfWork.SaveCalls > 0;
+
+            return new LoanOriginationService(
+                Loans,
+                Users,
+                Accounts,
+                Identifier,
+                Balance,
+                Ledger,
+                Risk,
+                new AmortizationCalculator(),
+                UnitOfWork,
+                new StubCurrentUser(),
+                new StubClock(new DateOnly(2026, 8, 11)),
+                new CreateLoanRequestValidator(),
+                CreateMapper(),
+                Emails,
+                NullLogger<LoanOriginationService>.Instance);
+        }
 
         private static IMapper CreateMapper() =>
             new MapperConfiguration(

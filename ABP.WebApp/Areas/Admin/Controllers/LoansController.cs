@@ -183,8 +183,9 @@ public sealed class LoansController(
                 return View(model);
             }
 
-            TempData[SuccessMessageKey] =
-                "El préstamo fue creado y desembolsado correctamente.";
+            TempData[SuccessMessageKey] = result.HasNotificationWarning
+                ? "El préstamo fue creado correctamente, pero no fue posible enviar el correo de notificación."
+                : "El préstamo fue creado y desembolsado correctamente.";
             return RedirectToAction(
                 nameof(Details),
                 new { id = result.Value.Id });
@@ -245,8 +246,9 @@ public sealed class LoansController(
                 return View(nameof(RiskWarning), model);
             }
 
-            TempData[SuccessMessageKey] =
-                "El préstamo de alto riesgo fue confirmado, creado y desembolsado correctamente.";
+            TempData[SuccessMessageKey] = result.HasNotificationWarning
+                ? "El préstamo de alto riesgo fue creado correctamente, pero no fue posible enviar el correo de notificación."
+                : "El préstamo de alto riesgo fue confirmado, creado y desembolsado correctamente.";
             return RedirectToAction(
                 nameof(Details),
                 new { id = result.Value.Id });
@@ -339,8 +341,9 @@ public sealed class LoansController(
                 return View(model);
             }
 
-            TempData[SuccessMessageKey] =
-                "La tasa del préstamo fue actualizada correctamente.";
+            TempData[SuccessMessageKey] = result.HasNotificationWarning
+                ? "La tasa fue actualizada correctamente, pero no fue posible enviar el correo de notificación."
+                : "La tasa del préstamo fue actualizada correctamente.";
             return RedirectToAction(
                 nameof(Details),
                 new { id = model.LoanId });

@@ -144,7 +144,8 @@ public sealed class LoansControllerTests
         {
             AssessmentResult = OperationResult<HighRiskAssessmentDto>.Success(
                 NoRiskAssessment()),
-            CreateResult = OperationResult<LoanDetailDto>.Success(detail)
+            CreateResult = OperationResult<LoanDetailDto>.Success(detail),
+            HasNotificationWarning = true
         };
         var controller = CreateController(
             new FakeLoanService(),
@@ -166,7 +167,9 @@ public sealed class LoansControllerTests
         Assert.Equal(nameof(LoansController.Details), redirect.ActionName);
         Assert.Equal(detail.Id, redirect.RouteValues?["id"]);
         Assert.False(origination.ReceivedCreateRequest?.ConfirmHighRisk);
-        Assert.NotNull(controller.TempData["SuccessMessage"]);
+        Assert.Equal(
+            "El préstamo fue creado correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
     }
 
     [Fact]
@@ -274,6 +277,35 @@ public sealed class LoansControllerTests
             controller.ModelState[string.Empty]!.Errors,
             error => error.ErrorMessage.Contains("cuotas futuras pendientes"));
         Assert.Equal(14m, rate.ReceivedRequest?.AnnualInterestRate);
+    }
+
+    [Fact]
+    public async Task EditRate_email_failure_keeps_success_and_shows_warning()
+    {
+        var detail = CreateDetail();
+        var rate = new FakeLoanRateService
+        {
+            Result = OperationResult.Success(),
+            HasNotificationWarning = true
+        };
+        var controller = CreateController(
+            new FakeLoanService { Detail = detail },
+            new FakeClientSelectionService(),
+            new FakeOriginationService(),
+            rate);
+
+        var result = await controller.EditRate(
+            new EditLoanRateViewModel
+            {
+                LoanId = detail.Id,
+                AnnualInterestRate = 14m
+            },
+            CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(
+            "La tasa fue actualizada correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
     }
 
     private static LoansController CreateController(
@@ -409,6 +441,7 @@ public sealed class LoansControllerTests
         public CreateLoanRequest? ReceivedCreateRequest { get; private set; }
         public int AssessCalls { get; private set; }
         public int CreateCalls { get; private set; }
+        public bool HasNotificationWarning { get; init; }
 
         public Task<OperationResult<HighRiskAssessmentDto>> AssessRiskAsync(
             CreateLoanRequest request,
@@ -418,13 +451,16 @@ public sealed class LoansControllerTests
             return Task.FromResult(AssessmentResult);
         }
 
-        public Task<OperationResult<LoanDetailDto>> CreateAsync(
+        public Task<LoanOperationResult<LoanDetailDto>> CreateAsync(
             CreateLoanRequest request,
             CancellationToken cancellationToken = default)
         {
             ReceivedCreateRequest = request;
             CreateCalls++;
-            return Task.FromResult(CreateResult);
+            return Task.FromResult(
+                new LoanOperationResult<LoanDetailDto>(
+                    CreateResult,
+                    HasNotificationWarning));
         }
     }
 
@@ -433,13 +469,17 @@ public sealed class LoansControllerTests
         public OperationResult Result { get; init; } =
             OperationResult.Success();
         public UpdateLoanRateRequest? ReceivedRequest { get; private set; }
+        public bool HasNotificationWarning { get; init; }
 
-        public Task<OperationResult> UpdateRateAsync(
+        public Task<LoanOperationResult> UpdateRateAsync(
             UpdateLoanRateRequest request,
             CancellationToken cancellationToken = default)
         {
             ReceivedRequest = request;
-            return Task.FromResult(Result);
+            return Task.FromResult(
+                new LoanOperationResult(
+                    Result,
+                    HasNotificationWarning));
         }
     }
 

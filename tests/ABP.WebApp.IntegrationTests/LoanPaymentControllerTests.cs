@@ -63,7 +63,8 @@ public sealed class LoanPaymentControllerTests
     {
         var service = new FakeLoanPaymentService
         {
-            ProcessResult = SuccessResult()
+            ProcessResult = SuccessResult(),
+            HasNotificationWarning = true
         };
         var controller = Configure(new ClientLoanPaymentsController(service));
         var model = new LoanPaymentViewModel
@@ -80,7 +81,9 @@ public sealed class LoanPaymentControllerTests
         Assert.Equal("Home", redirect.ControllerName);
         Assert.Equal("Client", redirect.RouteValues?["area"]);
         Assert.Equal(model.OperationId, service.ReceivedPayment?.OperationId);
-        Assert.NotNull(controller.TempData["SuccessMessage"]);
+        Assert.Equal(
+            "El pago fue realizado correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
     }
 
     [Fact]
@@ -222,6 +225,7 @@ public sealed class LoanPaymentControllerTests
             OperationResult<CashierLoanPaymentPreview>.Failure(LoanErrors.NotFound);
         public OperationResult<LoanPaymentResult> ProcessResult { get; init; } =
             OperationResult<LoanPaymentResult>.Failure(LoanErrors.NotFound);
+        public bool HasNotificationWarning { get; init; }
 
         public Task<ClientLoanPaymentOptions> GetClientOptionsAsync(
             CancellationToken cancellationToken = default)
@@ -238,12 +242,15 @@ public sealed class LoanPaymentControllerTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(PreviewResult);
 
-        public Task<OperationResult<LoanPaymentResult>> ProcessPaymentAsync(
+        public Task<LoanOperationResult<LoanPaymentResult>> ProcessPaymentAsync(
             LoanPaymentRequest request,
             CancellationToken cancellationToken = default)
         {
             ReceivedPayment = request;
-            return Task.FromResult(ProcessResult);
+            return Task.FromResult(
+                new LoanOperationResult<LoanPaymentResult>(
+                    ProcessResult,
+                    HasNotificationWarning));
         }
     }
 

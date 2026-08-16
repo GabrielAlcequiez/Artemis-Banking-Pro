@@ -4,7 +4,9 @@ using ABP.Application.Features.Loans.DTOs;
 using ABP.Application.Features.Loans.Services.Implementations;
 using ABP.Application.Features.Loans.Services.Interfaces;
 using ABP.Application.Features.Loans.Validation;
+using ABP.Application.UnitTests.Features.Loans;
 using ABP.Domain.Common;
+using ABP.Domain.Entities;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -106,7 +108,16 @@ public sealed class LoanCoreServicesTests
                 ])
         };
         var unitOfWork = new FakeUnitOfWork();
-        var service = CreateRateService(repository, calculator, unitOfWork, today);
+        var emails = new RecordingLoanEmailService
+        {
+            IsOperationCommitted = () => unitOfWork.SaveCalls > 0
+        };
+        var service = CreateRateService(
+            repository,
+            calculator,
+            unitOfWork,
+            today,
+            emails);
 
         var result = await service.UpdateRateAsync(
             new UpdateLoanRateRequest(Guid.NewGuid(), 7.25m));
@@ -127,6 +138,60 @@ public sealed class LoanCoreServicesTests
         Assert.Equal(7.25m, loan.AnnualInterestRate);
         Assert.Equal(251m, loan.PendingAmount);
         Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.False(result.HasNotificationWarning);
+        var email = Assert.Single(emails.SentEmails);
+        Assert.Equal("client@example.com", email.ToEmail);
+        Assert.Equal(
+            "Actualización de tasa de interés de préstamo",
+            email.Subject);
+        Assert.Contains("90.00", email.Body);
+        Assert.False(emails.WasCalledBeforeCommit);
+    }
+
+    [Fact]
+    public async Task Update_rate_keeps_changes_when_email_fails()
+    {
+        var today = new DateOnly(2026, 8, 10);
+        var loan = CreateLoan();
+        loan.Installments =
+        [
+            CreateInstallment(
+                1,
+                today.AddMonths(1),
+                InstallmentPaymentStatus.Pending,
+                100m,
+                capitalAmount: 90m)
+        ];
+        var repository = new FakeLoanRepository { LoanWithInstallments = loan };
+        var calculator = new FakeAmortizationCalculator
+        {
+            Result = new AmortizationResult(
+                100m,
+                100m,
+                [new LoanInstallmentDto(1, today.AddMonths(1), 100m, 10m, 90m, 100m, "Pendiente", false)])
+        };
+        var unitOfWork = new FakeUnitOfWork();
+        var emails = new RecordingLoanEmailService
+        {
+            ThrowOnSend = true,
+            IsOperationCommitted = () => unitOfWork.SaveCalls > 0
+        };
+        var service = CreateRateService(
+            repository,
+            calculator,
+            unitOfWork,
+            today,
+            emails);
+
+        var result = await service.UpdateRateAsync(
+            new UpdateLoanRateRequest(Guid.NewGuid(), 8m));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.HasNotificationWarning);
+        Assert.Equal(8m, loan.AnnualInterestRate);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(1, emails.SendAttempts);
+        Assert.False(emails.WasCalledBeforeCommit);
     }
 
     [Fact]
@@ -267,13 +332,15 @@ public sealed class LoanCoreServicesTests
         FakeLoanRepository repository,
         FakeAmortizationCalculator calculator,
         FakeUnitOfWork unitOfWork,
-        DateOnly? today = null) =>
+        DateOnly? today = null,
+        RecordingLoanEmailService? emails = null) =>
         new LoanRateService(
             repository,
             calculator,
             unitOfWork,
             new FakeClock(today ?? new DateOnly(2026, 8, 10)),
             new UpdateLoanRateRequestValidator(),
+            emails ?? new RecordingLoanEmailService(),
             NullLogger<LoanRateService>.Instance);
 
     private static ILoanDelinquencyService CreateDelinquencyService(
@@ -286,9 +353,17 @@ public sealed class LoanCoreServicesTests
 
     private static Loan CreateLoan(LoanStatus status = LoanStatus.Active) => new()
     {
+        ClientId = "client-1",
+        LoanNumber = "123456789",
         Status = status,
         AnnualInterestRate = 12m,
-        PendingAmount = 190m
+        PendingAmount = 190m,
+        Client = new User("client-1")
+        {
+            Name = "Ana",
+            LastName = "Pérez",
+            Email = "client@example.com"
+        }
     };
 
     private static LoanInstallment CreateInstallment(
