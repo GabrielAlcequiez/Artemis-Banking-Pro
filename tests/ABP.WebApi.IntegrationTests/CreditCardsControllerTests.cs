@@ -26,7 +26,9 @@ public sealed class CreditCardsControllerTests
     {
         var type = typeof(CreditCardsController);
 
-        Assert.Equal("api/credit-card", type.GetCustomAttribute<RouteAttribute>()?.Template);
+        Assert.Equal(
+            "api/v{version:apiVersion}/[controller]",
+            type.GetCustomAttribute<RouteAttribute>()?.Template);
         Assert.Equal(
             nameof(Roles.Administrator),
             type.GetCustomAttribute<AuthorizeAttribute>()?.Roles);

@@ -26,7 +26,7 @@ public sealed class CommerceControllerTests
         var type = typeof(CommerceController);
 
         Assert.Equal(
-            "api/commerce",
+            "api/v{version:apiVersion}/[controller]",
             type.GetCustomAttribute<RouteAttribute>()?.Template);
         Assert.Equal(
             nameof(Roles.Administrator),

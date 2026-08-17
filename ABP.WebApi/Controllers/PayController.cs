@@ -12,10 +12,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ABP.WebApi.Controllers;
 
-[ApiController]
-[Route("pay")]
 [Authorize(Roles = nameof(Roles.Administrator) + "," + nameof(Roles.Commerce))]
-public sealed class PayController(ISender sender) : ControllerBase
+public sealed class PayController(ISender sender) : BaseApiController
 {
     [HttpGet("get-transactions/{commerceId:guid}")]
     [ProducesResponseType(typeof(HermesTransactionsPageDto), StatusCodes.Status200OK)]

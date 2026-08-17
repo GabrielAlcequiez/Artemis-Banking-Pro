@@ -8,6 +8,7 @@ using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Mappings;
 using ABP.Domain.Common;
 using ABP.Domain.Entities;
+using ABP.Domain.Entities.Accounts;
 using ABP.Domain.Entities.Commerce;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -30,6 +31,9 @@ public class BaseAccountServiceTests
     private readonly FakeEmailService _emailService = new();
     private readonly FakeAccountTokenService _accountTokenService = new();
     private readonly FakeCommerceRepository _commerceRepository = new();
+    private readonly FakeSavingsAccountRepository _savingsAccountRepository = new();
+    private readonly FakeAccountBalanceService _accountBalanceService = new();
+    private readonly FakeAccountLedger _accountLedger = new();
     private readonly IMapper _mapper = new MapperConfiguration(
         cfg => cfg.AddMaps(typeof(UserProfile).Assembly),
         NullLoggerFactory.Instance).CreateMapper();
@@ -63,9 +67,9 @@ public class BaseAccountServiceTests
             new FakeUnitOfWork(),
             _accountTokenService,
             _primaryAccountProvisioner,
-            null!,
-            null!,
-            null!,
+            _savingsAccountRepository,
+            _accountBalanceService,
+            _accountLedger,
             NullLogger<BaseAccountService>.Instance,
             _commerceRepository,
             new CreateCommerceUserRequestValidator());
@@ -94,6 +98,17 @@ public class BaseAccountServiceTests
         Password = "Passw0rd!",
         ConfirmPassword = "Passw0rd!",
         InitialAmount = 250m
+    };
+
+    private static EditUserDto ValidEditDto(string userId, decimal? additionalAmount = null) => new()
+    {
+        Id = userId,
+        FirstName = "Ana actualizada",
+        LastName = "Pérez actualizada",
+        Identification = "00112345678",
+        Email = $"updated-{userId}@test.com",
+        UserName = $"updated-{userId[..8]}",
+        AdditionalAmount = additionalAmount
     };
 
     [Fact]
@@ -165,6 +180,54 @@ public class BaseAccountServiceTests
 
         Assert.True(result.HasError);
         Assert.Equal("Ya existe un usuario registrado con este número de cédula.", result.Error);
+        Assert.Empty(_primaryAccountProvisioner.Calls);
+    }
+
+    [Fact]
+    public async Task RegisterUserAsync_duplicate_username_returns_conflict()
+    {
+        var existingUser = new AppUser
+        {
+            Id = "existing-username",
+            UserName = "juanp",
+            Email = "other@test.com",
+            IsActive = true,
+            EmailConfirmed = true
+        };
+        existingUser.PasswordHash = new PasswordHasher<AppUser>().HashPassword(existingUser, "Passw0rd!");
+        _userStore.SeedUser(existingUser);
+        await _userStore.AddToRoleAsync(existingUser, Roles.Administrator.ToString(), CancellationToken.None);
+        var service = CreateService();
+
+        var result = await service.RegisterUserAsync(ValidClientDto(), "https://localhost");
+
+        Assert.True(result.HasError);
+        Assert.True(result.IsConflict);
+        Assert.Equal("Ya existe un usuario registrado con este nombre de usuario.", result.Error);
+        Assert.Empty(_primaryAccountProvisioner.Calls);
+    }
+
+    [Fact]
+    public async Task RegisterUserAsync_duplicate_email_returns_conflict()
+    {
+        var existingUser = new AppUser
+        {
+            Id = "existing-email",
+            UserName = "other-user",
+            Email = "juan@test.com",
+            IsActive = true,
+            EmailConfirmed = true
+        };
+        existingUser.PasswordHash = new PasswordHasher<AppUser>().HashPassword(existingUser, "Passw0rd!");
+        _userStore.SeedUser(existingUser);
+        await _userStore.AddToRoleAsync(existingUser, Roles.Administrator.ToString(), CancellationToken.None);
+        var service = CreateService();
+
+        var result = await service.RegisterUserAsync(ValidClientDto(), "https://localhost");
+
+        Assert.True(result.HasError);
+        Assert.True(result.IsConflict);
+        Assert.Equal("Ya existe un usuario registrado con este correo electrónico.", result.Error);
         Assert.Empty(_primaryAccountProvisioner.Calls);
     }
 
@@ -274,6 +337,88 @@ public class BaseAccountServiceTests
         Assert.NotEmpty(result.Id);
         Assert.Single(_userRepository.Added);
         Assert.Single(_primaryAccountProvisioner.Calls);
+    }
+
+    [Fact]
+    public async Task EditUserAsync_empty_password_preserves_existing_password_hash()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: true);
+        var originalPasswordHash = _userStore.GetUser(userId)!.PasswordHash;
+        var service = CreateService();
+
+        var result = await service.EditUserAsync(
+            ValidEditDto(userId),
+            currentUserId: "admin-id");
+
+        Assert.False(result.HasError);
+        Assert.Equal(originalPasswordHash, _userStore.GetUser(userId)!.PasswordHash);
+    }
+
+    [Fact]
+    public async Task EditUserAsync_additional_amount_zero_creates_no_ledger_movement()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: true);
+        _savingsAccountRepository.SeedPrincipal(userId);
+        var service = CreateService();
+
+        var result = await service.EditUserAsync(
+            ValidEditDto(userId, additionalAmount: 0m),
+            currentUserId: "admin-id");
+
+        Assert.False(result.HasError);
+        Assert.Empty(_accountBalanceService.Credits);
+        Assert.Empty(_accountLedger.ApprovedEntries);
+    }
+
+    [Fact]
+    public async Task EditUserAsync_additional_amount_positive_credits_account_and_records_ledger()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: true);
+        var principal = _savingsAccountRepository.SeedPrincipal(userId);
+        var service = CreateService();
+
+        var result = await service.EditUserAsync(
+            ValidEditDto(userId, additionalAmount: 75m),
+            currentUserId: "admin-id");
+
+        Assert.False(result.HasError);
+        var credit = Assert.Single(_accountBalanceService.Credits);
+        Assert.Equal(principal.Id, credit.AccountId);
+        Assert.Equal(75m, credit.Amount);
+
+        var entry = Assert.Single(_accountLedger.ApprovedEntries);
+        Assert.Equal(principal.Id, entry.AccountId);
+        Assert.Equal(75m, entry.Amount);
+        Assert.Equal(TransactionDirection.Credit, entry.Direction);
+        Assert.Equal(FinancialOperationType.AdministrativeCredit, entry.OperationType);
+    }
+
+    [Fact]
+    public async Task EditUserAsync_self_edit_is_forbidden()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: true);
+        var service = CreateService();
+
+        var result = await service.EditUserAsync(
+            ValidEditDto(userId),
+            currentUserId: userId);
+
+        Assert.True(result.HasError);
+        Assert.True(result.IsForbidden);
+        Assert.Equal("No puede editar su propia cuenta desde este módulo.", result.Error);
+    }
+
+    [Fact]
+    public async Task ChangeUserStatusAsync_self_status_change_is_forbidden()
+    {
+        var userId = Guid.NewGuid().ToString();
+        var service = CreateService();
+
+        var result = await service.ChangeUserStatusAsync(userId, false, currentUserId: userId);
+
+        Assert.True(result.HasError);
+        Assert.True(result.IsForbidden);
+        Assert.Equal("No puede modificar el estado de su propia cuenta.", result.Error);
     }
 
     [Fact]
@@ -417,6 +562,144 @@ public class BaseAccountServiceTests
         Assert.False((await _userRepository.GetByIdAsync(userId))!.IsActive);
     }
 
+    [Fact]
+    public async Task ConfirmAccountAsync_valid_token_activates_account_and_marks_token_used()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: false);
+        var service = CreateService();
+
+        var error = await service.ConfirmAccountAsync(userId, "activation-token");
+
+        Assert.Empty(error);
+        Assert.Equal(1, _accountTokenService.MarkAsUsedCalls);
+        Assert.True(_userStore.GetUser(userId)!.IsActive);
+        Assert.True(_userStore.GetUser(userId)!.EmailConfirmed);
+        Assert.True((await _userRepository.GetByIdAsync(userId))!.IsActive);
+    }
+
+    [Fact]
+    public async Task ConfirmAccountAsync_used_token_is_rejected()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: false);
+        _accountTokenService.ValidationStatus = AccountTokenValidationStatus.Used;
+        var service = CreateService();
+
+        var error = await service.ConfirmAccountAsync(userId, "activation-token");
+
+        Assert.Equal("El token de activación ya ha sido utilizado.", error);
+        Assert.Equal(0, _accountTokenService.MarkAsUsedCalls);
+        Assert.False(_userStore.GetUser(userId)!.IsActive);
+        Assert.False((await _userRepository.GetByIdAsync(userId))!.IsActive);
+    }
+
+    [Fact]
+    public async Task ConfirmAccountAsync_missing_token_is_rejected()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: false);
+        _accountTokenService.ValidationStatus = AccountTokenValidationStatus.NotFound;
+        var service = CreateService();
+
+        var error = await service.ConfirmAccountAsync(userId, "activation-token");
+
+        Assert.Equal("El token de activación no fue encontrado.", error);
+        Assert.Equal(0, _accountTokenService.MarkAsUsedCalls);
+    }
+
+    [Fact]
+    public async Task ConfirmAccountAsync_invalid_token_is_rejected()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: false);
+        _accountTokenService.ValidationStatus = AccountTokenValidationStatus.Invalid;
+        var service = CreateService();
+
+        var error = await service.ConfirmAccountAsync(userId, "activation-token");
+
+        Assert.Equal("El token de activación es inválido.", error);
+        Assert.Equal(0, _accountTokenService.MarkAsUsedCalls);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsync_valid_user_deactivates_and_generates_token()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: true);
+        var appUser = _userStore.GetUser(userId)!;
+        await _userStore.AddToRoleAsync(appUser, Roles.Client.ToString(), CancellationToken.None);
+        var service = CreateService();
+
+        var error = await service.ForgotPasswordAsync(new ForgotPasswordDto { Username = appUser.UserName! });
+
+        Assert.Empty(error);
+        Assert.False(_userStore.GetUser(userId)!.IsActive);
+        Assert.False(_userStore.GetUser(userId)!.EmailConfirmed);
+        Assert.False((await _userRepository.GetByIdAsync(userId))!.IsActive);
+        Assert.Contains(_accountTokenService.Generated, generated => generated.Purpose == AccountTokenPurpose.PasswordReset);
+        Assert.Single(_emailService.Sent);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_expired_token_keeps_account_inactive()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: false);
+        var originalPasswordHash = _userStore.GetUser(userId)!.PasswordHash;
+        _accountTokenService.ValidationStatus = AccountTokenValidationStatus.Expired;
+        var service = CreateService();
+
+        var error = await service.ResetPasswordAsync(new ResetPasswordDto
+        {
+            UserId = userId,
+            Token = "reset-token",
+            Password = "NewPassw0rd!",
+            ConfirmPassword = "NewPassw0rd!"
+        });
+
+        Assert.Equal("El enlace de restablecimiento ha expirado. Solicite un nuevo restablecimiento de contraseña.", error);
+        Assert.Equal(0, _accountTokenService.MarkAsUsedCalls);
+        Assert.Equal(originalPasswordHash, _userStore.GetUser(userId)!.PasswordHash);
+        Assert.False(_userStore.GetUser(userId)!.IsActive);
+        Assert.False((await _userRepository.GetByIdAsync(userId))!.IsActive);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_mismatched_passwords_is_rejected()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: false);
+        var service = CreateService();
+
+        var error = await service.ResetPasswordAsync(new ResetPasswordDto
+        {
+            UserId = userId,
+            Token = "reset-token",
+            Password = "NewPassw0rd!",
+            ConfirmPassword = "Different!"
+        });
+
+        Assert.Contains("deben coincidir", error);
+        Assert.Equal(0, _accountTokenService.MarkAsUsedCalls);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_valid_token_reactivates_user_and_updates_password()
+    {
+        var userId = SeedDomainAndIdentityUser(Roles.Client, commerceId: null, isActive: false);
+        var originalPasswordHash = _userStore.GetUser(userId)!.PasswordHash;
+        var service = CreateService();
+
+        var error = await service.ResetPasswordAsync(new ResetPasswordDto
+        {
+            UserId = userId,
+            Token = "reset-token",
+            Password = "NewPassw0rd!",
+            ConfirmPassword = "NewPassw0rd!"
+        });
+
+        Assert.Empty(error);
+        Assert.Equal(1, _accountTokenService.MarkAsUsedCalls);
+        Assert.NotEqual(originalPasswordHash, _userStore.GetUser(userId)!.PasswordHash);
+        Assert.True(_userStore.GetUser(userId)!.IsActive);
+        Assert.True(_userStore.GetUser(userId)!.EmailConfirmed);
+        Assert.True((await _userRepository.GetByIdAsync(userId))!.IsActive);
+    }
+
     private string SeedCommerceUser(Guid commerceId, bool isActive) =>
         SeedDomainAndIdentityUser(Roles.Commerce, commerceId, isActive);
 
@@ -447,7 +730,7 @@ public class BaseAccountServiceTests
         return userId;
     }
 
-    private sealed class FakeUserStore : IUserStore<AppUser>, IUserEmailStore<AppUser>, IUserPasswordStore<AppUser>, IUserRoleStore<AppUser>
+    private sealed class FakeUserStore : IUserStore<AppUser>, IUserEmailStore<AppUser>, IUserPasswordStore<AppUser>, IUserRoleStore<AppUser>, IUserSecurityStampStore<AppUser>
     {
         private readonly Dictionary<string, AppUser> _usersById = new();
         private readonly Dictionary<string, AppUser> _usersByName = new(StringComparer.OrdinalIgnoreCase);
@@ -603,6 +886,15 @@ public class BaseAccountServiceTests
         public Task<IList<AppUser>> GetUsersInRoleAsync(string roleName, CancellationToken cancellationToken) =>
             Task.FromResult<IList<AppUser>>([]);
 
+        public Task<string?> GetSecurityStampAsync(AppUser user, CancellationToken cancellationToken) =>
+            Task.FromResult(user.SecurityStamp);
+
+        public Task SetSecurityStampAsync(AppUser user, string stamp, CancellationToken cancellationToken)
+        {
+            user.SecurityStamp = stamp;
+            return Task.CompletedTask;
+        }
+
         public void Dispose()
         {
         }
@@ -676,6 +968,8 @@ public class BaseAccountServiceTests
     {
         public List<(string UserId, AccountTokenPurpose Purpose)> Generated { get; } = [];
 
+        public AccountTokenValidationStatus ValidationStatus { get; set; } = AccountTokenValidationStatus.Valid;
+
         public bool MarkAsUsedResult { get; set; } = true;
 
         public int MarkAsUsedCalls { get; private set; }
@@ -688,13 +982,13 @@ public class BaseAccountServiceTests
 
         public Task<AccountTokenValidationResult> ValidateAsync(string userId, string token, AccountTokenPurpose purpose, CancellationToken cancellationToken = default) =>
             Task.FromResult(new AccountTokenValidationResult(
-                AccountTokenValidationStatus.Valid,
+                ValidationStatus,
                 Guid.NewGuid(),
                 userId));
 
         public Task<AccountTokenValidationResult> ValidateByTokenAsync(string token, AccountTokenPurpose purpose, CancellationToken cancellationToken = default) =>
             Task.FromResult(new AccountTokenValidationResult(
-                AccountTokenValidationStatus.Valid,
+                ValidationStatus,
                 Guid.NewGuid(),
                 "user"));
 
@@ -738,6 +1032,181 @@ public class BaseAccountServiceTests
             return Task.FromResult(OperationResult<FinancialOperationReceipt>.Success(
                 new FinancialOperationReceipt(Guid.NewGuid(), initialBalance, DateTimeOffset.UtcNow)));
         }
+    }
+
+    private sealed class FakeSavingsAccountRepository : ISavingsAccountRepository
+    {
+        private readonly Dictionary<Guid, SavingsAccount> _accounts = new();
+
+        public SavingsAccount SeedPrincipal(string ownerUserId)
+        {
+            var account = new SavingsAccount(Guid.NewGuid())
+            {
+                OwnerUserId = ownerUserId,
+                AccountNumber = $"{Random.Shared.Next(100_000_000, 999_999_999)}",
+                Balance = 0m,
+                Type = SavingsAccountType.Principal,
+                Status = SavingsAccountStatus.Active
+            };
+            _accounts[account.Id] = account;
+            return account;
+        }
+
+        public Task<SavingsAccount?> GetByAccountNumberAsync(
+            string accountNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_accounts.Values.FirstOrDefault(account =>
+                account.AccountNumber == accountNumber));
+
+        public Task<SavingsAccount?> GetPrincipalAccountAsync(
+            string ownerUserId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_accounts.Values.FirstOrDefault(account =>
+                account.OwnerUserId == ownerUserId &&
+                account.Type == SavingsAccountType.Principal &&
+                account.Status == SavingsAccountStatus.Active));
+
+        public Task<bool> AccountNumberExistsAsync(
+            string accountNumber,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_accounts.Values.Any(account =>
+                account.AccountNumber == accountNumber));
+
+        public Task<IReadOnlyCollection<SavingsAccount>> GetActiveByOwnerIdAsync(
+            string ownerUserId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyCollection<SavingsAccount>>(_accounts.Values
+                .Where(account => account.OwnerUserId == ownerUserId && account.Status == SavingsAccountStatus.Active)
+                .ToArray());
+
+        public Task<PagedResult<SavingsAccount>> GetPagedAsync(
+            PagedRequest request,
+            string? ownerIdentification = null,
+            SavingsAccountStatus? status = null,
+            SavingsAccountType? type = null,
+            CancellationToken cancellationToken = default)
+        {
+            var accounts = _accounts.Values
+                .Where(account => !status.HasValue || account.Status == status)
+                .Where(account => !type.HasValue || account.Type == type)
+                .ToArray();
+            return Task.FromResult(new PagedResult<SavingsAccount>(
+                accounts,
+                request.Page,
+                request.PageSize,
+                accounts.Length));
+        }
+
+        public IQueryable<SavingsAccount> GetAllQueryable(bool trackChanges = false) =>
+            _accounts.Values.AsQueryable();
+
+        public Task<SavingsAccount?> GetByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_accounts.GetValueOrDefault(id));
+
+        public Task<IReadOnlyList<SavingsAccount>> GetAllAsync(
+            bool trackChanges = false,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SavingsAccount>>(_accounts.Values.ToArray());
+
+        public Task<SavingsAccount> AddAsync(
+            SavingsAccount entity,
+            CancellationToken cancellationToken = default)
+        {
+            _accounts[entity.Id] = entity;
+            return Task.FromResult(entity);
+        }
+
+        public Task<SavingsAccount?> UpdateAsync(
+            Guid id,
+            SavingsAccount value,
+            CancellationToken cancellationToken = default)
+        {
+            _accounts[id] = value;
+            return Task.FromResult<SavingsAccount?>(value);
+        }
+
+        public Task<SavingsAccount?> DeleteAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            _accounts.Remove(id, out var account);
+            return Task.FromResult(account);
+        }
+    }
+
+    private sealed class FakeAccountBalanceService : IAccountBalanceService
+    {
+        public List<(Guid AccountId, decimal Amount)> Credits { get; } = [];
+
+        public Task<OperationResult> CreditAsync(
+            Guid accountId,
+            decimal amount,
+            CancellationToken cancellationToken = default)
+        {
+            Credits.Add((accountId, amount));
+            return Task.FromResult(OperationResult.Success());
+        }
+
+        public Task<OperationResult> DebitAsync(
+            Guid accountId,
+            decimal amount,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperationResult.Success());
+    }
+
+    private sealed class FakeAccountLedger : IAccountLedger
+    {
+        public sealed record ApprovedLedgerEntry(
+            Guid OperationId,
+            Guid AccountId,
+            decimal Amount,
+            TransactionDirection Direction,
+            FinancialOperationType OperationType,
+            string? Origin,
+            string? Beneficiary,
+            string? ActorUserId,
+            string? ActorRole);
+
+        public List<ApprovedLedgerEntry> ApprovedEntries { get; } = [];
+
+        public Task RecordApprovedAsync(
+            Guid operationId,
+            Guid accountId,
+            decimal amount,
+            TransactionDirection direction,
+            FinancialOperationType operationType,
+            string? origin,
+            string? beneficiary,
+            string? actorUserId,
+            string? actorRole,
+            CancellationToken cancellationToken = default)
+        {
+            ApprovedEntries.Add(new ApprovedLedgerEntry(
+                operationId,
+                accountId,
+                amount,
+                direction,
+                operationType,
+                origin,
+                beneficiary,
+                actorUserId,
+                actorRole));
+            return Task.CompletedTask;
+        }
+
+        public Task RecordRejectedAsync(
+            Guid accountId,
+            Guid operationId,
+            decimal amount,
+            TransactionDirection direction,
+            FinancialOperationType operationType,
+            string rejectionReason,
+            string? actorUserId,
+            string? actorRole,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 
     private sealed class FakeCommerceRepository : ICommerceRepository

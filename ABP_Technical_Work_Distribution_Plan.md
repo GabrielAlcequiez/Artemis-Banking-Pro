@@ -613,20 +613,24 @@ Construir la plataforma compartida y los flujos de identidad para que los demás
 
 **`AccountController`**
 
-- `POST /account/login`
-- `POST /account/confirm`
-- `POST /account/get-reset-token`
-- `POST /account/reset-password`
+- `POST /api/v1/account/login`
+- `POST /api/v1/account/confirm`
+- `POST /api/v1/account/get-reset-token`
+- `POST /api/v1/account/reset-password`
 
 **`UsersController`**
 
-- `GET /api/users`
-- `GET /api/users/commerce`
-- `POST /api/users`
-- `POST /api/users/commerce/{commerceId}`
-- `PUT /api/users/{id}`
-- `PATCH /api/users/{id}/status`
-- `GET /api/users/{id}`
+- `GET /api/v1/users`
+- `GET /api/v1/users/commerce`
+- `POST /api/v1/users`
+- `POST /api/v1/users/commerce/{commerceId}`
+- `PUT /api/v1/users/{id}`
+- `PATCH /api/v1/users/{id}/status`
+- `GET /api/v1/users/{id}`
+
+> Todos los controllers de la Web API heredan `BaseApiController` y usan la convención
+> `api/v{version:apiVersion}/[controller]`. Los segmentos derivados de los nombres de
+> clase son `Commerce`, `CreditCards`, `Loans`, `SavingsAccounts` y `Pay`.
 
 > **Excepción CQRS (requisito académico):** el API de gestión de usuarios y seguridad
 > (P1: `AccountController` y `UsersController`) NO usa Commands/Queries MediatR.
@@ -757,10 +761,10 @@ P2 no implementa pago de tarjeta ni pago de préstamo del cajero; esas pantallas
 
 **`SavingsAccountsController`**
 
-- `GET /api/savings-account`
-- `POST /api/savings-account`
-- `GET /api/savings-account/{accountNumber}/transactions`
-- `PATCH /api/savings-account/{accountNumber}/cancel`
+- `GET /api/v1/SavingsAccounts`
+- `POST /api/v1/SavingsAccounts`
+- `GET /api/v1/SavingsAccounts/{accountNumber}/transactions`
+- `PATCH /api/v1/SavingsAccounts/{accountNumber}/cancel`
 
 ### Servicios de integración expuestos
 
@@ -829,7 +833,7 @@ P2 debe proveer una implementación fake/in-memory desde Sprint 0 para que P1/P3
 - [ ] Retiro registra DÉBITO, beneficiario RETIRO y cajero.
 - [ ] Third-party cashier transfer es atómica y trazable.
 - [ ] Indicadores de Cajero cuentan solo sus operaciones de hoy.
-- [ ] Endpoints `/api/savings-account` cumplen contratos y códigos HTTP.
+- [ ] Endpoints `/api/v1/SavingsAccounts` cumplen contratos y códigos HTTP.
 - [ ] Concurrencia evita doble gasto.
 - [ ] Suite P2 verde en CI.
 
@@ -878,12 +882,12 @@ Ser dueño del ciclo de vida completo del préstamo: originación, riesgo, tabla
 
 **`LoansController`**
 
-- `GET /api/loan`
-- `POST /api/loan`
-- `GET /api/loan/{id}`
-- `PATCH /api/loan/{id}/rate`
+- `GET /api/v1/Loans`
+- `POST /api/v1/Loans`
+- `GET /api/v1/Loans/{id}`
+- `PATCH /api/v1/Loans/{id}/rate`
 
-El `POST /api/loan` retorna 409 con `riskType`, currentDebt, projectedDebt y averageDebt cuando falta `confirmHighRisk`.
+El `POST /api/v1/Loans` retorna 409 con `riskType`, currentDebt, projectedDebt y averageDebt cuando falta `confirmHighRisk`.
 
 ### Azure Function
 
@@ -965,7 +969,7 @@ El motor de amortización y riesgo se desarrolla primero sin base de datos, usan
 - [ ] Pago parcial/multi-cuota/sobrepago funciona sin debitar excedente.
 - [ ] Préstamo queda Completed al pagar todas las cuotas.
 - [ ] Function diaria marca/desmarca atrasos idempotentemente.
-- [ ] Endpoints `/api/loan` cumplen contrato y códigos HTTP.
+- [ ] Endpoints `/api/v1/Loans` cumplen contrato y códigos HTTP.
 - [ ] Suite P3 verde en CI.
 
 ---
@@ -1027,24 +1031,24 @@ Controller.
 
 **`CreditCardsController`**
 
-- `GET /api/credit-card`
-- `POST /api/credit-card`
-- `GET /api/credit-card/{id}`
-- `PATCH /api/credit-card/{id}/limit`
-- `PATCH /api/credit-card/{id}/cancel`
+- `GET /api/v1/CreditCards`
+- `POST /api/v1/CreditCards`
+- `GET /api/v1/CreditCards/{id}`
+- `PATCH /api/v1/CreditCards/{id}/limit`
+- `PATCH /api/v1/CreditCards/{id}/cancel`
 
 **`CommerceController`**
 
-- `GET /api/commerce`
-- `GET /api/commerce/{id}`
-- `POST /api/commerce`
-- `PUT /api/commerce/{id}`
-- `PATCH /api/commerce/{id}/status`
+- `GET /api/v1/Commerce`
+- `GET /api/v1/Commerce/{id}`
+- `POST /api/v1/Commerce`
+- `PUT /api/v1/Commerce/{id}`
+- `PATCH /api/v1/Commerce/{id}/status`
 
 **`PayController`**
 
-- `GET /pay/get-transactions/{commerceId}`
-- `POST /pay/process-payment/{commerceId}`
+- `GET /api/v1/Pay/get-transactions/{commerceId}`
+- `POST /api/v1/Pay/process-payment/{commerceId}`
 
 ### Integraciones que consume
 

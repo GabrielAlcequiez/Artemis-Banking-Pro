@@ -49,7 +49,7 @@ public sealed class CreditCardsHostTests(
     {
         using var client = CreateClient();
 
-        var response = await client.GetAsync("/api/credit-card");
+        var response = await client.GetAsync("/api/v1/CreditCards");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         await AssertProblemAsync(response, 401, "No autorizado");
@@ -60,7 +60,7 @@ public sealed class CreditCardsHostTests(
     {
         using var client = CreateClient(Roles.Client);
 
-        var response = await client.GetAsync("/api/credit-card");
+        var response = await client.GetAsync("/api/v1/CreditCards");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         await AssertProblemAsync(response, 403, "Acceso denegado");
@@ -71,7 +71,7 @@ public sealed class CreditCardsHostTests(
     {
         using var client = CreateClient(Roles.Administrator);
 
-        var response = await client.GetAsync("/api/credit-card");
+        var response = await client.GetAsync("/api/v1/CreditCards");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -82,7 +82,7 @@ public sealed class CreditCardsHostTests(
         using var client = CreateClient(Roles.Administrator);
 
         var response = await client.PostAsJsonAsync(
-            "/api/credit-card",
+            "/api/v1/CreditCards",
             new { clientId = string.Empty, creditLimit = 0m });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -112,7 +112,7 @@ public sealed class CreditCardsHostTests(
         var cardId = await SeedCardAsync(conflictFactory.Services);
 
         var response = await client.PatchAsJsonAsync(
-            $"/api/credit-card/{cardId}/limit",
+            $"/api/v1/CreditCards/{cardId}/limit",
             new { creditLimit = 2_000m });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
