@@ -83,6 +83,11 @@ namespace ABP.Application.UnitTests.Features.Accounts.Queries.GetAccountTransact
             public Task<int> CountByActorTodayAsync(string actorUserId, DateOnly today, CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
 
+            public Task<int> CountByActorAndTypesTodayAsync(
+                string actorUserId, DateOnly today, IReadOnlyCollection<FinancialOperationType> types,
+                TransactionDirection? direction = null, CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
             public Task<decimal> SumAmountByActorTodayAsync(string actorUserId, DateOnly today, CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
 
