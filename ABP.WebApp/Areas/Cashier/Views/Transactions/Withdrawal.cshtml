@@ -1,0 +1,43 @@
+@model ABP.WebApp.Areas.Cashier.ViewModels.Accounts.CashierWithdrawalViewModel
+@{
+    ViewData["Title"] = "Retiro";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink"
+           asp-area="Cashier"
+           asp-controller="Home"
+           asp-action="Index">← Volver al Home</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Retiro</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Registra un retiro en efectivo desde una cuenta de ahorro activa.
+        </p>
+    </header>
+
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <form asp-action="ConfirmWithdrawal" method="post" class="card space-y-5 p-6">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        <div class="space-y-2">
+            <label asp-for="AccountNumber" class="text-sm font-medium text-ink">Número de cuenta origen</label>
+            <input asp-for="AccountNumber"
+                   class="input"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   maxlength="9" />
+        </div>
+
+        <div class="space-y-2">
+            <label asp-for="Amount" class="text-sm font-medium text-ink">Monto a retirar</label>
+            <input asp-for="Amount" class="input" type="number" min="0.01" step="0.01" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Continuar</button>
+    </form>
+</div>
