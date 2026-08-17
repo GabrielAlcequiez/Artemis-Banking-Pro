@@ -37,6 +37,15 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
             .AnyAsync(card => card.CardNumber == cardNumber, cancellationToken);
     }
 
+    public Task<CreditCard?> GetByCreationOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default) =>
+        Entities
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                card => card.CreationOperationId == operationId,
+                cancellationToken);
+
     public async Task AddConsumptionAsync(CardConsumption consumption, CancellationToken cancellationToken = default)
     {
         await _context.CardConsumptions.AddAsync(consumption, cancellationToken);

@@ -15,6 +15,9 @@ namespace ABP.Infrastructure.Persistence.Configurations
                 t.HasCheckConstraint("CK_CreditCards_Limit_Positive", "[Limit] > 0");
                 t.HasCheckConstraint("CK_CreditCards_Debt_NonNegative", "[Debt] >= 0");
                 t.HasCheckConstraint("CK_CreditCards_Debt_LessThanOrEqualToLimit", "[Debt] <= [Limit]");
+                t.HasCheckConstraint(
+                    "CK_CreditCards_CreationOperationId_NonEmpty",
+                    "[CreationOperationId] <> '00000000-0000-0000-0000-000000000000'");
             });
 
             builder.HasKey(x => x.Id);
@@ -59,6 +62,12 @@ namespace ABP.Infrastructure.Persistence.Configurations
             builder.Property(x => x.AssignedByUserId)
                 .HasMaxLength(450)
                 .IsRequired();
+
+            builder.Property(x => x.CreationOperationId)
+                .IsRequired();
+
+            builder.HasIndex(x => x.CreationOperationId)
+                .IsUnique();
 
             builder.HasOne<User>()
                 .WithMany()
