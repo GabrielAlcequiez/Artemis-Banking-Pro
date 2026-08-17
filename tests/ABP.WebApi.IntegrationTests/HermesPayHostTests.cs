@@ -49,9 +49,9 @@ public sealed class HermesPayHostTests(
         var commerceId = Guid.NewGuid();
 
         var anonymousResponse = await anonymous.GetAsync(
-            $"/pay/get-transactions/{commerceId}");
+            $"/api/v1/Pay/get-transactions/{commerceId}");
         var forbiddenResponse = await clientRole.GetAsync(
-            $"/pay/get-transactions/{commerceId}");
+            $"/api/v1/Pay/get-transactions/{commerceId}");
 
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, forbiddenResponse.StatusCode);
@@ -66,7 +66,7 @@ public sealed class HermesPayHostTests(
         using var administrator = CreateClient(Roles.Administrator);
 
         var response = await administrator.GetAsync(
-            $"/pay/get-transactions/{commerceId}?page=1&pageSize=20");
+            $"/api/v1/Pay/get-transactions/{commerceId}?page=1&pageSize=20");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var page = await response.Content.ReadFromJsonAsync<HermesTransactionsPageDto>();
@@ -88,7 +88,7 @@ public sealed class HermesPayHostTests(
             staleClaimCommerceId);
 
         var response = await commerceClient.GetAsync(
-            $"/pay/get-transactions/{Guid.Empty}");
+            $"/api/v1/Pay/get-transactions/{Guid.Empty}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var page = await response.Content.ReadFromJsonAsync<HermesTransactionsPageDto>();
@@ -109,7 +109,7 @@ public sealed class HermesPayHostTests(
             Guid.NewGuid().ToString());
 
         var response = await commerceClient.PostAsJsonAsync(
-            $"/pay/process-payment/{Guid.Empty}",
+            $"/api/v1/Pay/process-payment/{Guid.Empty}",
             new
             {
                 cardNumber = seeded.CardNumber,
@@ -133,9 +133,9 @@ public sealed class HermesPayHostTests(
             Guid.NewGuid().ToString());
 
         var queryResponse = await commerceClient.GetAsync(
-            $"/pay/get-transactions/{commerceId}");
+            $"/api/v1/Pay/get-transactions/{commerceId}");
         var paymentResponse = await commerceClient.PostAsJsonAsync(
-            $"/pay/process-payment/{commerceId}",
+            $"/api/v1/Pay/process-payment/{commerceId}",
             new
             {
                 cardNumber = "4000000000009876",
@@ -158,7 +158,7 @@ public sealed class HermesPayHostTests(
         using var administrator = CreateClient(Roles.Administrator);
 
         var response = await administrator.GetAsync(
-            $"/pay/get-transactions/{commerceId}?page=0&pageSize=21");
+            $"/api/v1/Pay/get-transactions/{commerceId}?page=0&pageSize=21");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(
@@ -192,13 +192,13 @@ public sealed class HermesPayHostTests(
         };
 
         var response = await administrator.PostAsJsonAsync(
-            $"/pay/process-payment/{seeded.CommerceId}",
+            $"/api/v1/Pay/process-payment/{seeded.CommerceId}",
             payment);
         var replayResponse = await administrator.PostAsJsonAsync(
-            $"/pay/process-payment/{seeded.CommerceId}",
+            $"/api/v1/Pay/process-payment/{seeded.CommerceId}",
             payment);
         var conflictResponse = await administrator.PostAsJsonAsync(
-            $"/pay/process-payment/{seeded.CommerceId}",
+            $"/api/v1/Pay/process-payment/{seeded.CommerceId}",
             new
             {
                 cardNumber = seeded.CardNumber,
@@ -208,7 +208,7 @@ public sealed class HermesPayHostTests(
                 transactionAmount = 251m
             });
         var transactionsResponse = await administrator.GetAsync(
-            $"/pay/get-transactions/{seeded.CommerceId}");
+            $"/api/v1/Pay/get-transactions/{seeded.CommerceId}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, replayResponse.StatusCode);
@@ -274,10 +274,10 @@ public sealed class HermesPayHostTests(
         };
 
         var response = await administrator.PostAsJsonAsync(
-            $"/pay/process-payment/{seeded.CommerceId}",
+            $"/api/v1/Pay/process-payment/{seeded.CommerceId}",
             payment);
         var replayResponse = await administrator.PostAsJsonAsync(
-            $"/pay/process-payment/{seeded.CommerceId}",
+            $"/api/v1/Pay/process-payment/{seeded.CommerceId}",
             payment);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -312,7 +312,7 @@ public sealed class HermesPayHostTests(
         using var administrator = CreateClient(Roles.Administrator);
 
         var response = await administrator.PostAsJsonAsync(
-            $"/pay/process-payment/{Guid.NewGuid()}",
+            $"/api/v1/Pay/process-payment/{Guid.NewGuid()}",
             new
             {
                 cardNumber = "1589963258467598",

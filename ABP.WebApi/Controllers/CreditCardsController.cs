@@ -14,10 +14,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ABP.WebApi.Controllers;
 
-[ApiController]
-[Route("api/credit-card")]
 [Authorize(Roles = nameof(Roles.Administrator))]
-public sealed class CreditCardsController(ISender sender) : ControllerBase
+public sealed class CreditCardsController(ISender sender) : BaseApiController
 {
     [HttpGet]
     public async Task<ActionResult> GetAll(

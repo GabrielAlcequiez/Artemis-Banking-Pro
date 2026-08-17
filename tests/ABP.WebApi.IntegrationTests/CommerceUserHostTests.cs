@@ -28,13 +28,13 @@ public sealed class CommerceUserHostTests(
         var request = ValidRequest();
 
         var anonymousResponse = await anonymous.PostAsJsonAsync(
-            $"/api/v1/users/commerce/{commerceId}",
+            $"/api/v1/Users/commerce/{commerceId}",
             request);
         var forbiddenResponse = await commerceUser.PostAsJsonAsync(
-            $"/api/v1/users/commerce/{commerceId}",
+            $"/api/v1/Users/commerce/{commerceId}",
             request);
         var createdResponse = await administrator.PostAsJsonAsync(
-            $"/api/v1/users/commerce/{commerceId}",
+            $"/api/v1/Users/commerce/{commerceId}",
             request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
@@ -58,7 +58,7 @@ public sealed class CommerceUserHostTests(
         using var administrator = CreateClient(webFactory, Roles.Administrator, "admin-test");
 
         var response = await administrator.PatchAsJsonAsync(
-            "/api/v1/users/commerce-user/status",
+            "/api/v1/Users/commerce-user/status",
             new { status = false });
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);

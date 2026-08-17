@@ -44,6 +44,88 @@ public sealed class UsersControllerApiTests(
     }
 
     [Fact]
+    public async Task POST_ApiAccountLogin_InvalidPayload_Returns400()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/account/login",
+            new { userName = string.Empty, password = string.Empty });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_ApiAccountLogin_InvalidPassword_Returns401()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/account/login",
+            new { userName = "adminapi", password = "WrongPassw0rd!" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_ApiAccountLogin_DisallowedRole_Returns403()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/account/login",
+            new
+            {
+                userName = "client",
+                password = AuthWebApplicationFactory.DefaultPassword
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_ApiAccountConfirm_InvalidToken_Returns400()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/account/confirm",
+            new { token = string.Empty });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_ApiAccountResetToken_InvalidUsername_Returns400()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/account/get-reset-token",
+            new { userName = string.Empty });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_ApiAccountResetPassword_MismatchedPasswords_Returns400()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/account/reset-password",
+            new
+            {
+                userId = "user-1",
+                token = "token",
+                password = "NewPassw0rd!",
+                confirmPassword = "DifferentPassw0rd!"
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GET_ApiUsers_AdminRole_Returns200PagedUsers()
     {
         var adminId = await factory.GetUserIdAsync("adminapi");
@@ -55,7 +137,96 @@ public sealed class UsersControllerApiTests(
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.True(document.RootElement.GetProperty("page").GetInt32() >= 1);
         Assert.True(document.RootElement.GetProperty("pageSize").GetInt32() <= 20);
-        Assert.True(document.RootElement.GetProperty("data").GetArrayLength() >= 4);
+        var data = document.RootElement.GetProperty("data").EnumerateArray().ToArray();
+        Assert.True(data.Length >= 4);
+        Assert.All(data, item => Assert.NotEqual("Comercio", item.GetProperty("role").GetString()));
+    }
+
+    [Fact]
+    public async Task GET_ApiUsers_Anonymous_Returns401()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.GetAsync("/api/v1/users");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GET_ApiUsers_NonAdminRole_Returns403()
+    {
+        var commerceId = await factory.GetUserIdAsync("commerceapi");
+        using var client = CreateAuthenticatedClient(Roles.Commerce.ToString(), commerceId);
+
+        using var response = await client.GetAsync("/api/v1/users");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GET_ApiCommerceUsers_AdminRole_ReturnsOnlyCommerceUsers()
+    {
+        var adminId = await factory.GetUserIdAsync("adminapi");
+        using var client = CreateAuthenticatedClient(Roles.Administrator.ToString(), adminId);
+
+        using var response = await client.GetAsync("/api/v1/users/commerce");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var data = document.RootElement.GetProperty("data").EnumerateArray().ToArray();
+        Assert.NotEmpty(data);
+        Assert.All(data, item => Assert.Equal("Comercio", item.GetProperty("role").GetString()));
+    }
+
+    [Fact]
+    public async Task GET_ApiUserDetail_AdminRole_Returns200()
+    {
+        var adminId = await factory.GetUserIdAsync("adminapi");
+        using var client = CreateAuthenticatedClient(Roles.Administrator.ToString(), adminId);
+
+        using var response = await client.GetAsync($"/api/v1/users/{adminId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(adminId, document.RootElement.GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task POST_ApiUsers_InvalidPayload_Returns400()
+    {
+        var adminId = await factory.GetUserIdAsync("adminapi");
+        using var client = CreateAuthenticatedClient(Roles.Administrator.ToString(), adminId);
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/users",
+            new { firstName = "Incomplete" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_ApiUsers_Anonymous_Returns401()
+    {
+        using var client = CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/users",
+            ValidCreateUserRequest());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_ApiUsers_NonAdminRole_Returns403()
+    {
+        var commerceId = await factory.GetUserIdAsync("commerceapi");
+        using var client = CreateAuthenticatedClient(Roles.Commerce.ToString(), commerceId);
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/v1/users",
+            ValidCreateUserRequest());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -94,6 +265,53 @@ public sealed class UsersControllerApiTests(
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GET_ApiUserDetail_MissingUser_Returns404()
+    {
+        var adminId = await factory.GetUserIdAsync("adminapi");
+        using var client = CreateAuthenticatedClient(Roles.Administrator.ToString(), adminId);
+
+        using var response = await client.GetAsync($"/api/v1/users/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PUT_ApiUser_MissingUser_Returns404()
+    {
+        var adminId = await factory.GetUserIdAsync("adminapi");
+        using var client = CreateAuthenticatedClient(Roles.Administrator.ToString(), adminId);
+
+        using var response = await client.PutAsJsonAsync(
+            $"/api/v1/users/{Guid.NewGuid()}",
+            new
+            {
+                firstName = "Missing",
+                lastName = "User",
+                identification = "00999999998",
+                email = "missing-user@test.com",
+                userName = "missing-user",
+                password = "",
+                confirmPassword = "",
+                additionalAmount = 0m
+            });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PATCH_ApiUsersStatus_MissingUser_Returns404()
+    {
+        var adminId = await factory.GetUserIdAsync("adminapi");
+        using var client = CreateAuthenticatedClient(Roles.Administrator.ToString(), adminId);
+
+        using var response = await client.PatchAsJsonAsync(
+            $"/api/v1/users/{Guid.NewGuid()}/status",
+            new { status = false });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private HttpClient CreateClient() =>
         factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -108,4 +326,17 @@ public sealed class UsersControllerApiTests(
             AuthWebApplicationFactory.CreateJwt(role, userId));
         return client;
     }
+
+    private static object ValidCreateUserRequest() => new
+    {
+        firstName = "New",
+        lastName = "User",
+        identification = "00999999997",
+        email = $"new-{Guid.NewGuid():N}@test.com",
+        userName = $"new-{Guid.NewGuid():N}"[..20],
+        password = AuthWebApplicationFactory.DefaultPassword,
+        confirmPassword = AuthWebApplicationFactory.DefaultPassword,
+        role = "Cliente",
+        initialAmount = 0m
+    };
 }

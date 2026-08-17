@@ -14,7 +14,7 @@ public sealed class GlobalExceptionHandlerSecurityTests
         var logger = new CapturingLogger<GlobalExceptionHandler>();
         var handler = new GlobalExceptionHandler(logger);
         var context = new DefaultHttpContext();
-        context.Request.Path = "/api/credit-card";
+        context.Request.Path = "/api/v1/CreditCards";
         context.Response.Body = new MemoryStream();
 
         await handler.TryHandleAsync(
