@@ -146,7 +146,10 @@ public sealed class CreditCardsController(
         try
         {
             var result = await creditCardService.CreateAsync(
-                new CreateCreditCardRequest(model.ClientId, model.CreditLimit),
+                new CreateCreditCardRequest(
+                    model.ClientId,
+                    model.CreditLimit,
+                    model.OperationId),
                 cancellationToken);
 
             if (result.IsFailure)
@@ -372,6 +375,8 @@ public sealed class CreditCardsController(
             "Para cancelar esta tarjeta, el cliente debe saldar la totalidad de la deuda pendiente.",
         _ when error == CreditCardErrors.NumberGenerationFailed =>
             "No fue posible generar un número de tarjeta único.",
+        _ when error == CreditCardErrors.CreationOperationConflict =>
+            "El identificador de la operación ya fue utilizado para crear otra tarjeta.",
         _ when error == CreditCardErrors.AdministratorRequired =>
             "Se requiere un administrador autenticado.",
         _ => "Ocurrió un error inesperado."
@@ -383,7 +388,8 @@ public sealed class CreditCardsController(
             ClientId = client.Id,
             ClientFullName = client.FullName,
             ClientIdentification = client.Identification,
-            ClientEmail = client.Email
+            ClientEmail = client.Email,
+            OperationId = Guid.NewGuid()
         };
 
     private static void CopyClientPresentation(
