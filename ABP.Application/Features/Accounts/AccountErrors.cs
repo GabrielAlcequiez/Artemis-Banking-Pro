@@ -51,5 +51,9 @@ namespace ABP.Application.Features.Accounts
         public static readonly Error PrincipalNotFound = new(
             "Accounts.PrincipalNotFound",
             "The account balance cannot be transferred because the owner has no Principal account.");
+
+        public static readonly Error NotEnoughActiveAccounts = new(
+            "Accounts.NotEnoughActiveAccounts",
+            "Debe tener al menos dos cuentas de ahorro activas para realizar una transferencia entre cuentas.");
     }
 }

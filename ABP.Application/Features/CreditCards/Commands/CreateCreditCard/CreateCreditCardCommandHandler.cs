@@ -110,6 +110,7 @@ public sealed class CreateCreditCardCommandHandler(
                     expirationDate,
                     clock.Now);
 
+
                 await unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
                 return OperationResult<Guid>.Success(createdCard.Id);
