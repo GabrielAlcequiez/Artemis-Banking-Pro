@@ -48,6 +48,18 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
     #region Administrative read tests
 
     [Fact]
+    public async Task GetByCreationOperationId_returns_the_matching_card()
+    {
+        var seeded = await SeedAsync(_context);
+
+        var result = await _repository.GetByCreationOperationIdAsync(
+            seeded.ActiveNew.CreationOperationId);
+
+        Assert.NotNull(result);
+        Assert.Equal(seeded.ActiveNew.Id, result.Id);
+    }
+
+    [Fact]
     public async Task Default_search_returns_only_active_cards_in_descending_created_order()
     {
         var seeded = await SeedAsync(_context);
@@ -497,7 +509,8 @@ public sealed class CreditCardRepositoryTests : IAsyncLifetime
             Debt = debt,
             ExpirationDate = new DateOnly(2029, 8, 31),
             Status = status,
-            AssignedByUserId = "admin"
+            AssignedByUserId = "admin",
+            CreationOperationId = Guid.NewGuid()
         };
 
         context.CreditCards.Add(card);
