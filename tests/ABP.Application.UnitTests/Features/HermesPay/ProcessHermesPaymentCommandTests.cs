@@ -530,6 +530,11 @@ public sealed class ProcessHermesPaymentCommandTests
         }
 
         public Task<bool> CardNumberExistsAsync(string cardNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<CreditCard?> GetByCreationOperationIdAsync(
+            Guid operationId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(
+                card?.CreationOperationId == operationId ? card : null);
         public Task AddPaymentAsync(CardPayment payment, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CardPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CardConsumption?> GetConsumptionByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) =>

@@ -60,11 +60,16 @@ public sealed class CreditCardsController(ISender sender) : BaseApiController
 
     [HttpPost]
     public async Task<ActionResult> Create(
-        [FromBody] CreateCreditCardRequest request,
+        [FromBody] CreateCreditCardApiRequest request,
+        [FromHeader(Name = "Idempotency-Key")] Guid operationId,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new CreateCreditCardCommand(request),
+            new CreateCreditCardCommand(
+                new CreateCreditCardRequest(
+                    request.ClientId,
+                    request.CreditLimit,
+                    operationId)),
             cancellationToken);
 
         if (result.IsFailure)
@@ -140,6 +145,8 @@ public sealed class CreditCardsController(ISender sender) : BaseApiController
                 (StatusCodes.Status400BadRequest, "Solicitud inválida", "Para cancelar esta tarjeta, el cliente debe saldar la totalidad de la deuda pendiente."),
             _ when error == CreditCardErrors.NumberGenerationFailed =>
                 (StatusCodes.Status409Conflict, "Conflicto", "No fue posible generar un número de tarjeta único."),
+            _ when error == CreditCardErrors.CreationOperationConflict =>
+                (StatusCodes.Status409Conflict, "Conflicto", "El identificador de la operación ya fue utilizado para crear otra tarjeta."),
             _ when error == CreditCardErrors.AdministratorRequired =>
                 (StatusCodes.Status403Forbidden, "Acceso denegado", "Se requiere un administrador autenticado."),
             _ =>

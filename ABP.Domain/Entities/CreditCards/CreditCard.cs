@@ -13,6 +13,7 @@ namespace ABP.Domain.Entities.CreditCards
         public DateOnly ExpirationDate { get; set; }
         public CreditCardStatus Status { get; set; } = CreditCardStatus.Active;
         public string AssignedByUserId { get; set; } = string.Empty;
+        public Guid CreationOperationId { get; set; } = Guid.NewGuid();
         public byte[] RowVersion { get; set; } = [];
 
         public decimal AvailableCredit => Limit - Debt;

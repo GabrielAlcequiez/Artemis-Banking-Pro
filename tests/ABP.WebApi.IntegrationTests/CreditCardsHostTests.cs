@@ -93,6 +93,7 @@ public sealed class CreditCardsHostTests(
             "Uno o más datos proporcionados no son válidos.",
             root.GetProperty("detail").GetString());
         Assert.True(root.GetProperty("errors").TryGetProperty("Request.ClientId", out _));
+        Assert.True(root.GetProperty("errors").TryGetProperty("Request.OperationId", out _));
         Assert.False(root.TryGetProperty("errorCode", out _));
     }
 

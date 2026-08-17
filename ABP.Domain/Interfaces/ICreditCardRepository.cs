@@ -13,6 +13,9 @@ public interface ICreditCardRepository : IGenericRepository<CreditCard, Guid>
         CancellationToken cancellationToken = default) =>
         GetByCardNumberAsync(cardNumber, cancellationToken);
     Task<bool> CardNumberExistsAsync(string cardNumber, CancellationToken cancellationToken = default);
+    Task<CreditCard?> GetByCreationOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default);
     Task AddConsumptionAsync(CardConsumption consumption, CancellationToken cancellationToken = default);
     Task AddPaymentAsync(CardPayment payment, CancellationToken cancellationToken = default);
     Task<CardPayment?> GetPaymentByOperationIdAsync(

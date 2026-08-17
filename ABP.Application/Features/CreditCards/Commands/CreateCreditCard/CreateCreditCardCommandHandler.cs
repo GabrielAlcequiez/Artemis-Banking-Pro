@@ -3,7 +3,9 @@ using ABP.Application.Common;
 using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards.Notifications;
+using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Application.Exceptions;
 using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -46,12 +48,31 @@ public sealed class CreateCreditCardCommandHandler(
                 CreditCardErrors.AdministratorRequired);
         }
 
-        AssignmentNotification? notification = null;
+        var existingCard = await repository.GetByCreationOperationIdAsync(
+            request.OperationId,
+            cancellationToken);
+        if (existingCard is not null)
+        {
+            return ResolveReplay(existingCard, request, assignedByUserId);
+        }
 
-        var result = await financialTransaction.ExecuteAsync(
-            IsolationLevel.Serializable,
-            async transactionCancellationToken =>
-            {
+        AssignmentNotification? notification = null;
+        OperationResult<Guid> result;
+
+        try
+        {
+            result = await financialTransaction.ExecuteAsync(
+                IsolationLevel.Serializable,
+                async transactionCancellationToken =>
+                {
+                    existingCard = await repository.GetByCreationOperationIdAsync(
+                        request.OperationId,
+                        transactionCancellationToken);
+                    if (existingCard is not null)
+                    {
+                        return ResolveReplay(existingCard, request, assignedByUserId);
+                    }
+
                 var clientExists = await repository.ClientExistsAsync(
                     request.ClientId,
                     transactionCancellationToken);
@@ -92,7 +113,8 @@ public sealed class CreateCreditCardCommandHandler(
                     Debt = 0m,
                     ExpirationDate = expirationDate,
                     Status = CreditCardStatus.Active,
-                    AssignedByUserId = assignedByUserId
+                    AssignedByUserId = assignedByUserId,
+                    CreationOperationId = request.OperationId
                 };
 
                 var createdCard = await repository.AddAsync(
@@ -114,8 +136,24 @@ public sealed class CreateCreditCardCommandHandler(
                 await unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
                 return OperationResult<Guid>.Success(createdCard.Id);
-            },
-            cancellationToken);
+                },
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is PersistenceConflictException or
+                  FinancialConcurrencyException)
+        {
+            existingCard = await repository.GetByCreationOperationIdAsync(
+                request.OperationId,
+                cancellationToken);
+            if (existingCard is null)
+            {
+                throw;
+            }
+
+            result = ResolveReplay(existingCard, request, assignedByUserId);
+            notification = null;
+        }
 
         if (result.IsSuccess && notification is not null)
         {
@@ -134,6 +172,17 @@ public sealed class CreateCreditCardCommandHandler(
 
         return result;
     }
+
+    private static OperationResult<Guid> ResolveReplay(
+        CreditCard card,
+        CreateCreditCardRequest request,
+        string assignedByUserId) =>
+        card.AssignedByUserId == assignedByUserId &&
+        card.ClientId == request.ClientId &&
+        card.Limit == request.CreditLimit
+            ? OperationResult<Guid>.Success(card.Id)
+            : OperationResult<Guid>.Failure(
+                CreditCardErrors.CreationOperationConflict);
 
     private async Task<string?> GenerateUniqueCardNumberAsync(
         CancellationToken cancellationToken)

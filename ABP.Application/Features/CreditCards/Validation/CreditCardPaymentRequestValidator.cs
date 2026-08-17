@@ -18,7 +18,9 @@ public sealed class CreditCardPaymentRequestValidator
 
         RuleFor(request => request.Amount)
             .GreaterThan(0m)
-            .WithMessage("El monto a pagar debe ser mayor que cero.");
+            .WithMessage("El monto a pagar debe ser mayor que cero.")
+            .PrecisionScale(18, 2, true)
+            .WithMessage("El monto a pagar debe tener un máximo de dos decimales.");
 
         RuleFor(request => request.OperationId)
             .NotEmpty()

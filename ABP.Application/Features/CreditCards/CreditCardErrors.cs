@@ -39,5 +39,9 @@ namespace ABP.Application.Features.CreditCards
         public static readonly Error AdministratorRequired = new(
             "CreditCards.AdministratorRequired",
             "An authenticated administrator is required to assign a credit card.");
+
+        public static readonly Error CreationOperationConflict = new(
+            "CreditCards.CreationOperationConflict",
+            "The card creation operation identifier was already used with different data.");
     }
 }

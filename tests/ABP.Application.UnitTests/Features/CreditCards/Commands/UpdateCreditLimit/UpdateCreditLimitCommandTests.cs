@@ -218,6 +218,8 @@ public sealed class UpdateCreditLimitCommandTests
 
     private sealed class StubCreditCardRepository : ICreditCardRepository
     {
+        public Task<CreditCard?> GetByCreationOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CreditCard?>(null);
+
         public CreditCard? CardForUpdate { get; init; }
 
         public Guid? ReceivedCreditCardId { get; private set; }

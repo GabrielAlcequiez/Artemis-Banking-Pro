@@ -120,6 +120,21 @@ public sealed class CreditCardsControllerTests
     }
 
     [Fact]
+    public async Task Create_get_generates_a_non_empty_operation_id()
+    {
+        var client = CreateClient();
+        var controller = CreateController(
+            new FakeCreditCardService(),
+            new FakeClientSelectionService { Client = client });
+
+        var result = await controller.Create(client.Id, CancellationToken.None);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<CreateCreditCardViewModel>(view.Model);
+        Assert.NotEqual(Guid.Empty, model.OperationId);
+    }
+
+    [Fact]
     public async Task Create_post_converts_shared_validation_failure_to_model_state()
     {
         var client = CreateClient();
@@ -158,18 +173,21 @@ public sealed class CreditCardsControllerTests
         var controller = CreateController(
             cards,
             new FakeClientSelectionService { Client = client });
+        var operationId = Guid.NewGuid();
 
         var result = await controller.Create(
             new CreateCreditCardViewModel
             {
                 ClientId = client.Id,
-                CreditLimit = 2_000m
+                CreditLimit = 2_000m,
+                OperationId = operationId
             },
             CancellationToken.None);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(CreditCardsController.Index), redirect.ActionName);
         Assert.NotNull(controller.TempData["SuccessMessage"]);
+        Assert.Equal(operationId, cards.ReceivedCreateRequest?.OperationId);
     }
 
     [Fact]
@@ -358,6 +376,8 @@ public sealed class CreditCardsControllerTests
 
         public CreditCardListRequest? ReceivedListRequest { get; private set; }
 
+        public CreateCreditCardRequest? ReceivedCreateRequest { get; private set; }
+
         public Task<CreditCardListResult> ListAsync(
             CreditCardListRequest request,
             CancellationToken cancellationToken = default)
@@ -378,13 +398,16 @@ public sealed class CreditCardsControllerTests
 
         public Task<CardOperationResult<Guid>> CreateAsync(
             CreateCreditCardRequest request,
-            CancellationToken cancellationToken = default) =>
-            CreateException is null
+            CancellationToken cancellationToken = default)
+        {
+            ReceivedCreateRequest = request;
+            return CreateException is null
                 ? Task.FromResult(
                     new CardOperationResult<Guid>(
                         CreateResult,
                         HasNotificationWarning))
                 : Task.FromException<CardOperationResult<Guid>>(CreateException);
+        }
 
         public Task<CardOperationResult> UpdateLimitAsync(
             UpdateCreditLimitRequest request,
