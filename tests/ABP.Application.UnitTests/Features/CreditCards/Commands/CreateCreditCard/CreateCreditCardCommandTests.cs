@@ -6,6 +6,7 @@ using ABP.Application.Features.CreditCards.Commands.CreateCreditCard;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Application.Features.CreditCards.Validation;
+using ABP.Application.Exceptions;
 using ABP.Domain.Common;
 using ABP.Domain.Entities;
 using ABP.Domain.Entities.CreditCards;
@@ -24,7 +25,7 @@ public sealed class CreateCreditCardCommandTests
         var validator = new CreateCreditCardCommandValidator(
             new CreateCreditCardRequestValidator());
         var command = new CreateCreditCardCommand(
-            new CreateCreditCardRequest(string.Empty, 0m));
+            new CreateCreditCardRequest(string.Empty, 0m, Guid.Empty));
 
         var result = await validator.ValidateAsync(command);
 
@@ -35,6 +36,9 @@ public sealed class CreateCreditCardCommandTests
         Assert.Contains(
             result.Errors,
             error => error.PropertyName == "Request.CreditLimit");
+        Assert.Contains(
+            result.Errors,
+            error => error.PropertyName == "Request.OperationId");
     }
 
     [Fact]
@@ -62,9 +66,10 @@ public sealed class CreateCreditCardCommandTests
             transaction: transaction,
             emails: emails);
 
+        var operationId = Guid.NewGuid();
         var result = await handler.Handle(
             new CreateCreditCardCommand(
-                new CreateCreditCardRequest("client-1", 5_000m)),
+                new CreateCreditCardRequest("client-1", 5_000m, operationId)),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -80,7 +85,9 @@ public sealed class CreateCreditCardCommandTests
         Assert.Equal(new DateOnly(2029, 8, 31), card.ExpirationDate);
         Assert.Equal(CreditCardStatus.Active, card.Status);
         Assert.Equal("admin-1", card.AssignedByUserId);
+        Assert.Equal(operationId, card.CreationOperationId);
         Assert.Equal(1, repository.AddCalls);
+        Assert.Equal(2, repository.CreationLookupCalls);
         Assert.Equal(1, unitOfWork.SaveCalls);
         Assert.Equal(IsolationLevel.Serializable, transaction.IsolationLevel);
         var email = Assert.Single(emails.SentEmails);
@@ -93,6 +100,94 @@ public sealed class CreateCreditCardCommandTests
         Assert.DoesNotContain("0000000000001234", email.Subject + email.Body);
         Assert.DoesNotContain("007", email.Subject + email.Body);
         Assert.DoesNotContain("hashed-007", email.Subject + email.Body);
+    }
+
+    [Fact]
+    public async Task Handler_exact_replay_returns_existing_id_without_side_effects()
+    {
+        var operationId = Guid.NewGuid();
+        var existingCard = new CreditCard
+        {
+            ClientId = "client-1",
+            AssignedByUserId = "admin-1",
+            Limit = 5_000m,
+            CreationOperationId = operationId
+        };
+        var repository = new StubCreditCardRepository { ExistingCard = existingCard };
+        var unitOfWork = new StubUnitOfWork();
+        var numberGenerator = new StubCardNumberGenerator();
+        var emails = new RecordingCardEmailService();
+        var handler = CreateHandler(
+            repository,
+            unitOfWork,
+            numberGenerator: numberGenerator,
+            emails: emails);
+
+        var result = await handler.Handle(
+            new CreateCreditCardCommand(
+                new CreateCreditCardRequest("client-1", 5_000m, operationId)),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(existingCard.Id, result.Value);
+        Assert.Equal(0, numberGenerator.GenerateCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+        Assert.Empty(emails.SentEmails);
+    }
+
+    [Fact]
+    public async Task Handler_reused_operation_with_different_creation_data_returns_conflict()
+    {
+        var operationId = Guid.NewGuid();
+        var repository = new StubCreditCardRepository
+        {
+            ExistingCard = new CreditCard
+            {
+                ClientId = "client-1",
+                AssignedByUserId = "admin-1",
+                Limit = 4_000m,
+                CreationOperationId = operationId
+            }
+        };
+
+        var result = await CreateHandler(repository).Handle(
+            new CreateCreditCardCommand(
+                new CreateCreditCardRequest("client-1", 5_000m, operationId)),
+            CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.CreationOperationConflict, result.Error);
+        Assert.Equal(0, repository.AddCalls);
+    }
+
+    [Fact]
+    public async Task Handler_persistence_race_requeries_and_resolves_exact_replay()
+    {
+        var operationId = Guid.NewGuid();
+        var existingCard = new CreditCard
+        {
+            ClientId = "client-1",
+            AssignedByUserId = "admin-1",
+            Limit = 5_000m,
+            CreationOperationId = operationId
+        };
+        var repository = new StubCreditCardRepository();
+        repository.CreationLookupResults.Enqueue(null);
+        repository.CreationLookupResults.Enqueue(existingCard);
+        var transaction = new StubFinancialTransaction
+        {
+            ExceptionToThrow = new PersistenceConflictException()
+        };
+
+        var result = await CreateHandler(repository, transaction: transaction).Handle(
+            new CreateCreditCardCommand(
+                new CreateCreditCardRequest("client-1", 5_000m, operationId)),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(existingCard.Id, result.Value);
+        Assert.Equal(2, repository.CreationLookupCalls);
     }
 
     [Fact]
@@ -255,10 +350,12 @@ public sealed class CreateCreditCardCommandTests
     }
 
     private static CreateCreditCardCommand ValidCommand() =>
-        new(new CreateCreditCardRequest("client-1", 5_000m));
+        new(new CreateCreditCardRequest("client-1", 5_000m, Guid.NewGuid()));
 
     private sealed class StubFinancialTransaction : IFinancialTransaction
     {
+        public Exception? ExceptionToThrow { get; init; }
+
         public IsolationLevel? IsolationLevel { get; private set; }
 
         public bool IsCommitted { get; private set; }
@@ -267,6 +364,11 @@ public sealed class CreateCreditCardCommandTests
             Func<CancellationToken, Task<TResult>> operation,
             CancellationToken cancellationToken = default)
         {
+            if (ExceptionToThrow is not null)
+            {
+                throw ExceptionToThrow;
+            }
+
             var result = await operation(cancellationToken);
             IsCommitted = true;
             return result;
@@ -278,6 +380,11 @@ public sealed class CreateCreditCardCommandTests
             CancellationToken cancellationToken = default)
         {
             IsolationLevel = isolationLevel;
+            if (ExceptionToThrow is not null)
+            {
+                throw ExceptionToThrow;
+            }
+
             var result = await operation(cancellationToken);
             IsCommitted = true;
             return result;
@@ -385,6 +492,24 @@ public sealed class CreateCreditCardCommandTests
         public int AddCalls { get; private set; }
 
         public CreditCard? AddedCard { get; private set; }
+
+        public CreditCard? ExistingCard { get; init; }
+
+        public Queue<CreditCard?> CreationLookupResults { get; } = new();
+
+        public int CreationLookupCalls { get; private set; }
+
+        public Task<CreditCard?> GetByCreationOperationIdAsync(
+            Guid operationId,
+            CancellationToken cancellationToken = default)
+        {
+            CreationLookupCalls++;
+            var card = CreationLookupResults.Count > 0
+                ? CreationLookupResults.Dequeue()
+                : ExistingCard;
+            return Task.FromResult(
+                card?.CreationOperationId == operationId ? card : null);
+        }
 
         public Task<bool> ClientExistsAsync(
             string clientId,

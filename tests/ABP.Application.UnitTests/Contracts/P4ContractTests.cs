@@ -142,9 +142,10 @@ namespace ABP.Application.UnitTests.Contracts
         [Fact]
         public void Requests_MustHaveExactFrozenPropertiesAndTypes()
         {
-            // CreateCreditCardRequest (ClientId: string, CreditLimit: decimal)
+            // CreateCreditCardRequest (ClientId: string, CreditLimit: decimal, OperationId: Guid)
             AssertProperty<CreateCreditCardRequest>("ClientId", typeof(string));
             AssertProperty<CreateCreditCardRequest>("CreditLimit", typeof(decimal));
+            AssertProperty<CreateCreditCardRequest>("OperationId", typeof(Guid));
 
             // UpdateCreditLimitRequest (CreditCardId: Guid, CreditLimit: decimal)
             AssertProperty<UpdateCreditLimitRequest>("CreditCardId", typeof(Guid));

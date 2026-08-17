@@ -91,6 +91,8 @@ public sealed class GetCreditCardDetailQueryTests
 
     private sealed class StubCreditCardRepository : ICreditCardRepository
     {
+        public Task<CreditCard?> GetByCreationOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CreditCard?>(null);
+
         public CreditCardDetailReadModel? Detail { get; init; }
 
         public Guid? ReceivedCreditCardId { get; private set; }
