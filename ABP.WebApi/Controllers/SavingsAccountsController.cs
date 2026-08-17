@@ -13,6 +13,7 @@ using ABP.Application.Features.Accounts.Queries.GetAccountTransactions;
 using ABP.Application.Features.Accounts.Queries.GetBeneficiaries;
 using ABP.Application.Features.Accounts.Queries.GetSavingsAccountDetail;
 using ABP.Application.Features.Accounts.Queries.GetSavingsAccounts;
+using ABP.Application.Features.Accounts.Queries.ResolveSavingsAccountId;
 using ABP.Domain.Common;
 using ABP.Domain.Enums;
 using ABP.WebApi.Models.SavingsAccounts;
@@ -62,15 +63,26 @@ public sealed class SavingsAccountsController(ISender sender, ICurrentUserServic
             : Ok(detail);
     }
 
-    [HttpGet("{id:guid}/transactions")]
+    [HttpGet("{accountNumber}/transactions")]
     [Authorize(Roles = nameof(Roles.Administrator))]
     public async Task<ActionResult> GetTransactions(
-        Guid id,
+        string accountNumber,
         int page = 1,
         int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var query = new GetAccountTransactionsQuery(id, new PagedRequest(page, pageSize));
+        var account = await sender.Send(
+            new ResolveSavingsAccountIdQuery(accountNumber), cancellationToken);
+
+        if (account is null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "No encontrado",
+                detail: "La cuenta indicada no existe.");
+        }
+
+        var query = new GetAccountTransactionsQuery(account.Value, new PagedRequest(page, pageSize));
         var result = await sender.Send(query, cancellationToken);
 
         return Ok(result);
@@ -115,15 +127,26 @@ public sealed class SavingsAccountsController(ISender sender, ICurrentUserServic
             SavingsAccountCreatedResponse.From(detail));
     }
 
-    [HttpPatch("{id:guid}/cancel")]
+    [HttpPatch("{accountNumber}/cancel")]
     [Authorize(Roles = nameof(Roles.Administrator))]
     public async Task<ActionResult> Cancel(
-        Guid id,
+        string accountNumber,
         CancellationToken cancellationToken)
     {
+        var accountId = await sender.Send(
+            new ResolveSavingsAccountIdQuery(accountNumber), cancellationToken);
+
+        if (accountId is null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "No encontrado",
+                detail: "La cuenta indicada no existe.");
+        }
+
         var command = new CancelSavingsAccountCommand(new CancelSavingsAccountRequest
         {
-            AccountId = id,
+            AccountId = accountId.Value,
             ActorUserId = currentUser.UserId ?? string.Empty,
             ActorRole = nameof(Roles.Administrator)
         });
@@ -263,6 +286,8 @@ public sealed class SavingsAccountsController(ISender sender, ICurrentUserServic
                 (StatusCodes.Status400BadRequest, "Solicitud inválida", "La cuenta no se encuentra activa."),
             _ when error == AccountErrors.SameAccount =>
                 (StatusCodes.Status400BadRequest, "Solicitud inválida", "La cuenta de origen y destino deben ser diferentes."),
+            _ when error == AccountErrors.NotEnoughActiveAccounts =>
+                (StatusCodes.Status400BadRequest, "Solicitud inválida", "Debe tener al menos dos cuentas de ahorro activas para realizar una transferencia entre cuentas."),
             _ when error == AccountErrors.CannotAddSelf =>
                 (StatusCodes.Status400BadRequest, "Solicitud inválida", "No puedes agregar tu propia cuenta como beneficiario."),
             _ when error == AccountErrors.CannotCancelPrincipal =>
