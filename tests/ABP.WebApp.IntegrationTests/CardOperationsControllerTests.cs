@@ -103,6 +103,33 @@ public sealed class CardOperationsControllerTests
     }
 
     [Fact]
+    public async Task Client_payment_notification_warning_does_not_turn_success_into_failure()
+    {
+        var service = new FakeCardPaymentService
+        {
+            ProcessResult = OperationResult<FinancialOperationReceipt>.Success(
+                new FinancialOperationReceipt(Guid.NewGuid(), 100m, DateTimeOffset.UtcNow)),
+            HasNotificationWarning = true
+        };
+        var controller = Configure(new ClientPaymentsController(service));
+
+        var result = await controller.Create(
+            new CreditCardPaymentViewModel
+            {
+                CreditCardId = Guid.NewGuid(),
+                SourceAccountId = Guid.NewGuid(),
+                Amount = 100m,
+                OperationId = Guid.NewGuid()
+            },
+            CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(
+            "El pago fue realizado correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
+    }
+
+    [Fact]
     public async Task Cashier_confirm_uses_safe_preview_without_full_pan()
     {
         var preview = new CashierCardPaymentPreview(
@@ -208,6 +235,33 @@ public sealed class CardOperationsControllerTests
     }
 
     [Fact]
+    public async Task Cashier_execute_notification_warning_preserves_confirmed_payment()
+    {
+        var service = new FakeCardPaymentService
+        {
+            ProcessResult = OperationResult<FinancialOperationReceipt>.Success(
+                new FinancialOperationReceipt(Guid.NewGuid(), 250m, DateTimeOffset.UtcNow)),
+            HasNotificationWarning = true
+        };
+        var controller = Configure(new CashierPaymentsController(service));
+
+        var result = await controller.Execute(
+            new CashierCreditCardPaymentConfirmationViewModel
+            {
+                CreditCardId = Guid.NewGuid(),
+                SourceAccountId = Guid.NewGuid(),
+                RequestedAmount = 250m,
+                OperationId = Guid.NewGuid()
+            },
+            CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(
+            "El pago fue realizado correctamente, pero no fue posible enviar una o más notificaciones por correo.",
+            controller.TempData["SuccessMessage"]);
+    }
+
+    [Fact]
     public async Task Cash_advance_success_maps_request_and_uses_prg()
     {
         var service = new FakeCashAdvanceService
@@ -233,6 +287,33 @@ public sealed class CardOperationsControllerTests
         Assert.Equal("Home", redirect.ControllerName);
         Assert.Equal("Client", redirect.RouteValues?["area"]);
         Assert.Equal(model.OperationId, service.ReceivedRequest?.OperationId);
+    }
+
+    [Fact]
+    public async Task Cash_advance_notification_warning_preserves_confirmed_advance()
+    {
+        var service = new FakeCashAdvanceService
+        {
+            ProcessResult = OperationResult<FinancialOperationReceipt>.Success(
+                new FinancialOperationReceipt(Guid.NewGuid(), 100m, DateTimeOffset.UtcNow)),
+            HasNotificationWarning = true
+        };
+        var controller = Configure(new ClientCashAdvancesController(service));
+
+        var result = await controller.Execute(
+            new CashAdvanceViewModel
+            {
+                CreditCardId = Guid.NewGuid(),
+                TargetAccountId = Guid.NewGuid(),
+                Amount = 100m,
+                OperationId = Guid.NewGuid()
+            },
+            CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(
+            "El avance fue procesado correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
     }
 
     public static TheoryData<Type, string, string> ControllerCases => new()
@@ -280,6 +361,7 @@ public sealed class CardOperationsControllerTests
         public OperationResult<FinancialOperationReceipt> ProcessResult { get; init; } =
             OperationResult<FinancialOperationReceipt>.Failure(
                 CardFinancialOperationErrors.CardNotFound);
+        public bool HasNotificationWarning { get; init; }
 
         public Task<ClientCardOperationOptions> GetClientOptionsAsync(
             CancellationToken cancellationToken = default)
@@ -296,12 +378,15 @@ public sealed class CardOperationsControllerTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(PreviewResult);
 
-        public Task<OperationResult<FinancialOperationReceipt>> ProcessPaymentAsync(
+        public Task<CardOperationResult<FinancialOperationReceipt>> ProcessPaymentAsync(
             CreditCardPaymentRequest request,
             CancellationToken cancellationToken = default)
         {
             ReceivedPayment = request;
-            return Task.FromResult(ProcessResult);
+            return Task.FromResult(
+                new CardOperationResult<FinancialOperationReceipt>(
+                    ProcessResult,
+                    HasNotificationWarning));
         }
     }
 
@@ -311,17 +396,21 @@ public sealed class CardOperationsControllerTests
         public OperationResult<FinancialOperationReceipt> ProcessResult { get; init; } =
             OperationResult<FinancialOperationReceipt>.Failure(
                 CardFinancialOperationErrors.CardNotFound);
+        public bool HasNotificationWarning { get; init; }
 
         public Task<ClientCardOperationOptions> GetClientOptionsAsync(
             CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateOptions());
 
-        public Task<OperationResult<FinancialOperationReceipt>> ProcessCashAdvanceAsync(
+        public Task<CardOperationResult<FinancialOperationReceipt>> ProcessCashAdvanceAsync(
             CashAdvanceRequest request,
             CancellationToken cancellationToken = default)
         {
             ReceivedRequest = request;
-            return Task.FromResult(ProcessResult);
+            return Task.FromResult(
+                new CardOperationResult<FinancialOperationReceipt>(
+                    ProcessResult,
+                    HasNotificationWarning));
         }
     }
 

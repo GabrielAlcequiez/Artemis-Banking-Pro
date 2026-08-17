@@ -48,8 +48,9 @@ public sealed class CashAdvancesController(
                 return View("Create", model);
             }
 
-            TempData["SuccessMessage"] =
-                $"El avance de RD$ {result.Value.EffectiveAmount:N2} fue procesado correctamente.";
+            TempData["SuccessMessage"] = result.HasNotificationWarning
+                ? "El avance fue procesado correctamente, pero no fue posible enviar el correo de notificación."
+                : $"El avance de RD$ {result.Value.EffectiveAmount:N2} fue procesado correctamente.";
             return RedirectToAction("Index", "Home", new { area = "Client" });
         }
         catch (ValidationException exception)

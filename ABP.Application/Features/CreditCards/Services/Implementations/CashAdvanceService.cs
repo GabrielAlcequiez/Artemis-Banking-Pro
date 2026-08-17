@@ -5,12 +5,14 @@ using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Exceptions;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.CreditCards.DTOs;
+using ABP.Application.Features.CreditCards.Notifications;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Rules.Cards;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.CreditCards.Services.Implementations;
 
@@ -23,7 +25,10 @@ public sealed class CashAdvanceService(
     IFinancialTransaction financialTransaction,
     ICurrentUserService currentUser,
     IClock clock,
-    IValidator<CashAdvanceRequest> validator) : ICashAdvanceService
+    IValidator<CashAdvanceRequest> validator,
+    IUserRepository users,
+    IEmailService emailService,
+    ILogger<CashAdvanceService> logger) : ICashAdvanceService
 {
     public async Task<ClientCardOperationOptions> GetClientOptionsAsync(
         CancellationToken cancellationToken = default)
@@ -59,7 +64,7 @@ public sealed class CashAdvanceService(
                 .ToArray());
     }
 
-    public async Task<OperationResult<FinancialOperationReceipt>> ProcessCashAdvanceAsync(
+    public async Task<CardOperationResult<FinancialOperationReceipt>> ProcessCashAdvanceAsync(
         CashAdvanceRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -69,8 +74,9 @@ public sealed class CashAdvanceService(
         var clientId = GetCurrentClientId();
         if (clientId is null)
         {
-            return OperationResult<FinancialOperationReceipt>.Failure(
-                CardFinancialOperationErrors.RoleNotAllowed);
+            return WithoutNotification(
+                OperationResult<FinancialOperationReceipt>.Failure(
+                    CardFinancialOperationErrors.RoleNotAllowed));
         }
 
         var previousConsumption = await creditCards.GetConsumptionByOperationIdAsync(
@@ -78,7 +84,8 @@ public sealed class CashAdvanceService(
             cancellationToken);
         if (previousConsumption is not null)
         {
-            return ResolveReplay(previousConsumption, request, clientId);
+            return WithoutNotification(
+                ResolveReplay(previousConsumption, request, clientId));
         }
 
         var card = await creditCards.GetByIdAsync(
@@ -86,8 +93,9 @@ public sealed class CashAdvanceService(
             cancellationToken);
         if (card is null)
         {
-            return OperationResult<FinancialOperationReceipt>.Failure(
-                CardFinancialOperationErrors.CardNotFound);
+            return WithoutNotification(
+                OperationResult<FinancialOperationReceipt>.Failure(
+                    CardFinancialOperationErrors.CardNotFound));
         }
 
         var account = await accounts.GetByIdAsync(
@@ -95,13 +103,18 @@ public sealed class CashAdvanceService(
             cancellationToken);
         if (account is null)
         {
-            return OperationResult<FinancialOperationReceipt>.Failure(
-                CardFinancialOperationErrors.AccountNotFound);
+            return WithoutNotification(
+                OperationResult<FinancialOperationReceipt>.Failure(
+                    CardFinancialOperationErrors.AccountNotFound));
         }
+
+        var client = await users.GetByIdAsync(clientId, cancellationToken);
+        var recipient = ToRecipient(client, clientId);
+        CashAdvanceNotification? notification = null;
 
         try
         {
-            return await financialTransaction.ExecuteAsync(
+            var result = await financialTransaction.ExecuteAsync(
                 async transactionCancellationToken =>
             {
                 var trackedCard = await creditCards.GetForUpdateAsync(
@@ -128,6 +141,7 @@ public sealed class CashAdvanceService(
                 var totalCharge = CreditCardRules.CalculateCashAdvanceTotal(
                     request.Amount);
                 var processedAtUtc = clock.UtcNow;
+                var processedAtBankingTime = clock.Now;
 
                 if (currentValidationError is not null)
                 {
@@ -191,6 +205,15 @@ public sealed class CashAdvanceService(
                     Roles.Client.ToString(),
                     transactionCancellationToken);
 
+                notification = new CashAdvanceNotification(
+                    request.OperationId,
+                    recipient,
+                    LastFour(trackedCard.CardNumber),
+                    LastFour(currentAccount.AccountNumber),
+                    request.Amount,
+                    totalCharge,
+                    processedAtBankingTime);
+
                 return OperationResult<FinancialOperationReceipt>.Success(
                     new FinancialOperationReceipt(
                         request.OperationId,
@@ -198,6 +221,29 @@ public sealed class CashAdvanceService(
                         processedAtUtc));
             },
             cancellationToken);
+
+            if (result.IsFailure)
+            {
+                return WithoutNotification(result);
+            }
+
+            var notificationSent = notification is not null &&
+                await CardNotificationEmails.SendBestEffortAsync(
+                    emailService,
+                    logger,
+                    CardNotificationEmails.CashAdvance(
+                        notification.Recipient,
+                        notification.CardLastFourDigits,
+                        notification.TargetAccountLastFourDigits,
+                        notification.ReceivedAmount,
+                        notification.TotalCharge,
+                        notification.ProcessedAtBankingTime),
+                    "avance de efectivo",
+                    notification.OperationId.ToString("N"));
+
+            return new CardOperationResult<FinancialOperationReceipt>(
+                result,
+                !notificationSent);
         }
         catch (Exception exception)
             when (exception is PersistenceConflictException or
@@ -211,7 +257,8 @@ public sealed class CashAdvanceService(
                 throw;
             }
 
-            return ResolveReplay(concurrentConsumption, request, clientId);
+            return WithoutNotification(
+                ResolveReplay(concurrentConsumption, request, clientId));
         }
     }
 
@@ -311,4 +358,27 @@ public sealed class CashAdvanceService(
 
     private static string LastFour(string cardNumber) =>
         cardNumber[^4..];
+
+    private static CardNotificationRecipient ToRecipient(
+        Domain.Entities.User? user,
+        string userId) =>
+        new(
+            userId,
+            user?.Email ?? string.Empty,
+            user is null
+                ? string.Empty
+                : $"{user.Name} {user.LastName}".Trim());
+
+    private static CardOperationResult<FinancialOperationReceipt> WithoutNotification(
+        OperationResult<FinancialOperationReceipt> result) =>
+        new(result, false);
+
+    private sealed record CashAdvanceNotification(
+        Guid OperationId,
+        CardNotificationRecipient Recipient,
+        string CardLastFourDigits,
+        string TargetAccountLastFourDigits,
+        decimal ReceivedAmount,
+        decimal TotalCharge,
+        DateTimeOffset ProcessedAtBankingTime);
 }

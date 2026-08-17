@@ -155,7 +155,9 @@ public sealed class CreditCardsController(
                 return View(model);
             }
 
-            TempData[SuccessMessageKey] = "La tarjeta de crédito fue creada correctamente.";
+            TempData[SuccessMessageKey] = result.HasNotificationWarning
+                ? "La tarjeta fue creada correctamente, pero no fue posible enviar el correo de notificación."
+                : "La tarjeta de crédito fue creada correctamente.";
             return RedirectToAction(nameof(Index));
         }
         catch (ValidationException exception)
@@ -237,7 +239,9 @@ public sealed class CreditCardsController(
                 return View(model);
             }
 
-            TempData[SuccessMessageKey] = "El límite de crédito fue actualizado correctamente.";
+            TempData[SuccessMessageKey] = result.HasNotificationWarning
+                ? "El límite fue actualizado correctamente, pero no fue posible enviar el correo de notificación."
+                : "El límite de crédito fue actualizado correctamente.";
             return RedirectToAction(nameof(Details), new { id = model.CreditCardId });
         }
         catch (ValidationException exception)

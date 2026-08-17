@@ -7,10 +7,12 @@ using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Application.Features.CreditCards.Validation;
 using ABP.Domain.Common;
+using ABP.Domain.Entities;
 using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Domain.ReadModels.CreditCards;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ABP.Application.UnitTests.Features.CreditCards.Commands.CreateCreditCard;
 
@@ -46,6 +48,10 @@ public sealed class CreateCreditCardCommandTests
         var unitOfWork = new StubUnitOfWork();
         var cvcService = new StubCvcService("007", "hashed-007");
         var transaction = new StubFinancialTransaction();
+        var emails = new RecordingCardEmailService
+        {
+            IsOperationCommitted = () => transaction.IsCommitted
+        };
         var handler = CreateHandler(
             repository,
             unitOfWork,
@@ -53,7 +59,8 @@ public sealed class CreateCreditCardCommandTests
             numberGenerator: new StubCardNumberGenerator("0000000000001234"),
             clock: new StubClock(new DateOnly(2026, 8, 8)),
             currentUser: StubCurrentUser.Administrator("admin-1"),
-            transaction: transaction);
+            transaction: transaction,
+            emails: emails);
 
         var result = await handler.Handle(
             new CreateCreditCardCommand(
@@ -76,6 +83,39 @@ public sealed class CreateCreditCardCommandTests
         Assert.Equal(1, repository.AddCalls);
         Assert.Equal(1, unitOfWork.SaveCalls);
         Assert.Equal(IsolationLevel.Serializable, transaction.IsolationLevel);
+        var email = Assert.Single(emails.SentEmails);
+        Assert.False(emails.WasCalledBeforeCommit);
+        Assert.Equal("client@example.com", email.ToEmail);
+        Assert.Contains("1234", email.Body);
+        Assert.Contains("5,000.00", email.Body);
+        Assert.Contains("08/29", email.Body);
+        Assert.Contains("08/08/2026", email.Body);
+        Assert.DoesNotContain("0000000000001234", email.Subject + email.Body);
+        Assert.DoesNotContain("007", email.Subject + email.Body);
+        Assert.DoesNotContain("hashed-007", email.Subject + email.Body);
+    }
+
+    [Fact]
+    public async Task Handler_email_failure_does_not_reverse_confirmed_card()
+    {
+        var repository = new StubCreditCardRepository
+        {
+            IsActiveClient = true,
+            CardNumberExists = false
+        };
+        var unitOfWork = new StubUnitOfWork();
+        var emails = new RecordingCardEmailService { ThrowOnSend = true };
+        var handler = CreateHandler(
+            repository,
+            unitOfWork,
+            emails: emails);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(repository.AddedCard);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(1, emails.SendAttempts);
     }
 
     [Fact]
@@ -181,15 +221,38 @@ public sealed class CreateCreditCardCommandTests
         ICardNumberGeneratorService? numberGenerator = null,
         IClock? clock = null,
         ICurrentUserService? currentUser = null,
-        StubFinancialTransaction? transaction = null) =>
-        new(
+        StubFinancialTransaction? transaction = null,
+        StubCardUserRepository? users = null,
+        RecordingCardEmailService? emails = null)
+    {
+        var userRepository = users ?? CreateUsers();
+
+        return new(
             cvcService ?? new StubCvcService(),
             numberGenerator ?? new StubCardNumberGenerator(),
             repository,
             unitOfWork ?? new StubUnitOfWork(),
             transaction ?? new StubFinancialTransaction(),
             clock ?? new StubClock(new DateOnly(2026, 8, 8)),
-            currentUser ?? StubCurrentUser.Administrator("admin-1"));
+            currentUser ?? StubCurrentUser.Administrator("admin-1"),
+            userRepository,
+            emails ?? new RecordingCardEmailService(),
+            NullLogger<CreateCreditCardCommandHandler>.Instance);
+    }
+
+    private static StubCardUserRepository CreateUsers()
+    {
+        var repository = new StubCardUserRepository();
+        repository.Users["client-1"] = new User("client-1")
+        {
+            Name = "Ana",
+            LastName = "Pérez",
+            Email = "client@example.com",
+            Role = Roles.Client,
+            IsActive = true
+        };
+        return repository;
+    }
 
     private static CreateCreditCardCommand ValidCommand() =>
         new(new CreateCreditCardRequest("client-1", 5_000m));
@@ -198,18 +261,26 @@ public sealed class CreateCreditCardCommandTests
     {
         public IsolationLevel? IsolationLevel { get; private set; }
 
-        public Task<TResult> ExecuteAsync<TResult>(
-            Func<CancellationToken, Task<TResult>> operation,
-            CancellationToken cancellationToken = default) =>
-            operation(cancellationToken);
+        public bool IsCommitted { get; private set; }
 
-        public Task<TResult> ExecuteAsync<TResult>(
+        public async Task<TResult> ExecuteAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await operation(cancellationToken);
+            IsCommitted = true;
+            return result;
+        }
+
+        public async Task<TResult> ExecuteAsync<TResult>(
             IsolationLevel isolationLevel,
             Func<CancellationToken, Task<TResult>> operation,
             CancellationToken cancellationToken = default)
         {
             IsolationLevel = isolationLevel;
-            return operation(cancellationToken);
+            var result = await operation(cancellationToken);
+            IsCommitted = true;
+            return result;
         }
     }
 

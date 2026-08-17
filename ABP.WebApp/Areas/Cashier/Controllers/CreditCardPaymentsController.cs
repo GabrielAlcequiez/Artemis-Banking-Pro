@@ -78,8 +78,9 @@ public sealed class CreditCardPaymentsController(
                 return RedirectToAction(nameof(Create));
             }
 
-            TempData["SuccessMessage"] =
-                $"El pago de RD$ {result.Value.EffectiveAmount:N2} fue aplicado correctamente.";
+            TempData["SuccessMessage"] = result.HasNotificationWarning
+                ? "El pago fue realizado correctamente, pero no fue posible enviar una o más notificaciones por correo."
+                : $"El pago de RD$ {result.Value.EffectiveAmount:N2} fue aplicado correctamente.";
             return RedirectToAction("Index", "Home", new { area = "Cashier" });
         }
         catch (ValidationException exception)
