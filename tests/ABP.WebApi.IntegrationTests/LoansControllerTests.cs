@@ -26,7 +26,7 @@ public sealed class LoansControllerTests
         var type = typeof(LoansController);
 
         Assert.Equal(
-            "api/loan",
+            "api/v{version:apiVersion}/[controller]",
             type.GetCustomAttribute<RouteAttribute>()?.Template);
         Assert.Equal(
             nameof(Roles.Administrator),

@@ -21,7 +21,10 @@ public sealed class PayControllerTests
     {
         var type = typeof(PayController);
 
-        Assert.Equal("pay", type.GetCustomAttribute<RouteAttribute>()?.Template);
+        Assert.Equal(
+            "api/v{version:apiVersion}/[controller]",
+            type.GetCustomAttribute<RouteAttribute>()?.Template);
+        Assert.Equal(typeof(BaseApiController), type.BaseType);
         Assert.Equal(
             "Administrator,Commerce",
             type.GetCustomAttribute<AuthorizeAttribute>()?.Roles);

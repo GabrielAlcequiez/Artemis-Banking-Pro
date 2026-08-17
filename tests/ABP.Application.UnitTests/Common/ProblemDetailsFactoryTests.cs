@@ -16,7 +16,7 @@ public sealed class ProblemDetailsFactoryTests
         var problem = ProblemDetailsFactory.Create(
             exception,
             "trace-1",
-            "/api/credit-card");
+            "/api/v1/CreditCards");
 
         Assert.Equal(400, problem.Status);
         Assert.Equal("Solicitud inválida", problem.Title);
@@ -35,7 +35,7 @@ public sealed class ProblemDetailsFactoryTests
         var problem = ProblemDetailsFactory.Create(
             exception,
             "trace-2",
-            "/api/credit-card/card-id/limit");
+            "/api/v1/CreditCards/card-id/limit");
 
         Assert.Equal(409, problem.Status);
         Assert.Equal("Conflicto", problem.Title);
@@ -52,7 +52,7 @@ public sealed class ProblemDetailsFactoryTests
         var problem = ProblemDetailsFactory.Create(
             exception,
             "trace-3",
-            "/api/commerce");
+            "/api/v1/Commerce");
 
         Assert.Equal(409, problem.Status);
         Assert.Equal("Conflicto", problem.Title);
@@ -72,7 +72,7 @@ public sealed class ProblemDetailsFactoryTests
         var problem = ProblemDetailsFactory.Create(
             exception,
             "trace-4",
-            "/api/credit-card");
+            "/api/v1/CreditCards");
 
         Assert.Equal(500, problem.Status);
         Assert.Equal("Error inesperado", problem.Title);
@@ -87,7 +87,7 @@ public sealed class ProblemDetailsFactoryTests
         var problem = ProblemDetailsFactory.Create(
             new InvalidOperationException("dato sensible"),
             "trace-5",
-            "/api/credit-card");
+            "/api/v1/CreditCards");
 
         Assert.Equal(500, problem.Status);
         Assert.Equal("Error inesperado", problem.Title);
