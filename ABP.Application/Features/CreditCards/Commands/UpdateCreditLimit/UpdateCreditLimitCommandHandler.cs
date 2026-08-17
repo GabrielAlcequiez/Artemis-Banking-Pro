@@ -40,8 +40,6 @@ public sealed class UpdateCreditLimitCommandHandler(
 
         card.Limit = request.CreditLimit;
 
-        // TODO(P1 Outbox): enqueue the limit-change email in this transaction so it is
-        // dispatched only after commit. Include only the last four digits, never the PAN.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return OperationResult.Success();

@@ -91,8 +91,6 @@ public sealed class CreateCreditCardCommandHandler(
                     card,
                     transactionCancellationToken);
 
-                // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
-                // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
                 await unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
                 return OperationResult<Guid>.Success(createdCard.Id);

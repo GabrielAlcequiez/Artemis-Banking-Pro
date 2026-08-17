@@ -208,7 +208,6 @@ public sealed class LoanOriginationService(
             request.ClientId,
             assignedByUserId);
 
-        // TODO(P1 Outbox): publicar la notificación de aprobación después del commit.
         return OperationResult<LoanDetailDto>.Success(
             mapper.Map<LoanDetailDto>(loan));
     }

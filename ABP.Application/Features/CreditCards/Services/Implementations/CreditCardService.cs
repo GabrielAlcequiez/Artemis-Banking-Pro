@@ -233,8 +233,6 @@ public sealed class CreditCardService(
                     card,
                     transactionCancellationToken);
 
-                // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
-                // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
                 await unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
                 return OperationResult<Guid>.Success(createdCard.Id);
@@ -271,8 +269,6 @@ public sealed class CreditCardService(
 
         card.Limit = request.CreditLimit;
 
-        // TODO(P1 Outbox): enqueue the limit-change email in this transaction so it is
-        // dispatched only after commit. Include only the last four digits, never the PAN.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return OperationResult.Success();
