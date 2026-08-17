@@ -5,6 +5,7 @@ using ABP.Application.Features.Loans;
 using ABP.Application.Features.Loans.DTOs;
 using ABP.Application.Features.Loans.Services.Implementations;
 using ABP.Application.Features.Loans.Validation;
+using ABP.Application.UnitTests.Features.Loans;
 using ABP.Domain.Common;
 using ABP.Domain.Entities;
 using ABP.Domain.Entities.Accounts;
@@ -105,6 +106,11 @@ public sealed class LoanPaymentServiceTests
         Assert.Equal(50m, dependencies.Balance.DebitedAmount);
         Assert.Equal(1, dependencies.Ledger.ApprovedCalls);
         Assert.Equal(1, dependencies.UnitOfWork.SaveCalls);
+        Assert.False(result.HasNotificationWarning);
+        var email = Assert.Single(dependencies.Emails.SentEmails);
+        Assert.Equal("client-1@example.com", email.ToEmail);
+        Assert.Contains("123456789", email.Subject);
+        Assert.False(dependencies.Emails.WasCalledBeforeCommit);
     }
 
     [Fact]
@@ -135,6 +141,35 @@ public sealed class LoanPaymentServiceTests
         Assert.Equal(0m, loan.PendingAmount);
         Assert.Equal(LoanStatus.Completed, loan.Status);
         Assert.True(result.Value.IsCompleted);
+        Assert.Equal(2, dependencies.Emails.SentEmails.Count);
+        Assert.Contains(
+            dependencies.Emails.SentEmails,
+            email => email.ToEmail == "client-1@example.com");
+        Assert.Contains(
+            dependencies.Emails.SentEmails,
+            email => email.ToEmail == "different-client@example.com");
+    }
+
+    [Fact]
+    public async Task ProcessPaymentAsync_keeps_payment_confirmed_when_email_fails()
+    {
+        var dependencies = CreateDependencies(
+            Roles.Client,
+            "client-1");
+        dependencies.Emails.ThrowOnSend = true;
+        var loan = CreateLoan(CreateInstallment(1, 100m));
+        dependencies.Loans.Loan = loan;
+        var service = dependencies.CreateService();
+
+        var result = await service.ProcessPaymentAsync(
+            CreateRequest(50m));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.HasNotificationWarning);
+        Assert.Equal(50m, loan.PendingAmount);
+        Assert.Equal(1, dependencies.UnitOfWork.SaveCalls);
+        Assert.Equal(1, dependencies.Emails.SendAttempts);
+        Assert.False(dependencies.Emails.WasCalledBeforeCommit);
     }
 
     [Fact]
@@ -181,6 +216,7 @@ public sealed class LoanPaymentServiceTests
         Assert.Equal(0, dependencies.Balance.DebitCalls);
         Assert.Null(dependencies.Loans.AddedPayment);
         Assert.Equal(0, dependencies.Ledger.ApprovedCalls);
+        Assert.Equal(0, dependencies.Emails.SendAttempts);
     }
 
     [Fact]
@@ -304,7 +340,8 @@ public sealed class LoanPaymentServiceTests
             Ledger = new StubAccountLedger(),
             UnitOfWork = new StubUnitOfWork(),
             CurrentUser = new StubCurrentUser(role, userId),
-            Users = new StubUserRepository()
+            Users = new StubUserRepository(),
+            Emails = new RecordingLoanEmailService()
         };
 
     private sealed class Dependencies
@@ -316,9 +353,13 @@ public sealed class LoanPaymentServiceTests
         public required StubUnitOfWork UnitOfWork { get; init; }
         public required StubCurrentUser CurrentUser { get; init; }
         public required StubUserRepository Users { get; init; }
+        public required RecordingLoanEmailService Emails { get; init; }
 
-        public LoanPaymentService CreateService() =>
-            new(
+        public LoanPaymentService CreateService()
+        {
+            Emails.IsOperationCommitted = () => UnitOfWork.SaveCalls > 0;
+
+            return new LoanPaymentService(
                 Loans,
                 Accounts,
                 Users,
@@ -328,7 +369,9 @@ public sealed class LoanPaymentServiceTests
                 CurrentUser,
                 new StubClock(),
                 new LoanPaymentRequestValidator(),
+                Emails,
                 NullLogger<LoanPaymentService>.Instance);
+        }
     }
 
     private sealed class StubCurrentUser(Roles role, string userId)
@@ -475,7 +518,8 @@ public sealed class LoanPaymentServiceTests
             var user = new User(id)
             {
                 Name = id == "account-client" ? "Cuenta" : "Préstamo",
-                LastName = "Titular"
+                LastName = "Titular",
+                Email = $"{id}@example.com"
             };
             return Task.FromResult<User?>(user);
         }

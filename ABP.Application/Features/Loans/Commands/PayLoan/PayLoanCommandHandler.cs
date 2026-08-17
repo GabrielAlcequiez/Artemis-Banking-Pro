@@ -9,12 +9,14 @@ public sealed class PayLoanCommandHandler(
     ILoanPaymentService paymentService)
     : IRequestHandler<PayLoanCommand, OperationResult<LoanPaymentResult>>
 {
-    public Task<OperationResult<LoanPaymentResult>> Handle(
+    public async Task<OperationResult<LoanPaymentResult>> Handle(
         PayLoanCommand command,
         CancellationToken cancellationToken)
     {
-        return paymentService.ProcessPaymentAsync(
+        var result = await paymentService.ProcessPaymentAsync(
             command.Request,
             cancellationToken);
+
+        return result.Operation;
     }
 }

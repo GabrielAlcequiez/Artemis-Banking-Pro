@@ -120,14 +120,17 @@ public sealed class CreateLoanCommandTests
 
         public int CreateCalls { get; private set; }
 
-        public Task<OperationResult<LoanDetailDto>> CreateAsync(
+        public Task<LoanOperationResult<LoanDetailDto>> CreateAsync(
             CreateLoanRequest request,
             CancellationToken cancellationToken = default)
         {
             ReceivedCreateRequest = request;
             ReceivedCancellationToken = cancellationToken;
             CreateCalls++;
-            return Task.FromResult(CreateResult);
+            return Task.FromResult(
+                new LoanOperationResult<LoanDetailDto>(
+                    CreateResult,
+                    false));
         }
 
         public Task<OperationResult<HighRiskAssessmentDto>> AssessRiskAsync(

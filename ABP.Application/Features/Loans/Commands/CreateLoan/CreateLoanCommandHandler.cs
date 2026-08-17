@@ -9,12 +9,14 @@ public sealed class CreateLoanCommandHandler(
     ILoanOriginationService originationService)
     : IRequestHandler<CreateLoanCommand, OperationResult<LoanDetailDto>>
 {
-    public Task<OperationResult<LoanDetailDto>> Handle(
+    public async Task<OperationResult<LoanDetailDto>> Handle(
         CreateLoanCommand command,
         CancellationToken cancellationToken)
     {
-        return originationService.CreateAsync(
+        var result = await originationService.CreateAsync(
             command.Request,
             cancellationToken);
+
+        return result.Operation;
     }
 }

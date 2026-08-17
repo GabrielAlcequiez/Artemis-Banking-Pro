@@ -3,6 +3,7 @@ using ABP.Application.Common;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.Loans.DTOs;
+using ABP.Application.Features.Loans.Notifications;
 using ABP.Application.Features.Loans.Services.Interfaces;
 using ABP.Domain.Entities.Accounts;
 using ABP.Domain.Entities.Lending;
@@ -23,6 +24,7 @@ public sealed class LoanPaymentService(
     ICurrentUserService currentUser,
     IClock clock,
     IValidator<LoanPaymentRequest> requestValidator,
+    IEmailService emailService,
     ILogger<LoanPaymentService> logger)
     : ILoanPaymentService
 {
@@ -150,7 +152,7 @@ public sealed class LoanPaymentService(
                 Math.Min(amount, loan.PendingAmount)));
     }
 
-    public async Task<OperationResult<LoanPaymentResult>> ProcessPaymentAsync(
+    public async Task<LoanOperationResult<LoanPaymentResult>> ProcessPaymentAsync(
         LoanPaymentRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -164,8 +166,9 @@ public sealed class LoanPaymentService(
 
         if (actor is null)
         {
-            return OperationResult<LoanPaymentResult>.Failure(
-                LoanErrors.PaymentActorRequired);
+            return WithoutNotification(
+                OperationResult<LoanPaymentResult>.Failure(
+                    LoanErrors.PaymentActorRequired));
         }
 
         var previousPayment = await loanRepository
@@ -175,10 +178,11 @@ public sealed class LoanPaymentService(
 
         if (previousPayment is not null)
         {
-            return BuildIdempotentResult(
-                request,
-                actor.Value.UserId,
-                previousPayment);
+            return WithoutNotification(
+                BuildIdempotentResult(
+                    request,
+                    actor.Value.UserId,
+                    previousPayment));
         }
 
         var loan = await loanRepository.GetWithInstallmentsAsync(
@@ -187,14 +191,16 @@ public sealed class LoanPaymentService(
 
         if (loan is null)
         {
-            return OperationResult<LoanPaymentResult>.Failure(
-                LoanErrors.NotFound);
+            return WithoutNotification(
+                OperationResult<LoanPaymentResult>.Failure(
+                    LoanErrors.NotFound));
         }
 
         if (loan.Status != LoanStatus.Active)
         {
-            return OperationResult<LoanPaymentResult>.Failure(
-                LoanErrors.Inactive);
+            return WithoutNotification(
+                OperationResult<LoanPaymentResult>.Failure(
+                    LoanErrors.Inactive));
         }
 
         var sourceAccount = await savingsAccountRepository.GetByIdAsync(
@@ -203,8 +209,9 @@ public sealed class LoanPaymentService(
 
         if (sourceAccount is null)
         {
-            return OperationResult<LoanPaymentResult>.Failure(
-                LoanErrors.SourceAccountNotFound);
+            return WithoutNotification(
+                OperationResult<LoanPaymentResult>.Failure(
+                    LoanErrors.SourceAccountNotFound));
         }
 
         var authorizationError = ValidateOwnership(
@@ -214,8 +221,9 @@ public sealed class LoanPaymentService(
 
         if (authorizationError != Error.None)
         {
-            return OperationResult<LoanPaymentResult>.Failure(
-                authorizationError);
+            return WithoutNotification(
+                OperationResult<LoanPaymentResult>.Failure(
+                    authorizationError));
         }
 
         var productError = ValidateProducts(
@@ -225,7 +233,8 @@ public sealed class LoanPaymentService(
 
         if (productError != Error.None)
         {
-            return OperationResult<LoanPaymentResult>.Failure(productError);
+            return WithoutNotification(
+                OperationResult<LoanPaymentResult>.Failure(productError));
         }
 
         var outstandingAmount = loan.Installments.Sum(
@@ -233,13 +242,24 @@ public sealed class LoanPaymentService(
 
         if (outstandingAmount <= 0m || loan.PendingAmount <= 0m)
         {
-            return OperationResult<LoanPaymentResult>.Failure(
-                LoanErrors.NoOutstandingBalance);
+            return WithoutNotification(
+                OperationResult<LoanPaymentResult>.Failure(
+                    LoanErrors.NoOutstandingBalance));
         }
 
         var effectiveAmount = Math.Min(
             request.Amount,
             outstandingAmount);
+        var loanOwner = await userRepository.GetByIdAsync(
+            loan.ClientId,
+            cancellationToken);
+        var accountOwner = loan.ClientId == sourceAccount.OwnerUserId
+            ? loanOwner
+            : await userRepository.GetByIdAsync(
+                sourceAccount.OwnerUserId,
+                cancellationToken);
+        var processedAtUtc = clock.UtcNow;
+        var processedAtBankingTime = clock.Now;
         OperationResult debitResult;
 
         using (var transaction = new TransactionScope(
@@ -261,7 +281,7 @@ public sealed class LoanPaymentService(
                     SourceAccountId = sourceAccount.Id,
                     EffectiveAmount = effectiveAmount,
                     ActorUserId = actor.Value.UserId,
-                    PaidAtUtc = clock.UtcNow,
+                    PaidAtUtc = processedAtUtc,
                     OperationId = request.OperationId
                 };
 
@@ -304,8 +324,9 @@ public sealed class LoanPaymentService(
                 loan.Id,
                 debitResult.Error.Code);
 
-            return OperationResult<LoanPaymentResult>.Failure(
-                debitResult.Error);
+            return WithoutNotification(
+                OperationResult<LoanPaymentResult>.Failure(
+                    debitResult.Error));
         }
 
         logger.LogInformation(
@@ -316,14 +337,25 @@ public sealed class LoanPaymentService(
             effectiveAmount,
             loan.PendingAmount);
 
-        return OperationResult<LoanPaymentResult>.Success(
-            CreateResult(
-                request,
-                effectiveAmount,
-                loan.PendingAmount,
-                loan.Status == LoanStatus.Completed,
-                loan.LoanNumber,
-                clock.UtcNow));
+        var notificationSent = await SendPaymentNotificationsAsync(
+            request.OperationId,
+            loan,
+            sourceAccount,
+            loanOwner,
+            accountOwner,
+            effectiveAmount,
+            processedAtBankingTime);
+
+        return new LoanOperationResult<LoanPaymentResult>(
+            OperationResult<LoanPaymentResult>.Success(
+                CreateResult(
+                    request,
+                    effectiveAmount,
+                    loan.PendingAmount,
+                    loan.Status == LoanStatus.Completed,
+                    loan.LoanNumber,
+                    processedAtUtc)),
+            !notificationSent);
     }
 
     private OperationResult<LoanPaymentResult> BuildIdempotentResult(
@@ -482,6 +514,70 @@ public sealed class LoanPaymentService(
             loan.Status = LoanStatus.Completed;
         }
     }
+
+    private async Task<bool> SendPaymentNotificationsAsync(
+        Guid operationId,
+        Loan loan,
+        SavingsAccount sourceAccount,
+        ABP.Domain.Entities.User? loanOwner,
+        ABP.Domain.Entities.User? accountOwner,
+        decimal effectiveAmount,
+        DateTimeOffset processedAtBankingTime)
+    {
+        var sourceAccountLastFourDigits = LastFour(
+            sourceAccount.AccountNumber);
+        var loanOwnerNotified =
+            await LoanNotificationEmails.SendBestEffortAsync(
+                emailService,
+                logger,
+                LoanNotificationEmails.LoanPayment(
+                    ToRecipient(loanOwner, loan.ClientId),
+                    loan.LoanNumber,
+                    sourceAccountLastFourDigits,
+                    effectiveAmount,
+                    processedAtBankingTime),
+                "pago al propietario del préstamo",
+                operationId.ToString("N"));
+
+        if (loan.ClientId == sourceAccount.OwnerUserId)
+        {
+            return loanOwnerNotified;
+        }
+
+        var accountOwnerNotified =
+            await LoanNotificationEmails.SendBestEffortAsync(
+                emailService,
+                logger,
+                LoanNotificationEmails.PaymentAccountDebit(
+                    ToRecipient(accountOwner, sourceAccount.OwnerUserId),
+                    loan.LoanNumber,
+                    sourceAccountLastFourDigits,
+                    effectiveAmount,
+                    processedAtBankingTime),
+                "débito al propietario de la cuenta",
+                operationId.ToString("N"));
+
+        return loanOwnerNotified && accountOwnerNotified;
+    }
+
+    private static LoanNotificationRecipient ToRecipient(
+        ABP.Domain.Entities.User? user,
+        string userId) =>
+        new(
+            userId,
+            user?.Email ?? string.Empty,
+            user is null
+                ? string.Empty
+                : FullName(user.Name, user.LastName));
+
+    private static string LastFour(string value) =>
+        value.Length <= 4
+            ? value
+            : value[^4..];
+
+    private static LoanOperationResult<TValue> WithoutNotification<TValue>(
+        OperationResult<TValue> result) =>
+        new(result, false);
 
     private static LoanPaymentResult CreateResult(
         LoanPaymentRequest request,
