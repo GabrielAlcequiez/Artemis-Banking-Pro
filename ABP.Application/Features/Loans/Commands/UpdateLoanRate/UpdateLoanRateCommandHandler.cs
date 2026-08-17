@@ -8,12 +8,14 @@ public sealed class UpdateLoanRateCommandHandler(
     ILoanRateService loanRateService)
     : IRequestHandler<UpdateLoanRateCommand, OperationResult>
 {
-    public Task<OperationResult> Handle(
+    public async Task<OperationResult> Handle(
         UpdateLoanRateCommand command,
         CancellationToken cancellationToken)
     {
-        return loanRateService.UpdateRateAsync(
+        var result = await loanRateService.UpdateRateAsync(
             command.Request,
             cancellationToken);
+
+        return result.Operation;
     }
 }

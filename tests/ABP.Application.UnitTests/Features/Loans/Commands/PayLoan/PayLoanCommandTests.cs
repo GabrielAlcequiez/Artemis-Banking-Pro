@@ -111,14 +111,17 @@ public sealed class PayLoanCommandTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<OperationResult<LoanPaymentResult>> ProcessPaymentAsync(
+        public Task<LoanOperationResult<LoanPaymentResult>> ProcessPaymentAsync(
             LoanPaymentRequest request,
             CancellationToken cancellationToken = default)
         {
             ReceivedRequest = request;
             ReceivedCancellationToken = cancellationToken;
             ProcessCalls++;
-            return Task.FromResult(Result);
+            return Task.FromResult(
+                new LoanOperationResult<LoanPaymentResult>(
+                    Result,
+                    false));
         }
     }
 }

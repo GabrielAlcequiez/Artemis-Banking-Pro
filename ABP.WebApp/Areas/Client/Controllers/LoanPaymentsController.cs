@@ -48,9 +48,11 @@ public sealed class LoanPaymentsController(
                 return View(model);
             }
 
-            TempData["SuccessMessage"] = result.Value.IsCompleted
-                ? $"El pago de RD$ {result.Value.EffectiveAmount:N2} fue aplicado y el préstamo quedó saldado."
-                : $"El pago de RD$ {result.Value.EffectiveAmount:N2} fue aplicado correctamente.";
+            TempData["SuccessMessage"] = result.HasNotificationWarning
+                ? "El pago fue realizado correctamente, pero no fue posible enviar el correo de notificación."
+                : result.Value.IsCompleted
+                    ? $"El pago de RD$ {result.Value.EffectiveAmount:N2} fue aplicado y el préstamo quedó saldado."
+                    : $"El pago de RD$ {result.Value.EffectiveAmount:N2} fue aplicado correctamente.";
             return RedirectToAction("Index", "Home", new { area = "Client" });
         }
         catch (ValidationException exception)

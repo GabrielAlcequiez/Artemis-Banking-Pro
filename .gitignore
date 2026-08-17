@@ -15,6 +15,7 @@ graphify-out
 
 # dotenv files
 .env
+/ABP.Functions/local.settings.json
 
 # User-specific files
 *.rsuser

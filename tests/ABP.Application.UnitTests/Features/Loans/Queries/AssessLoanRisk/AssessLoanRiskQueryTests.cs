@@ -110,7 +110,7 @@ public sealed class AssessLoanRiskQueryTests
             return Task.FromResult(AssessResult);
         }
 
-        public Task<OperationResult<LoanDetailDto>> CreateAsync(
+        public Task<LoanOperationResult<LoanDetailDto>> CreateAsync(
             CreateLoanRequest request,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();

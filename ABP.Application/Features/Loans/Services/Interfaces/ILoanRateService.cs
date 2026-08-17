@@ -5,5 +5,5 @@ namespace ABP.Application.Features.Loans.Services.Interfaces;
 
 public interface ILoanRateService
 {
-    Task<OperationResult> UpdateRateAsync(UpdateLoanRateRequest request, CancellationToken cancellationToken = default);
+    Task<LoanOperationResult> UpdateRateAsync(UpdateLoanRateRequest request, CancellationToken cancellationToken = default);
 }
