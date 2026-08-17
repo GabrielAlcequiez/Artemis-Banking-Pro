@@ -1,0 +1,52 @@
+@model ABP.WebApp.Areas.Cashier.ViewModels.Accounts.CashierThirdPartyTransferViewModel
+@{
+    ViewData["Title"] = "Transacciones a cuentas de terceros";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink"
+           asp-area="Cashier"
+           asp-controller="Home"
+           asp-action="Index">← Volver al Home</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Transacciones a cuentas de terceros</h1>
+        <p class="mt-1 text-sm text-ink-muted">
+            Transfiere dinero entre dos cuentas de ahorro indicando sus números de cuenta.
+        </p>
+    </header>
+
+    @if (TempData["ErrorMessage"] is string errorMessage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+    }
+
+    <form asp-action="ConfirmThirdPartyTransfer" method="post" class="card space-y-5 p-6">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        <div class="space-y-2">
+            <label asp-for="SourceAccountNumber" class="text-sm font-medium text-ink">Número de cuenta origen</label>
+            <input asp-for="SourceAccountNumber"
+                   class="input"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   maxlength="9" />
+        </div>
+
+        <div class="space-y-2">
+            <label asp-for="DestinationAccountNumber" class="text-sm font-medium text-ink">Número de cuenta destino</label>
+            <input asp-for="DestinationAccountNumber"
+                   class="input"
+                   inputmode="numeric"
+                   autocomplete="off"
+                   maxlength="9" />
+        </div>
+
+        <div class="space-y-2">
+            <label asp-for="Amount" class="text-sm font-medium text-ink">Monto a transferir</label>
+            <input asp-for="Amount" class="input" type="number" min="0.01" step="0.01" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Continuar</button>
+    </form>
+</div>

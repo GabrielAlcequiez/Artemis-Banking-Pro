@@ -1,7 +1,11 @@
 using ABP.Application.Common;
+using ABP.Application.Common.DTOs;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts;
 using ABP.Application.Features.Accounts.DTOs;
+using ABP.Application.Features.Accounts.Notifications;
 using ABP.Application.Features.Accounts.Services.Interfaces;
+using ABP.Domain.Entities;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -26,17 +30,26 @@ namespace ABP.Application.Features.Accounts.Services
         private readonly ISavingsAccountRepository _accounts;
         private readonly IAccountBalanceService _balances;
         private readonly IAccountLedger _ledger;
+        private readonly IGenericRepository<User, string> _users;
+        private readonly IEmailService _emailService;
+        private readonly IClock _clock;
         private readonly ILogger<MoneyTransferService> _logger;
 
         public MoneyTransferService(
             ISavingsAccountRepository accounts,
             IAccountBalanceService balances,
             IAccountLedger ledger,
+            IGenericRepository<User, string> users,
+            IEmailService emailService,
+            IClock clock,
             ILogger<MoneyTransferService> logger)
         {
             _accounts = accounts;
             _balances = balances;
             _ledger = ledger;
+            _users = users;
+            _emailService = emailService;
+            _clock = clock;
             _logger = logger;
         }
 
@@ -66,6 +79,15 @@ namespace ABP.Application.Features.Accounts.Services
             if (destination.Id == source.Id)
             {
                 return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.SameAccount);
+            }
+
+            if (request.OperationType == FinancialOperationType.OwnAccountTransfer)
+            {
+                var ownerActiveAccounts = await _accounts.GetActiveByOwnerIdAsync(source.OwnerUserId, cancellationToken);
+                if (ownerActiveAccounts.Count < 2)
+                {
+                    return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.NotEnoughActiveAccounts);
+                }
             }
 
             var operationId = Guid.NewGuid();
@@ -117,6 +139,21 @@ namespace ABP.Application.Features.Accounts.Services
                 "Transferencia {OperationId} de {Amount} completada: {SourceAccount} -> {DestinationAccount}.",
                 operationId, request.Amount, source.AccountNumber, destination.AccountNumber);
 
+            var processedAt = _clock.Now;
+
+            if (request.OperationType == FinancialOperationType.OwnAccountTransfer)
+            {
+                await SendOwnAccountTransferEmailAsync(
+                    source.OwnerUserId, source.AccountNumber, destination.AccountNumber, request.Amount,
+                    processedAt, operationId, cancellationToken);
+            }
+            else
+            {
+                await SendTwoPartyTransferEmailsAsync(
+                    source.OwnerUserId, source.AccountNumber, destination.OwnerUserId, destination.AccountNumber,
+                    request.Amount, processedAt, operationId, cancellationToken);
+            }
+
             var receipt = new FinancialOperationReceipt(operationId, request.Amount, DateTimeOffset.UtcNow);
             return OperationResult<FinancialOperationReceipt>.Success(receipt);
         }
@@ -156,6 +193,15 @@ namespace ABP.Application.Features.Accounts.Services
             _logger.LogInformation(
                 "Depósito {OperationId} de {Amount} aplicado a la cuenta {DestinationAccount} por {ActorUserId}.",
                 operationId, request.Amount, destination.AccountNumber, request.ActorUserId);
+
+            var recipient = await ResolveRecipientAsync(destination.OwnerUserId, cancellationToken);
+            if (recipient is not null)
+            {
+                await AccountNotificationEmails.SendBestEffortAsync(
+                    _emailService, _logger,
+                    AccountNotificationEmails.Deposit(recipient, LastFour(destination.AccountNumber), request.Amount, _clock.Now),
+                    "Deposit", operationId.ToString());
+            }
 
             var receipt = new FinancialOperationReceipt(operationId, request.Amount, DateTimeOffset.UtcNow);
             return OperationResult<FinancialOperationReceipt>.Success(receipt);
@@ -201,8 +247,75 @@ namespace ABP.Application.Features.Accounts.Services
                 "Retiro {OperationId} de {Amount} aplicado a la cuenta {SourceAccount} por {ActorUserId}.",
                 operationId, request.Amount, source.AccountNumber, request.ActorUserId);
 
+            var recipient = await ResolveRecipientAsync(source.OwnerUserId, cancellationToken);
+            if (recipient is not null)
+            {
+                await AccountNotificationEmails.SendBestEffortAsync(
+                    _emailService, _logger,
+                    AccountNotificationEmails.Withdrawal(recipient, LastFour(source.AccountNumber), request.Amount, _clock.Now),
+                    "Withdrawal", operationId.ToString());
+            }
+
             var receipt = new FinancialOperationReceipt(operationId, request.Amount, DateTimeOffset.UtcNow);
             return OperationResult<FinancialOperationReceipt>.Success(receipt);
         }
+
+        private async Task SendTwoPartyTransferEmailsAsync(
+            string sourceOwnerUserId, string sourceAccountNumber,
+            string destinationOwnerUserId, string destinationAccountNumber,
+            decimal amount, DateTimeOffset processedAt, Guid operationId, CancellationToken cancellationToken)
+        {
+            var sourceRecipient = await ResolveRecipientAsync(sourceOwnerUserId, cancellationToken);
+            if (sourceRecipient is not null)
+            {
+                await AccountNotificationEmails.SendBestEffortAsync(
+                    _emailService, _logger,
+                    AccountNotificationEmails.TransferSent(
+                        sourceRecipient, LastFour(destinationAccountNumber), amount, processedAt),
+                    "TransferSent", operationId.ToString());
+            }
+
+            var destinationRecipient = await ResolveRecipientAsync(destinationOwnerUserId, cancellationToken);
+            if (destinationRecipient is not null)
+            {
+                await AccountNotificationEmails.SendBestEffortAsync(
+                    _emailService, _logger,
+                    AccountNotificationEmails.TransferReceived(
+                        destinationRecipient, LastFour(sourceAccountNumber), amount, processedAt),
+                    "TransferReceived", operationId.ToString());
+            }
+        }
+
+        private async Task SendOwnAccountTransferEmailAsync(
+            string ownerUserId, string sourceAccountNumber, string destinationAccountNumber,
+            decimal amount, DateTimeOffset processedAt, Guid operationId, CancellationToken cancellationToken)
+        {
+            var recipient = await ResolveRecipientAsync(ownerUserId, cancellationToken);
+            if (recipient is null)
+            {
+                return;
+            }
+
+            await AccountNotificationEmails.SendBestEffortAsync(
+                _emailService, _logger,
+                AccountNotificationEmails.OwnAccountTransfer(
+                    recipient, LastFour(sourceAccountNumber), LastFour(destinationAccountNumber), amount, processedAt),
+                "OwnAccountTransfer", operationId.ToString());
+        }
+
+        private async Task<AccountNotificationRecipient?> ResolveRecipientAsync(
+            string ownerUserId, CancellationToken cancellationToken)
+        {
+            var owner = await _users.GetByIdAsync(ownerUserId, cancellationToken);
+            if (owner is null || string.IsNullOrWhiteSpace(owner.Email))
+            {
+                return null;
+            }
+
+            return new AccountNotificationRecipient(owner.Id, owner.Email, $"{owner.Name} {owner.LastName}".Trim());
+        }
+
+        private static string LastFour(string accountNumber) =>
+            accountNumber.Length <= 4 ? accountNumber : accountNumber[^4..];
     }
 }
