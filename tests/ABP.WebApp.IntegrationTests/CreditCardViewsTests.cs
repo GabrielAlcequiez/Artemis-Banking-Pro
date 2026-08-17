@@ -62,6 +62,27 @@ public sealed class CreditCardViewsTests
         Assert.DoesNotContain("hashed-cvc", html, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Create_view_posts_operation_id_as_hidden_field()
+    {
+        var operationId = Guid.NewGuid();
+        var html = await RenderAsync(
+            "Admin",
+            "CreditCards",
+            "Create",
+            new CreateCreditCardViewModel
+            {
+                ClientId = "client-1",
+                ClientFullName = "Ana Pérez",
+                ClientIdentification = "00100000001",
+                ClientEmail = "ana@example.com",
+                OperationId = operationId
+            });
+
+        Assert.Contains("name=\"OperationId\"", html, StringComparison.Ordinal);
+        Assert.Contains(operationId.ToString(), html, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [MemberData(nameof(OperationViewCases))]
     public async Task Card_operation_view_renders_with_role_layout_and_safe_data(
@@ -113,7 +134,8 @@ public sealed class CreditCardViewsTests
                 ClientId = "client-1",
                 ClientFullName = "Ana Pérez",
                 ClientIdentification = "00100000001",
-                ClientEmail = "ana@example.com"
+                ClientEmail = "ana@example.com",
+                OperationId = Guid.NewGuid()
             },
             "La tarjeta iniciará activa"
         },
