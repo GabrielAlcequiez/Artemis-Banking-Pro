@@ -13,7 +13,7 @@ namespace ABP.Application.UnitTests.Features.CreditCards.Validation
             // Given
             var request = new UpdateCreditLimitRequest(
                 CreditCardId: Guid.NewGuid(),
-                CreditLimit: 10_000m);
+                CreditLimit: 10_000.25m);
             // When
             var result = _validator.Validate(request);
             // Then
@@ -47,6 +47,32 @@ namespace ABP.Application.UnitTests.Features.CreditCards.Validation
 
             Assert.Contains(result.Errors, error =>
                 error.PropertyName == nameof(UpdateCreditLimitRequest.CreditLimit));
+        }
+
+        [Fact]
+        public void Credit_limit_accepts_two_decimal_places()
+        {
+            var request = new UpdateCreditLimitRequest(
+                CreditCardId: Guid.NewGuid(),
+                CreditLimit: 10_000.25m);
+
+            var result = _validator.Validate(request);
+
+            Assert.True(result.IsValid);
+        }
+
+        [Fact]
+        public void Credit_limit_rejects_more_than_two_decimal_places()
+        {
+            var request = new UpdateCreditLimitRequest(
+                CreditCardId: Guid.NewGuid(),
+                CreditLimit: 10_000.001m);
+
+            var result = _validator.Validate(request);
+
+            Assert.Contains(result.Errors, error =>
+                error.PropertyName == nameof(UpdateCreditLimitRequest.CreditLimit)
+                && error.ErrorMessage == "El límite de la tarjeta debe tener un máximo de dos decimales.");
         }
 
     }

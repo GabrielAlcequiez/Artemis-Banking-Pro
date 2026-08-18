@@ -13,7 +13,9 @@ namespace ABP.Application.Features.CreditCards.Validation
 
             RuleFor(request => request.CreditLimit)
                 .GreaterThan(0m)
-                .WithMessage("El límite de la tarjeta debe ser mayor que cero.");
+                .WithMessage("El límite de la tarjeta debe ser mayor que cero.")
+                .PrecisionScale(18, 2, true)
+                .WithMessage("El límite de la tarjeta debe tener un máximo de dos decimales.");
         }
     }
 }

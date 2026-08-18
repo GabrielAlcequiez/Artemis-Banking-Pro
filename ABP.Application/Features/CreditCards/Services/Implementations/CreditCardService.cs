@@ -5,6 +5,7 @@ using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Notifications;
+using ABP.Application.Exceptions;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Common;
 using ABP.Domain.Entities.CreditCards;
@@ -187,12 +188,35 @@ public sealed class CreditCardService(
                 false);
         }
 
-        AssignmentNotification? notification = null;
+        var existingCard = await repository.GetByCreationOperationIdAsync(
+            request.OperationId,
+            cancellationToken);
+        if (existingCard is not null)
+        {
+            return WithoutNotification(
+                ResolveCreationReplay(existingCard, request, assignedByUserId));
+        }
 
-        var result = await financialTransaction.ExecuteAsync(
-            IsolationLevel.Serializable,
-            async transactionCancellationToken =>
-            {
+        AssignmentNotification? notification = null;
+        OperationResult<Guid> result;
+
+        try
+        {
+            result = await financialTransaction.ExecuteAsync(
+                IsolationLevel.Serializable,
+                async transactionCancellationToken =>
+                {
+                    existingCard = await repository.GetByCreationOperationIdAsync(
+                        request.OperationId,
+                        transactionCancellationToken);
+                    if (existingCard is not null)
+                    {
+                        return ResolveCreationReplay(
+                            existingCard,
+                            request,
+                            assignedByUserId);
+                    }
+
                 var clientExists = await repository.ClientExistsAsync(
                     request.ClientId,
                     transactionCancellationToken);
@@ -235,7 +259,8 @@ public sealed class CreditCardService(
                     Debt = 0m,
                     ExpirationDate = expirationDate,
                     Status = CreditCardStatus.Active,
-                    AssignedByUserId = assignedByUserId
+                    AssignedByUserId = assignedByUserId,
+                    CreationOperationId = request.OperationId
                 };
 
                 var createdCard = await repository.AddAsync(
@@ -257,8 +282,24 @@ public sealed class CreditCardService(
                 await unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
                 return OperationResult<Guid>.Success(createdCard.Id);
-            },
-            cancellationToken);
+                },
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is PersistenceConflictException or
+                  FinancialConcurrencyException)
+        {
+            existingCard = await repository.GetByCreationOperationIdAsync(
+                request.OperationId,
+                cancellationToken);
+            if (existingCard is null)
+            {
+                throw;
+            }
+
+            result = ResolveCreationReplay(existingCard, request, assignedByUserId);
+            notification = null;
+        }
 
         if (result.IsFailure)
         {
@@ -280,6 +321,21 @@ public sealed class CreditCardService(
 
         return new CardOperationResult<Guid>(result, !notificationSent);
     }
+
+    private static CardOperationResult<Guid> WithoutNotification(
+        OperationResult<Guid> result) =>
+        new(result, false);
+
+    private static OperationResult<Guid> ResolveCreationReplay(
+        CreditCard card,
+        CreateCreditCardRequest request,
+        string assignedByUserId) =>
+        card.AssignedByUserId == assignedByUserId &&
+        card.ClientId == request.ClientId &&
+        card.Limit == request.CreditLimit
+            ? OperationResult<Guid>.Success(card.Id)
+            : OperationResult<Guid>.Failure(
+                CreditCardErrors.CreationOperationConflict);
 
     public async Task<CardOperationResult> UpdateLimitAsync(
         UpdateCreditLimitRequest request,

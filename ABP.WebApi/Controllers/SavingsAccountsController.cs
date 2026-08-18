@@ -23,10 +23,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ABP.WebApi.Controllers;
 
-[ApiController]
-[Route("api/savings-account")]
 [Authorize]
-public sealed class SavingsAccountsController(ISender sender, ICurrentUserService currentUser) : ControllerBase
+public sealed class SavingsAccountsController(ISender sender, ICurrentUserService currentUser) : BaseApiController
 {
     [HttpGet]
     [Authorize(Roles = nameof(Roles.Administrator))]
