@@ -37,7 +37,7 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] =
-                    $"Server=localhost;Database={_databaseName};Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=true;",
+                    TestDatabase.CreateConnectionString(_databaseName),
                 ["SeedUsers:DefaultPassword"] = DefaultPassword,
                 ["JwtSettings:Issuer"] = Issuer,
                 ["JwtSettings:Audience"] = Audience,

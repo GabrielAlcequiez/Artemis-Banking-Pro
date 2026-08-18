@@ -23,7 +23,7 @@ public class IdentityConfigurationTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] =
-                    "Server=(localdb)\\mssqllocaldb;Database=ABP_IdentityTests;Trusted_Connection=True;"
+                    $"Server={TestDatabase.ResolveServer()};Database=ABP_IdentityTests;Trusted_Connection=True;"
             })
             .Build();
 
@@ -77,7 +77,7 @@ public class IdentityConfigurationTests
     {
         var options = new DbContextOptionsBuilder<IdentityContext>()
             .UseSqlServer(
-                "Server=(localdb)\\mssqllocaldb;Database=ABP_IdentityTests;Trusted_Connection=True;")
+                $"Server={TestDatabase.ResolveServer()};Database=ABP_IdentityTests;Trusted_Connection=True;")
             .Options;
 
         using var context = new IdentityContext(options);

@@ -12,7 +12,6 @@ using ABP.Domain.Enums;
 using ABP.Infrastructure.Persistence.Context;
 using ABP.Infrastructure.Persistence.Repositories;
 using ABP.Infrastructure.Persistence.Transactions;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -26,21 +25,8 @@ public sealed class CardFinancialTransactionSqlTests : IAsyncLifetime
 
     public CardFinancialTransactionSqlTests()
     {
-        var configuredConnection = Environment.GetEnvironmentVariable(
-            "ABP_TEST_SQL_CONNECTION");
-        var builder = string.IsNullOrWhiteSpace(configuredConnection)
-            ? new SqlConnectionStringBuilder
-            {
-                DataSource = "localhost",
-                IntegratedSecurity = true,
-                TrustServerCertificate = true,
-                MultipleActiveResultSets = true
-            }
-            : new SqlConnectionStringBuilder(configuredConnection);
-
-        builder.InitialCatalog =
-            $"ABP_CardFinanceTests_{Guid.NewGuid():N}";
-        connectionString = builder.ConnectionString;
+        connectionString = TestDatabase.CreateConnectionString(
+            $"ABP_CardFinanceTests_{Guid.NewGuid():N}");
     }
 
     public async Task InitializeAsync()

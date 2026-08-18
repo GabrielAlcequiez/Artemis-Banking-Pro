@@ -14,9 +14,7 @@ public sealed class UserPersistenceTests : IAsyncLifetime
 
     public UserPersistenceTests()
     {
-        _connectionString =
-            $"Server=localhost;Database={_databaseName};Integrated Security=True;" +
-            "TrustServerCertificate=True;MultipleActiveResultSets=true;";
+        _connectionString = TestDatabase.CreateConnectionString(_databaseName);
     }
 
     public async Task InitializeAsync()

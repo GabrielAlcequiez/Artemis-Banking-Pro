@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ABP.WebApi\ABP.WebApi.csproj" />
+    <ProjectReference Include="..\ABP.TestDoubles\ABP.TestDoubles.csproj" />
     <Using Include="Xunit" />
+    <Using Include="ABP.TestDoubles" />
   </ItemGroup>
 </Project>

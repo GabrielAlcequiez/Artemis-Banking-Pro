@@ -16,14 +16,7 @@ public sealed class CommerceRepositoryTests : IAsyncLifetime
 
     public CommerceRepositoryTests()
     {
-        var configuredServer = Environment.GetEnvironmentVariable("ABP_TEST_SQL_SERVER");
-        var server = string.IsNullOrWhiteSpace(configuredServer)
-            ? OperatingSystem.IsWindows()
-                ? @"(localdb)\MSSQLLocalDB"
-                : "localhost"
-            : configuredServer;
-
-        _connectionString = $"Server={server};Database={_databaseName};Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=true;";
+        _connectionString = TestDatabase.CreateConnectionString(_databaseName);
     }
 
     public async Task InitializeAsync()
