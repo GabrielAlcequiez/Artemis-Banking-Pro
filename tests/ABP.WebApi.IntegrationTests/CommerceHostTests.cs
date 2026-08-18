@@ -51,9 +51,9 @@ public sealed class CommerceHostTests(
         using var commerceUser = CreateClient(Roles.Commerce);
         using var administrator = CreateClient(Roles.Administrator);
 
-        var anonymousResponse = await anonymous.GetAsync("/api/commerce");
-        var forbiddenResponse = await commerceUser.GetAsync("/api/commerce");
-        var allowedResponse = await administrator.GetAsync("/api/commerce");
+        var anonymousResponse = await anonymous.GetAsync("/api/v1/Commerce");
+        var forbiddenResponse = await commerceUser.GetAsync("/api/v1/Commerce");
+        var allowedResponse = await administrator.GetAsync("/api/v1/Commerce");
 
         Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, forbiddenResponse.StatusCode);
@@ -68,9 +68,9 @@ public sealed class CommerceHostTests(
         using var client = CreateClient(Roles.Administrator);
 
         var queryResponse = await client.GetAsync(
-            "/api/commerce?page=0&pageSize=21");
+            "/api/v1/Commerce?page=0&pageSize=21");
         var commandResponse = await client.PostAsJsonAsync(
-            "/api/commerce",
+            "/api/v1/Commerce",
             new
             {
                 name = "",
@@ -91,7 +91,7 @@ public sealed class CommerceHostTests(
         using var client = CreateClient(Roles.Administrator);
 
         var response = await client.PatchAsJsonAsync(
-            $"/api/commerce/{Guid.NewGuid()}/status",
+            $"/api/v1/Commerce/{Guid.NewGuid()}/status",
             new { });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -118,7 +118,7 @@ public sealed class CommerceHostTests(
         var suffix = Guid.NewGuid().ToString("N")[..8];
 
         var createResponse = await client.PostAsJsonAsync(
-            "/api/commerce",
+            "/api/v1/Commerce",
             new
             {
                 name = "Tienda HTTP",
@@ -134,7 +134,7 @@ public sealed class CommerceHostTests(
         Assert.True(createdJson.RootElement.GetProperty("isActive").GetBoolean());
 
         var updateResponse = await client.PutAsJsonAsync(
-            $"/api/commerce/{commerceId}",
+            $"/api/v1/Commerce/{commerceId}",
             new
             {
                 name = "Tienda HTTP Actualizada",
@@ -144,12 +144,12 @@ public sealed class CommerceHostTests(
                 rnc = suffix[..8]
             });
         var statusResponse = await client.PatchAsJsonAsync(
-            $"/api/commerce/{commerceId}/status",
+            $"/api/v1/Commerce/{commerceId}/status",
             new { status = false });
         var detailResponse = await client.GetAsync(
-            $"/api/commerce/{commerceId}");
+            $"/api/v1/Commerce/{commerceId}");
         var listResponse = await client.GetAsync(
-            "/api/commerce?status=inactivo");
+            "/api/v1/Commerce?status=inactivo");
 
         Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, statusResponse.StatusCode);

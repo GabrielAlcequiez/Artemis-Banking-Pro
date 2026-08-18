@@ -12,7 +12,13 @@ namespace ABP.Application.Features.CreditCards.Validation
 
             RuleFor(request => request.CreditLimit)
                 .GreaterThan(0m)
-                .WithMessage("El límite de crédito debe ser mayor que cero.");
+                .WithMessage("El límite de crédito debe ser mayor que cero.")
+                .PrecisionScale(18, 2, true)
+                .WithMessage("El límite de crédito debe tener un máximo de dos decimales.");
+
+            RuleFor(request => request.OperationId)
+                .NotEmpty()
+                .WithMessage("El identificador de la operación es requerido.");
         }
     }
 }

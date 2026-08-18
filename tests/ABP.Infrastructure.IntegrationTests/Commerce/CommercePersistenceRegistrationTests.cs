@@ -16,7 +16,7 @@ public sealed class CommercePersistenceRegistrationTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] =
-                    "Server=(localdb)\\mssqllocaldb;Database=ABP_CommerceRegistrationTests;Trusted_Connection=True;",
+                    $"Server={TestDatabase.ResolveServer()};Database=ABP_CommerceRegistrationTests;Trusted_Connection=True;",
                 ["Security:Cvc:SecretBase64"] =
                     Convert.ToBase64String(
                         System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))

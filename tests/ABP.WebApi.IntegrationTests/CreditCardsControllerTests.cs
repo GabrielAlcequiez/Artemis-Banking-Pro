@@ -26,7 +26,9 @@ public sealed class CreditCardsControllerTests
     {
         var type = typeof(CreditCardsController);
 
-        Assert.Equal("api/credit-card", type.GetCustomAttribute<RouteAttribute>()?.Template);
+        Assert.Equal(
+            "api/v{version:apiVersion}/[controller]",
+            type.GetCustomAttribute<RouteAttribute>()?.Template);
         Assert.Equal(
             nameof(Roles.Administrator),
             type.GetCustomAttribute<AuthorizeAttribute>()?.Roles);
@@ -129,9 +131,12 @@ public sealed class CreditCardsControllerTests
         sender.Enqueue(OperationResult<Guid>.Success(cardId));
         sender.Enqueue<CreditCardDetailDto?>(CreateDetail(cardId));
         var controller = CreateController(sender);
+        var operationId = Guid.NewGuid();
+        var body = new CreateCreditCardApiRequest("client-1", 1_000m);
 
         var result = await controller.Create(
-            new CreateCreditCardRequest("client-1", 1_000m),
+            body,
+            operationId,
             CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
@@ -140,8 +145,19 @@ public sealed class CreditCardsControllerTests
         Assert.Equal(cardId, response.Id);
         Assert.Collection(
             sender.Requests,
-            request => Assert.IsType<CreateCreditCardCommand>(request),
+            request =>
+            {
+                var command = Assert.IsType<CreateCreditCardCommand>(request);
+                Assert.Equal(operationId, command.Request.OperationId);
+                Assert.Equal(body.ClientId, command.Request.ClientId);
+                Assert.Equal(body.CreditLimit, command.Request.CreditLimit);
+            },
             request => Assert.IsType<GetCreditCardDetailQuery>(request));
+
+        var requestJson = JsonSerializer.Serialize(body).ToLowerInvariant();
+        Assert.Contains("clientid", requestJson);
+        Assert.Contains("creditlimit", requestJson);
+        Assert.DoesNotContain("operationid", requestJson);
 
         AssertSafeJson(response);
     }
@@ -157,7 +173,8 @@ public sealed class CreditCardsControllerTests
         var controller = CreateController(sender);
 
         var result = await controller.Create(
-            new CreateCreditCardRequest("client-1", 1_000m),
+            new CreateCreditCardApiRequest("client-1", 1_000m),
+            Guid.NewGuid(),
             CancellationToken.None);
 
         AssertProblem(result, expectedStatus);
@@ -200,7 +217,8 @@ public sealed class CreditCardsControllerTests
     {
         { CreditCardErrors.ClientNotFound, StatusCodes.Status404NotFound },
         { CreditCardErrors.ClientInactive, StatusCodes.Status400BadRequest },
-        { CreditCardErrors.NumberGenerationFailed, StatusCodes.Status409Conflict }
+        { CreditCardErrors.NumberGenerationFailed, StatusCodes.Status409Conflict },
+        { CreditCardErrors.CreationOperationConflict, StatusCodes.Status409Conflict }
     };
 
     private static CreditCardsController CreateController(FakeSender sender) =>

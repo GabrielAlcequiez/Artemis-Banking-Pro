@@ -170,6 +170,8 @@ public sealed class GetCreditCardsQueryTests
 
     private sealed class StubCreditCardRepository : ICreditCardRepository
     {
+        public Task<CreditCard?> GetByCreationOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CreditCard?>(null);
+
         public string? ClientIdByIdentification { get; init; }
 
         public bool HasCards { get; init; } = true;

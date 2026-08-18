@@ -14,10 +14,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ABP.WebApi.Controllers;
 
-[ApiController]
-[Route("api/commerce")]
 [Authorize(Roles = nameof(Roles.Administrator))]
-public sealed class CommerceController(ISender sender) : ControllerBase
+public sealed class CommerceController(ISender sender) : BaseApiController
 {
     [HttpGet]
     public async Task<ActionResult> GetAll(

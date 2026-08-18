@@ -28,7 +28,9 @@ public sealed class ProcessHermesPaymentRequestValidator
 
         RuleFor(request => request.TransactionAmount)
             .GreaterThan(0m)
-            .WithMessage("El monto de la transacción debe ser mayor que cero.");
+            .WithMessage("El monto de la transacción debe ser mayor que cero.")
+            .PrecisionScale(18, 2, true)
+            .WithMessage("El monto de la transacción debe tener un máximo de dos decimales.");
 
         RuleFor(request => request.OperationId)
             .NotEmpty()

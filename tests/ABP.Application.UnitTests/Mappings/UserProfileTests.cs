@@ -14,6 +14,16 @@ public sealed class UserProfileTests
         NullLoggerFactory.Instance).CreateMapper();
 
     [Fact]
+    public void AssertConfigurationIsValid_UserProfile_HasNoUnmappedProperties()
+    {
+        var configuration = new MapperConfiguration(
+            expression => expression.AddProfile<UserProfile>(),
+            NullLoggerFactory.Instance);
+
+        configuration.AssertConfigurationIsValid();
+    }
+
+    [Fact]
     public void Create_mapping_preserves_identity_and_maps_the_requested_role()
     {
         var commerceId = Guid.NewGuid();

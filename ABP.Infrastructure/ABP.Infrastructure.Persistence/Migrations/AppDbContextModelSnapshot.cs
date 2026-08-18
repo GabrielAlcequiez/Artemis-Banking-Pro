@@ -486,6 +486,9 @@ namespace ABP.Infrastructure.Persistence.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<Guid>("CreationOperationId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("CvcHash")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -527,10 +530,15 @@ namespace ABP.Infrastructure.Persistence.Migrations
                     b.HasIndex("CardNumber")
                         .IsUnique();
 
+                    b.HasIndex("CreationOperationId")
+                        .IsUnique();
+
                     b.HasIndex("ClientId", "Status");
 
                     b.ToTable("CreditCards", null, t =>
                         {
+                            t.HasCheckConstraint("CK_CreditCards_CreationOperationId_NonEmpty", "[CreationOperationId] <> '00000000-0000-0000-0000-000000000000'");
+
                             t.HasCheckConstraint("CK_CreditCards_Debt_LessThanOrEqualToLimit", "[Debt] <= [Limit]");
 
                             t.HasCheckConstraint("CK_CreditCards_Debt_NonNegative", "[Debt] >= 0");
