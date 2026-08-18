@@ -135,7 +135,10 @@ namespace ABP.Infrastructure.Identity
                         return Task.CompletedTask;
                     }
                 };
-            });
+              })
+            // The app doesn't use 2FA, but SignInManager's security stamp validation can still
+            // try to sign this scheme out — it just needs a registered handler to do so safely.
+            .AddCookie(IdentityConstants.TwoFactorRememberMeScheme);
 
             #endregion
 
