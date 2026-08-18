@@ -13,19 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.Accounts.Services
 {
-    /// <summary>
-    /// Orchestrates two-leg money movement (debit + credit) and records both legs
-    /// in the ledger under one OperationId.
-    /// </summary>
-    /// <remarks>
-    /// Known gap: <see cref="IUnitOfWork"/> currently only wraps a single
-    /// <c>SaveChangesAsync</c> with no Begin/Commit/Rollback, and
-    /// <see cref="IAccountBalanceService"/>/<see cref="IAccountLedger"/> each commit
-    /// their own step. So this is not yet atomic: if the credit leg fails after the
-    /// debit succeeded, we issue a compensating credit back to the source instead of
-    /// a real rollback. Once P1 adds transaction support to IUnitOfWork, this should
-    /// be rewritten to wrap the whole operation in one transaction.
-    /// </remarks>
+
     public sealed class MoneyTransferService : IMoneyTransferService
     {
         private readonly ISavingsAccountRepository _accounts;
@@ -35,7 +23,6 @@ namespace ABP.Application.Features.Accounts.Services
         private readonly IGenericRepository<User, string> _users;
         private readonly IEmailService _emailService;
         private readonly IClock _clock;
-        private readonly IFinancialTransaction _financialTransaction;
         private readonly ILogger<MoneyTransferService> _logger;
 
         public MoneyTransferService(
@@ -46,7 +33,6 @@ namespace ABP.Application.Features.Accounts.Services
             IGenericRepository<User, string> users,
             IEmailService emailService,
             IClock clock,
-            IFinancialTransaction financialTransaction,
             ILogger<MoneyTransferService> logger)
         {
             _accounts = accounts;
@@ -56,7 +42,6 @@ namespace ABP.Application.Features.Accounts.Services
             _users = users;
             _emailService = emailService;
             _clock = clock;
-            _financialTransaction = financialTransaction;
             _logger = logger;
         }
 
@@ -90,16 +75,15 @@ namespace ABP.Application.Features.Accounts.Services
 
             if (request.OperationType == FinancialOperationType.OwnAccountTransfer)
             {
-            var result = await _financialTransaction.ExecuteAsync(
-                async transactionCancellationToken =>
+                var ownerActiveAccounts = await _accounts.GetActiveByOwnerIdAsync(source.OwnerUserId, cancellationToken);
+                if (ownerActiveAccounts.Count < 2)
                 {
-                    var debitResult = await _balances.DebitAsync(source.Id, request.Amount, transactionCancellationToken);
-                    if (debitResult.IsFailure)
-                    {
-                        await _ledger.RecordRejectedAsync(
-                            source.Id, operationId, request.Amount, TransactionDirection.Debit,
-                            request.OperationType, debitResult.Error.Description, request.ActorUserId, request.ActorRole,
-                            transactionCancellationToken);
+                    return OperationResult<FinancialOperationReceipt>.Failure(AccountErrors.NotEnoughActiveAccounts);
+                }
+            }
+
+            var operationId = Guid.NewGuid();
+
             OperationResult<FinancialOperationReceipt> result;
 
             try
@@ -113,26 +97,17 @@ namespace ABP.Application.Features.Accounts.Services
                             source.Id, operationId, request.Amount, TransactionDirection.Debit,
                             request.OperationType, debitResult.Error.Description, request.ActorUserId, request.ActorRole,
                             transactionCancellationToken);
-                async transactionCancellationToken =>
-                {
-                    var debitResult = await _balances.DebitAsync(source.Id, request.Amount, transactionCancellationToken);
-                    if (debitResult.IsFailure)
-                    {
-                        await _ledger.RecordRejectedAsync(
-                            source.Id, operationId, request.Amount, TransactionDirection.Debit,
-                            request.OperationType, debitResult.Error.Description, request.ActorUserId, request.ActorRole,
+
+                        _logger.LogWarning(
+                            "Transferencia {OperationId} rechazada al debitar la cuenta {AccountId}: {Reason}",
+                            operationId, source.Id, debitResult.Error.Description);
+
+                        return OperationResult<FinancialOperationReceipt>.Failure(debitResult.Error);
+                    }
+
                     var creditResult = await _balances.CreditAsync(destination.Id, request.Amount, transactionCancellationToken);
                     if (creditResult.IsFailure)
                     {
-                        await _ledger.RecordRejectedAsync(
-                            destination.Id, operationId, request.Amount, TransactionDirection.Credit,
-                            request.OperationType, creditResult.Error.Description, request.ActorUserId, request.ActorRole,
-                            transactionCancellationToken);
-                    var creditResult = await _balances.CreditAsync(destination.Id, request.Amount, transactionCancellationToken);
-                    if (creditResult.IsFailure)
-                    {
-                        // Forces EfFinancialTransaction to roll back the whole database transaction,
-                        // undoing the debit above — no compensating credit needed.
                         throw new TransferLegFailedException(creditResult.Error);
                     }
 
@@ -152,62 +127,26 @@ namespace ABP.Application.Features.Accounts.Services
             }
             catch (TransferLegFailedException exception)
             {
-                // The database transaction already rolled back the debit in full.
-                // This rejection record is written after the rollback, in its own
-                // SaveChangesAsync, so it survives.
                 await _ledger.RecordRejectedAsync(
                     destination.Id, operationId, request.Amount, TransactionDirection.Credit,
                     request.OperationType, exception.Error.Description, request.ActorUserId, request.ActorRole,
                     cancellationToken);
-                    }
-                        _logger.LogError(
-                            "Transferencia {OperationId} falló al acreditar la cuenta {AccountId} tras debitar {SourceId}.",
-                            operationId, destination.Id, source.Id);
+
                 _logger.LogError(
                     "Transferencia {OperationId} revertida por completo: no fue posible acreditar la cuenta {AccountId} tras debitar {SourceId}.",
                     operationId, destination.Id, source.Id);
-                    {
-                        return OperationResult<FinancialOperationReceipt>.Failure(creditResult.Error);
-                    }
+
                 return OperationResult<FinancialOperationReceipt>.Failure(exception.Error);
             }
-                            request.OperationType, creditResult.Error.Description, request.ActorUserId, request.ActorRole,
-                    await _ledger.RecordApprovedAsync(
-                        operationId, source.Id, request.Amount, TransactionDirection.Debit,
-                        request.OperationType, source.AccountNumber, destination.AccountNumber,
-                        request.ActorUserId, request.ActorRole, transactionCancellationToken);
-
-                    await _ledger.RecordApprovedAsync(
-                        operationId, destination.Id, request.Amount, TransactionDirection.Credit,
-                        request.OperationType, source.AccountNumber, destination.AccountNumber,
-                        request.ActorUserId, request.ActorRole, transactionCancellationToken);
-            if (result.IsFailure)
-            {
-                return result;
-            }
-                    await _ledger.RecordApprovedAsync(
-                        operationId, source.Id, request.Amount, TransactionDirection.Debit,
-                        request.OperationType, source.AccountNumber, destination.AccountNumber,
-                        request.ActorUserId, request.ActorRole, transactionCancellationToken);
-
-                    await _ledger.RecordApprovedAsync(
-                        operationId, destination.Id, request.Amount, TransactionDirection.Credit,
-                        request.OperationType, source.AccountNumber, destination.AccountNumber,
-                        request.ActorUserId, request.ActorRole, transactionCancellationToken);
-
-                    _logger.LogInformation(
-                        "Transferencia {OperationId} de {Amount} completada: {SourceAccount} -> {DestinationAccount}.",
-                        operationId, request.Amount, source.AccountNumber, destination.AccountNumber);
-
-                    return OperationResult<FinancialOperationReceipt>.Success(
-                        new FinancialOperationReceipt(operationId, request.Amount, DateTimeOffset.UtcNow));
-                },
-                cancellationToken);
 
             if (result.IsFailure)
             {
                 return result;
             }
+
+            _logger.LogInformation(
+                "Transferencia {OperationId} de {Amount} completada: {SourceAccount} -> {DestinationAccount}.",
+                operationId, request.Amount, source.AccountNumber, destination.AccountNumber);
 
             var processedAt = _clock.Now;
 
@@ -215,13 +154,7 @@ namespace ABP.Application.Features.Accounts.Services
             {
                 await SendOwnAccountTransferEmailAsync(
                     source.OwnerUserId, source.AccountNumber, destination.AccountNumber, request.Amount,
-            return result;
-            return result;
-        }
-
-        private sealed class TransferLegFailedException(Error error) : Exception
-        {
-            public Error Error { get; } = error;
+                    processedAt, operationId, cancellationToken);
             }
             else
             {
@@ -231,6 +164,11 @@ namespace ABP.Application.Features.Accounts.Services
             }
 
             return result;
+        }
+
+        private sealed class TransferLegFailedException(Error error) : Exception
+        {
+            public Error Error { get; } = error;
         }
 
         public async Task<OperationResult<FinancialOperationReceipt>> DepositAsync(

@@ -14,10 +14,6 @@ namespace ABP.Application.Features.Accounts.Services
             FinancialOperationType.LoanPayment
         ];
 
-        // The Cashier's "third-party transfer" screen calls MoneyTransferService.TransferAsync with
-        // ExpressTransfer (ThirdPartyTransfer isn't in TransferFundsRequestValidator's allowed list),
-        // so that's the type this indicator counts. Direction=Debit keeps each transfer counted once
-        // (transfers write one Debit row on the source account and one Credit row on the destination).
         private static readonly FinancialOperationType[] ThirdPartyTransferTypes =
         [
             FinancialOperationType.ExpressTransfer
