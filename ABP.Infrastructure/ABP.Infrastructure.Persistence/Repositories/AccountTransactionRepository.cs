@@ -71,6 +71,27 @@ namespace ABP.Infrastructure.Persistence.Repositories
                 .CountAsync(cancellationToken);
         }
 
+        public async Task<int> CountByActorAndTypesTodayAsync(
+            string actorUserId,
+            DateOnly today,
+            IReadOnlyCollection<FinancialOperationType> types,
+            TransactionDirection? direction = null,
+            CancellationToken cancellationToken = default)
+        {
+            var start = new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var end = start.AddDays(1);
+
+            return await Entities
+                .Where(t =>
+                    t.ActorUserId == actorUserId &&
+                    t.Status == TransactionStatus.Approved &&
+                    t.CreatedAtUtc >= start &&
+                    t.CreatedAtUtc < end &&
+                    types.Contains(t.OperationType) &&
+                    (direction == null || t.Direction == direction))
+                .CountAsync(cancellationToken);
+        }
+
         public async Task<decimal> SumAmountByActorTodayAsync( string actorUserId, DateOnly today, CancellationToken cancellationToken = default)
         {
             var start = new DateTimeOffset(today.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
