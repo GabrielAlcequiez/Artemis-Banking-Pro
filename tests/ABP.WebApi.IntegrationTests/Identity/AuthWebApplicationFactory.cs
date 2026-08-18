@@ -26,6 +26,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
     public const string DefaultPassword = "Passw0rd!";
 
     private readonly string _databaseName = $"ABP_AuthHostTests_{Guid.NewGuid():N}";
+    private readonly string _identityDatabaseName =
+        $"ABP_AuthHostTests_Identity_{Guid.NewGuid():N}";
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private bool _initialized;
 
@@ -51,6 +53,15 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<IEmailService>();
             services.AddSingleton<IEmailService, NoOpEmailService>();
+
+            services.RemoveAll<IdentityContext>();
+            services.RemoveAll<DbContextOptions<IdentityContext>>();
+            services.AddDbContext<IdentityContext>(
+                (_, options) => options.UseSqlServer(
+                    TestDatabase.CreateConnectionString(_identityDatabaseName),
+                    sql => sql.MigrationsAssembly(typeof(IdentityContext).Assembly.FullName)),
+                contextLifetime: ServiceLifetime.Scoped,
+                optionsLifetime: ServiceLifetime.Scoped);
         });
     }
 
@@ -67,6 +78,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             using var scope = Services.CreateScope();
             var appContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var identityContext = scope.ServiceProvider.GetRequiredService<IdentityContext>();
+            await appContext.Database.EnsureDeletedAsync();
+            await identityContext.Database.EnsureDeletedAsync();
             await appContext.Database.EnsureCreatedAsync();
             await identityContext.Database.EnsureCreatedAsync();
             await scope.ServiceProvider.RunSeedsAsync();
