@@ -20,7 +20,7 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
 
     public LoanRepositoryTests()
     {
-        _connectionString = $"Server=localhost;Database={_databaseName};Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=true;";
+        _connectionString = TestDatabase.CreateConnectionString(_databaseName);
     }
 
     public async Task InitializeAsync()

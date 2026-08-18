@@ -15,16 +15,7 @@ public sealed class CommerceUserAssociationConfigurationTests : IAsyncLifetime
 
     public CommerceUserAssociationConfigurationTests()
     {
-        var configuredServer = Environment.GetEnvironmentVariable("ABP_TEST_SQL_SERVER");
-        var server = string.IsNullOrWhiteSpace(configuredServer)
-            ? OperatingSystem.IsWindows()
-                ? @"(localdb)\MSSQLLocalDB"
-                : "localhost"
-            : configuredServer;
-
-        _connectionString =
-            $"Server={server};Database={_databaseName};Integrated Security=True;" +
-            "TrustServerCertificate=True;MultipleActiveResultSets=true;";
+        _connectionString = TestDatabase.CreateConnectionString(_databaseName);
     }
 
     public async Task InitializeAsync()
@@ -147,7 +138,7 @@ public sealed class CommerceUserAssociationModelTests
         using var context = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>()
                 .UseSqlServer(
-                    "Server=(localdb)\\MSSQLLocalDB;Database=ABP_CommerceMetadataOnly;" +
+                    $"Server={TestDatabase.ResolveServer()};Database=ABP_CommerceMetadataOnly;" +
                     "Integrated Security=True;TrustServerCertificate=True;")
                 .Options);
         var userType = context.Model.FindEntityType(typeof(User));

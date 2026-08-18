@@ -6,7 +6,7 @@ namespace ABP.Application.Common.DTOs.Users
     {
         // El id viene de la ruta directamente y el controller lo asigna.
         [JsonIgnore]
-        public required string Id { get; set; }
+        public string Id { get; set; } = string.Empty;
         public required string FirstName { get; set; }
         public required string LastName { get; set; }   
         public required string Identification { get; set; }

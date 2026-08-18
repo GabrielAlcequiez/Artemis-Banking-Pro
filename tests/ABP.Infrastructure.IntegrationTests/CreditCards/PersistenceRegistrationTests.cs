@@ -19,7 +19,7 @@ public sealed class PersistenceRegistrationTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] =
-                    "Server=(localdb)\\mssqllocaldb;Database=ABP_CreditCardTests;Trusted_Connection=True;",
+                    $"Server={TestDatabase.ResolveServer()};Database=ABP_CreditCardTests;Trusted_Connection=True;",
                 ["Security:Cvc:SecretBase64"] =
                     Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32))
             })
@@ -69,7 +69,7 @@ public sealed class PersistenceRegistrationTests
         var values = new Dictionary<string, string?>
         {
             ["ConnectionStrings:DefaultConnection"] =
-                "Server=(localdb)\\mssqllocaldb;Database=ABP_CreditCardTests;Trusted_Connection=True;"
+                $"Server={TestDatabase.ResolveServer()};Database=ABP_CreditCardTests;Trusted_Connection=True;"
         };
 
         if (secretBase64 is not null)

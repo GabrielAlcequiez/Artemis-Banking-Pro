@@ -313,6 +313,11 @@ internal sealed class DashboardCreditCardRepository : ICreditCardRepository
         CancellationToken cancellationToken = default) =>
         Task.FromResult(false);
 
+    public Task<CreditCard?> GetByCreationOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<CreditCard?>(null);
+
     public Task AddConsumptionAsync(
         CardConsumption consumption,
         CancellationToken cancellationToken = default) =>
@@ -472,6 +477,14 @@ internal sealed class DashboardTransactionRepository : IAccountTransactionReposi
     public Task<int> CountByActorTodayAsync(
         string actorUserId,
         DateOnly today,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(0);
+
+    public Task<int> CountByActorAndTypesTodayAsync(
+        string actorUserId,
+        DateOnly today,
+        IReadOnlyCollection<FinancialOperationType> types,
+        TransactionDirection? direction = null,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(0);
 

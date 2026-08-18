@@ -6,10 +6,12 @@ using ABP.Application.Common.Interfaces.Services;
 using ABP.Infrastructure.Identity;
 using ABP.Infrastructure.Identity.Context;
 using ABP.Infrastructure.Identity.Entities;
+using ABP.Infrastructure.Persistence.Auditing;
 using ABP.Infrastructure.Persistence.Context;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,6 +28,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
     public const string DefaultPassword = "Passw0rd!";
 
     private readonly string _databaseName = $"ABP_AuthHostTests_{Guid.NewGuid():N}";
+    private readonly string _identityDatabaseName =
+        $"ABP_AuthHostTests_Identity_{Guid.NewGuid():N}";
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private bool _initialized;
 
@@ -37,7 +41,7 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] =
-                    $"Server=localhost;Database={_databaseName};Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=true;",
+                    TestDatabase.CreateConnectionString(_databaseName),
                 ["SeedUsers:DefaultPassword"] = DefaultPassword,
                 ["JwtSettings:Issuer"] = Issuer,
                 ["JwtSettings:Audience"] = Audience,
@@ -51,6 +55,30 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<IEmailService>();
             services.AddSingleton<IEmailService, NoOpEmailService>();
+
+            services.RemoveAll<AppDbContext>();
+            services.RemoveAll<DbContextOptions<AppDbContext>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();
+            services.AddDbContext<AppDbContext>(
+                (serviceProvider, options) =>
+                {
+                    options.UseSqlServer(
+                        TestDatabase.CreateConnectionString(_databaseName),
+                        sql => sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
+                    options.AddInterceptors(
+                        serviceProvider.GetRequiredService<AuditableEntityInterceptor>());
+                },
+                contextLifetime: ServiceLifetime.Scoped,
+                optionsLifetime: ServiceLifetime.Scoped);
+
+            services.RemoveAll<IdentityContext>();
+            services.RemoveAll<DbContextOptions<IdentityContext>>();
+            services.AddDbContext<IdentityContext>(
+                (_, options) => options.UseSqlServer(
+                    TestDatabase.CreateConnectionString(_identityDatabaseName),
+                    sql => sql.MigrationsAssembly(typeof(IdentityContext).Assembly.FullName)),
+                contextLifetime: ServiceLifetime.Scoped,
+                optionsLifetime: ServiceLifetime.Scoped);
         });
     }
 
@@ -67,6 +95,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>
             using var scope = Services.CreateScope();
             var appContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var identityContext = scope.ServiceProvider.GetRequiredService<IdentityContext>();
+            await appContext.Database.EnsureDeletedAsync();
+            await identityContext.Database.EnsureDeletedAsync();
             await appContext.Database.EnsureCreatedAsync();
             await identityContext.Database.EnsureCreatedAsync();
             await scope.ServiceProvider.RunSeedsAsync();
