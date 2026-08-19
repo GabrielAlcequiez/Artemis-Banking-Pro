@@ -273,7 +273,9 @@ public sealed class LoanPaymentService(
 
             if (debitResult.IsSuccess)
             {
-                ApplyPayment(loan, effectiveAmount);
+                var settledAnyInstallment = ApplyPayment(
+                    loan,
+                    effectiveAmount);
 
                 var payment = new LoanPayment
                 {
@@ -300,6 +302,14 @@ public sealed class LoanPaymentService(
                     actor.Value.Role,
                     cancellationToken);
                 await unitOfWork.SaveChangesAsync(cancellationToken);
+                if (settledAnyInstallment)
+                {
+                    await loanRepository.ClearLateFlagFromPaidInstallmentsAsync(
+                        loan.Id,
+                        processedAtUtc,
+                        actor.Value.UserId,
+                        cancellationToken);
+                }
 
                 transaction.Complete();
             }
@@ -475,9 +485,10 @@ public sealed class LoanPaymentService(
             : Error.None;
     }
 
-    private static void ApplyPayment(Loan loan, decimal amount)
+    private static bool ApplyPayment(Loan loan, decimal amount)
     {
         var remainingPayment = amount;
+        var settledAnyInstallment = false;
 
         foreach (var installment in loan.Installments
                      .Where(item => item.PendingAmount > 0m)
@@ -498,6 +509,7 @@ public sealed class LoanPaymentService(
             {
                 installment.PaymentStatus = InstallmentPaymentStatus.Paid;
                 installment.IsLate = false;
+                settledAnyInstallment = true;
             }
             else
             {
@@ -513,6 +525,8 @@ public sealed class LoanPaymentService(
         {
             loan.Status = LoanStatus.Completed;
         }
+
+        return settledAnyInstallment;
     }
 
     private async Task<bool> SendPaymentNotificationsAsync(

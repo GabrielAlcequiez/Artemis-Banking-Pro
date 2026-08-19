@@ -333,17 +333,54 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
             totalRecords);
     }
 
-    public async Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(DateOnly bankingDate, CancellationToken cancellationToken = default)
+    public Task<int> MarkOverdueInstallmentsAsync(
+        DateOnly bankingDate,
+        DateTimeOffset modifiedAtUtc,
+        CancellationToken cancellationToken = default)
     {
-        return await _context.LoanInstallments
+        return _context.LoanInstallments
             .Where(installment =>
-                (installment.Loan.Status == LoanStatus.Active
-                    && installment.DueDate < bankingDate
-                    && installment.PendingAmount > 0m
-                    && !installment.IsLate)
-                || (installment.IsLate && installment.PendingAmount == 0m))
-            .OrderBy(installment => installment.DueDate)
-            .ToListAsync(cancellationToken);
+                installment.Loan.Status == LoanStatus.Active
+                && installment.DueDate < bankingDate
+                && installment.PendingAmount > 0m
+                && !installment.IsLate)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(
+                        installment => installment.IsLate,
+                        true)
+                    .SetProperty(
+                        installment => installment.LastModifiedAtUtc,
+                        modifiedAtUtc)
+                    .SetProperty(
+                        installment => installment.LastModifiedByUserId,
+                        (string?)null),
+                cancellationToken);
+    }
+
+    public Task<int> ClearLateFlagFromPaidInstallmentsAsync(
+        Guid? loanId,
+        DateTimeOffset modifiedAtUtc,
+        string? modifiedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.LoanInstallments
+            .Where(installment =>
+                installment.IsLate
+                && installment.PendingAmount == 0m
+                && (!loanId.HasValue || installment.LoanId == loanId.Value))
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(
+                        installment => installment.IsLate,
+                        false)
+                    .SetProperty(
+                        installment => installment.LastModifiedAtUtc,
+                        modifiedAtUtc)
+                    .SetProperty(
+                        installment => installment.LastModifiedByUserId,
+                        modifiedByUserId),
+                cancellationToken);
     }
 
     public async Task AddInstallmentsAsync(IReadOnlyCollection<LoanInstallment> installments, CancellationToken cancellationToken = default)
