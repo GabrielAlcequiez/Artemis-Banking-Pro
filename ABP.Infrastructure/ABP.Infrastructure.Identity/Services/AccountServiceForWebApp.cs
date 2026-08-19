@@ -159,7 +159,7 @@ namespace ABP.Infrastructure.Identity.Services
                 if (userWithSameIdentification is not null && userWithSameIdentification.Id != excludeUserId)
                 {
                     response.IdentificationError = excludeUserId is null
-                        ? "Ya existe un usuario registrado con este número de cédula."
+                        ? "Ya existe un usuario registrado con esta cédula."
                         : "Ya existe otro usuario registrado con esta cédula.";
                 }
             }

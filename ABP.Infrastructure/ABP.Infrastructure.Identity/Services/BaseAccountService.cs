@@ -121,8 +121,8 @@ namespace ABP.Infrastructure.Identity.Services
                     Id = string.Empty,
                     HasError = true,
                     IsConflict = true,
-                    Error = "Ya existe un usuario registrado con este número de cédula.",
-                    ErrorList = new List<string> { "Ya existe un usuario registrado con este número de cédula." }
+                    Error = "Ya existe un usuario registrado con esta cédula.",
+                    ErrorList = new List<string> { "Ya existe un usuario registrado con esta cédula." }
                 };
             }
 
@@ -929,7 +929,7 @@ namespace ABP.Infrastructure.Identity.Services
                     Id = string.Empty,
                     HasError = true,
                     IsConflict = true,
-                    Error = "Ya existe un usuario registrado con este número de cédula."
+                    Error = "Ya existe un usuario registrado con esta cédula."
                 };
             }
 

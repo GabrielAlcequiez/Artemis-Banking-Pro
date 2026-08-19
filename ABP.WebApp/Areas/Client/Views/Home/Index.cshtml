@@ -81,9 +81,12 @@
                                 <p class="font-mono text-base font-semibold text-ink">@Model.ActiveLoan.LoanNumber</p>
                                 <p class="mt-1 text-xs text-ink-muted">Plazo @Model.ActiveLoan.TermInMonths meses</p>
                             </div>
-                            <span class="badge @(Model.ActiveLoan.IsInArrears ? "badge-danger" : "badge-success")">
-                                @(Model.ActiveLoan.IsInArrears ? "En mora" : "Al día")
-                            </span>
+                            <div class="flex flex-col items-end gap-1">
+                                <p class="text-xs text-ink-muted">Estado del préstamo</p>
+                                <span class="badge @(Model.ActiveLoan.IsInArrears ? "badge-danger" : "badge-success")">
+                                    @(Model.ActiveLoan.IsInArrears ? "En mora" : "Al día")
+                                </span>
+                            </div>
                         </div>
                         <dl class="grid grid-cols-2 gap-4 text-sm">
                             <div>
