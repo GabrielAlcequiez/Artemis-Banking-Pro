@@ -343,7 +343,10 @@ public sealed class LoanServiceTests
         public Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(DateOnly bankingDate, CancellationToken cancellationToken = default) =>
+        public Task<int> MarkOverdueInstallmentsAsync(DateOnly bankingDate, DateTimeOffset modifiedAtUtc, CancellationToken cancellationToken = default) =>
+            throw new NotImplementedException();
+
+        public Task<int> ClearLateFlagFromPaidInstallmentsAsync(Guid? loanId, DateTimeOffset modifiedAtUtc, string? modifiedByUserId, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
         public Task AddInstallmentsAsync(IReadOnlyCollection<LoanInstallment> installments, CancellationToken cancellationToken = default) =>

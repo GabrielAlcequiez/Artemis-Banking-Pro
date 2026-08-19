@@ -249,10 +249,18 @@ internal sealed class DashboardLoanRepository : ILoanRepository
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new PagedResult<LoanSummaryReadModel>([], request.Page, request.PageSize, 0));
 
-    public Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(
+    public Task<int> MarkOverdueInstallmentsAsync(
         DateOnly bankingDate,
+        DateTimeOffset modifiedAtUtc,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyCollection<LoanInstallment>>([]);
+        Task.FromResult(0);
+
+    public Task<int> ClearLateFlagFromPaidInstallmentsAsync(
+        Guid? loanId,
+        DateTimeOffset modifiedAtUtc,
+        string? modifiedByUserId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(0);
 
     public Task AddInstallmentsAsync(
         IReadOnlyCollection<LoanInstallment> installments,

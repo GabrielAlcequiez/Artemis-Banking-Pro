@@ -23,7 +23,8 @@ public interface ILoanRepository : IGenericRepository<Loan, Guid>
     Task<int> CountActiveLoansAsync(CancellationToken cancellationToken = default);
     Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default);
     Task<PagedResult<LoanSummaryReadModel>> GetPagedAsync(PagedRequest request, string? clientIdentification = null, LoanStatusFilter? status = null, CancellationToken cancellationToken = default);
-    Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(DateOnly bankingDate, CancellationToken cancellationToken = default);
+    Task<int> MarkOverdueInstallmentsAsync(DateOnly bankingDate, DateTimeOffset modifiedAtUtc, CancellationToken cancellationToken = default);
+    Task<int> ClearLateFlagFromPaidInstallmentsAsync(Guid? loanId, DateTimeOffset modifiedAtUtc, string? modifiedByUserId, CancellationToken cancellationToken = default);
     Task AddInstallmentsAsync(IReadOnlyCollection<LoanInstallment> installments, CancellationToken cancellationToken = default);
     Task AddPaymentAsync(LoanPayment payment, CancellationToken cancellationToken = default);
 }

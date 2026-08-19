@@ -214,93 +214,83 @@ public sealed class LoanCoreServicesTests
     #region Loan delinquency service tests
 
     [Fact]
-    public async Task Delinquency_returns_zero_without_committing_when_repository_is_empty()
-    {
-        var unitOfWork = new FakeUnitOfWork();
-        var service = CreateDelinquencyService(new FakeLoanRepository(), unitOfWork);
-
-        var updated = await service.UpdateDelinquencyAsync(new DateOnly(2026, 8, 10));
-
-        Assert.Equal(0, updated);
-        Assert.Equal(0, unitOfWork.SaveCalls);
-    }
-
-    [Fact]
-    public async Task Delinquency_marks_overdue_installment_and_unmarks_paid_installment()
+    public async Task Delinquency_returns_zero_when_repository_updates_nothing()
     {
         var bankingDate = new DateOnly(2026, 8, 10);
-        var overdue = CreateInstallment(
-            1,
-            bankingDate.AddDays(-1),
-            InstallmentPaymentStatus.Pending,
-            100m);
-        var paid = CreateInstallment(
-            2,
-            bankingDate.AddMonths(-1),
-            InstallmentPaymentStatus.Paid,
-            0m,
-            isLate: true);
-        var repository = new FakeLoanRepository
-        {
-            InstallmentsForDelinquency = [overdue, paid]
-        };
-        var unitOfWork = new FakeUnitOfWork();
-        var service = CreateDelinquencyService(repository, unitOfWork);
+        var repository = new FakeLoanRepository();
+        var service = CreateDelinquencyService(repository, bankingDate);
 
         var updated = await service.UpdateDelinquencyAsync(bankingDate);
 
-        Assert.Equal(2, updated);
-        Assert.True(overdue.IsLate);
-        Assert.False(paid.IsLate);
-        Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(0, updated);
+        Assert.Equal(1, repository.MarkOverdueCalls);
+        Assert.Equal(1, repository.ClearPaidLateCalls);
+        Assert.Equal(bankingDate, repository.ReceivedBankingDate);
+        Assert.Equal(
+            new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero),
+            repository.ReceivedMarkModifiedAtUtc);
+        Assert.Equal(
+            repository.ReceivedMarkModifiedAtUtc,
+            repository.ReceivedClearModifiedAtUtc);
+        Assert.Null(repository.ReceivedClearLoanId);
+        Assert.Null(repository.ReceivedClearModifiedByUserId);
+    }
+
+    [Fact]
+    public async Task Delinquency_returns_total_updated_by_both_repository_operations()
+    {
+        var bankingDate = new DateOnly(2026, 8, 10);
+        var repository = new FakeLoanRepository
+        {
+            MarkedOverdueCount = 3,
+            ClearedPaidLateCount = 2
+        };
+        var service = CreateDelinquencyService(repository, bankingDate);
+
+        var updated = await service.UpdateDelinquencyAsync(bankingDate);
+
+        Assert.Equal(5, updated);
+        Assert.Equal(1, repository.MarkOverdueCalls);
+        Assert.Equal(1, repository.ClearPaidLateCalls);
         Assert.Equal(bankingDate, repository.ReceivedBankingDate);
     }
 
     [Fact]
-    public async Task Delinquency_does_not_mark_installment_due_today()
+    public async Task Delinquency_propagates_cancellation_token_to_both_updates()
     {
         var bankingDate = new DateOnly(2026, 8, 10);
-        var dueToday = CreateInstallment(
-            1,
+        var repository = new FakeLoanRepository();
+        var service = CreateDelinquencyService(repository, bankingDate);
+        using var cancellationSource = new CancellationTokenSource();
+
+        await service.UpdateDelinquencyAsync(
             bankingDate,
-            InstallmentPaymentStatus.Pending,
-            100m);
-        var repository = new FakeLoanRepository
-        {
-            InstallmentsForDelinquency = [dueToday]
-        };
-        var unitOfWork = new FakeUnitOfWork();
-        var service = CreateDelinquencyService(repository, unitOfWork);
+            cancellationSource.Token);
 
-        var updated = await service.UpdateDelinquencyAsync(bankingDate);
-
-        Assert.Equal(0, updated);
-        Assert.False(dueToday.IsLate);
-        Assert.Equal(0, unitOfWork.SaveCalls);
+        Assert.Equal(
+            cancellationSource.Token,
+            repository.MarkOverdueCancellationToken);
+        Assert.Equal(
+            cancellationSource.Token,
+            repository.ClearPaidLateCancellationToken);
     }
 
     [Fact]
-    public async Task Delinquency_skips_installment_already_in_correct_state()
+    public async Task Delinquency_does_not_clear_flags_when_marking_fails()
     {
         var bankingDate = new DateOnly(2026, 8, 10);
-        var alreadyLate = CreateInstallment(
-            1,
-            bankingDate.AddDays(-1),
-            InstallmentPaymentStatus.Pending,
-            100m,
-            isLate: true);
         var repository = new FakeLoanRepository
         {
-            InstallmentsForDelinquency = [alreadyLate]
+            MarkOverdueException = new InvalidOperationException(
+                "No fue posible actualizar las cuotas vencidas.")
         };
-        var unitOfWork = new FakeUnitOfWork();
-        var service = CreateDelinquencyService(repository, unitOfWork);
+        var service = CreateDelinquencyService(repository, bankingDate);
 
-        var updated = await service.UpdateDelinquencyAsync(bankingDate);
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.UpdateDelinquencyAsync(bankingDate));
 
-        Assert.Equal(0, updated);
-        Assert.True(alreadyLate.IsLate);
-        Assert.Equal(0, unitOfWork.SaveCalls);
+        Assert.Equal(1, repository.MarkOverdueCalls);
+        Assert.Equal(0, repository.ClearPaidLateCalls);
     }
 
     #endregion
@@ -345,10 +335,10 @@ public sealed class LoanCoreServicesTests
 
     private static ILoanDelinquencyService CreateDelinquencyService(
         FakeLoanRepository repository,
-        FakeUnitOfWork unitOfWork) =>
+        DateOnly bankingDate) =>
         new LoanDelinquencyService(
             repository,
-            unitOfWork,
+            new FakeClock(bankingDate),
             NullLogger<LoanDelinquencyService>.Instance);
 
     private static Loan CreateLoan(LoanStatus status = LoanStatus.Active) => new()
@@ -388,7 +378,11 @@ public sealed class LoanCoreServicesTests
     {
         public Loan? LoanWithInstallments { get; init; }
 
-        public IReadOnlyCollection<LoanInstallment> InstallmentsForDelinquency { get; init; } = [];
+        public int MarkedOverdueCount { get; init; }
+
+        public int ClearedPaidLateCount { get; init; }
+
+        public Exception? MarkOverdueException { get; init; }
 
         public int ActiveLoanCount { get; init; }
 
@@ -396,7 +390,23 @@ public sealed class LoanCoreServicesTests
 
         public int CountActiveLoansCalls { get; private set; }
 
+        public int MarkOverdueCalls { get; private set; }
+
+        public int ClearPaidLateCalls { get; private set; }
+
         public DateOnly? ReceivedBankingDate { get; private set; }
+
+        public DateTimeOffset? ReceivedMarkModifiedAtUtc { get; private set; }
+
+        public DateTimeOffset? ReceivedClearModifiedAtUtc { get; private set; }
+
+        public Guid? ReceivedClearLoanId { get; private set; }
+
+        public string? ReceivedClearModifiedByUserId { get; private set; }
+
+        public CancellationToken MarkOverdueCancellationToken { get; private set; }
+
+        public CancellationToken ClearPaidLateCancellationToken { get; private set; }
 
         public CancellationToken MetricsCancellationToken { get; private set; }
 
@@ -437,12 +447,36 @@ public sealed class LoanCoreServicesTests
             return Task.FromResult(ActiveLoanCount);
         }
 
-        public Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(
+        public Task<int> MarkOverdueInstallmentsAsync(
             DateOnly bankingDate,
+            DateTimeOffset modifiedAtUtc,
             CancellationToken cancellationToken = default)
         {
+            MarkOverdueCalls++;
             ReceivedBankingDate = bankingDate;
-            return Task.FromResult(InstallmentsForDelinquency);
+            ReceivedMarkModifiedAtUtc = modifiedAtUtc;
+            MarkOverdueCancellationToken = cancellationToken;
+
+            if (MarkOverdueException is not null)
+            {
+                throw MarkOverdueException;
+            }
+
+            return Task.FromResult(MarkedOverdueCount);
+        }
+
+        public Task<int> ClearLateFlagFromPaidInstallmentsAsync(
+            Guid? loanId,
+            DateTimeOffset modifiedAtUtc,
+            string? modifiedByUserId,
+            CancellationToken cancellationToken = default)
+        {
+            ClearPaidLateCalls++;
+            ReceivedClearLoanId = loanId;
+            ReceivedClearModifiedAtUtc = modifiedAtUtc;
+            ReceivedClearModifiedByUserId = modifiedByUserId;
+            ClearPaidLateCancellationToken = cancellationToken;
+            return Task.FromResult(ClearedPaidLateCount);
         }
 
         public Task<Loan?> GetByLoanNumberAsync(string loanNumber, CancellationToken cancellationToken = default) =>
