@@ -4,10 +4,15 @@
 
 @section SidebarItems {
     <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Home", Icon = "home", Area = "Client", Controller = "Home", Action = "Index" }' />
-    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transacciones Express", Icon = "zap", Area = "Client", Controller = "Transactions", Action = "Express" }' />
-    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Pago tarjeta de crédito", Icon = "credit-card", Area = "Client", Controller = "CreditCardPayments", Action = "Create" }' />
-    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Pago préstamo", Icon = "landmark", Area = "Client", Controller = "LoanPayments", Action = "Create" }' />
-    <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transacciones a beneficiarios", Icon = "send", Area = "Client", Controller = "Transactions", Action = "Beneficiary" }' />
+    <li>
+        <span class="sidebar-label block px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-sidebar-ink">Transacciones</span>
+        <ul class="flex flex-col gap-1">
+            <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transacciones - Express", Icon = "zap", Area = "Client", Controller = "Transactions", Action = "Express" }' />
+            <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transacciones - Tarjeta de crédito", Icon = "credit-card", Area = "Client", Controller = "CreditCardPayments", Action = "Create" }' />
+            <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transacciones - Préstamo", Icon = "landmark", Area = "Client", Controller = "LoanPayments", Action = "Create" }' />
+            <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transacciones - Beneficiarios", Icon = "send", Area = "Client", Controller = "Transactions", Action = "Beneficiary" }' />
+        </ul>
+    </li>
     <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Beneficiarios", Icon = "users", Area = "Client", Controller = "Beneficiaries", Action = "Index" }' />
     <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Avance de efectivo", Icon = "banknote", Area = "Client", Controller = "CashAdvances", Action = "Create" }' />
     <partial name="Partials/_SidebarItem" model='new SidebarItemViewModel { Text = "Transferencia", Icon = "arrow-left-right", Area = "Client", Controller = "Transfers", Action = "Index" }' />

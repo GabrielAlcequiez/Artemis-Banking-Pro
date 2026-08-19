@@ -1,17 +1,40 @@
 @{
     ViewData["Title"] = "Acceso denegado";
+    var isAdmin = User.IsInRole("Administrator");
+    var isCashier = User.IsInRole("Cashier");
+    var isClient = User.IsInRole("Client");
+    var hasWebRole = isAdmin || isCashier || isClient;
 }
 
 <div class="flex min-h-screen items-center justify-center bg-surface-muted px-4">
     <div class="card w-full max-w-sm p-6 text-center">
         <h1 class="text-lg font-semibold text-ink">Acceso denegado</h1>
-        <p class="mt-2 text-sm text-ink-muted">No tiene permisos para acceder a esta sección.</p>
+        <p class="mt-2 text-sm text-ink-muted">No posee permisos para acceder a esta sección.</p>
 
         <div class="mt-6 flex flex-col gap-2">
-            <a asp-controller="Account" asp-action="Login" class="btn btn-primary">Volver al inicio de sesión</a>
-            <form asp-area="" asp-controller="Account" asp-action="Logout" method="post">
-                <button type="submit" class="btn btn-ghost w-full">Cerrar sesión</button>
-            </form>
+            @if (isAdmin)
+            {
+                <a asp-area="Admin" asp-controller="Home" asp-action="Index" class="btn btn-primary">Volver al inicio</a>
+            }
+            else if (isCashier)
+            {
+                <a asp-area="Cashier" asp-controller="Home" asp-action="Index" class="btn btn-primary">Volver al inicio</a>
+            }
+            else if (isClient)
+            {
+                <a asp-area="Client" asp-controller="Home" asp-action="Index" class="btn btn-primary">Volver al inicio</a>
+            }
+            else
+            {
+                <a asp-controller="Account" asp-action="Login" class="btn btn-primary">Volver al inicio de sesión</a>
+            }
+
+            @if (hasWebRole)
+            {
+                <form asp-area="" asp-controller="Account" asp-action="Logout" method="post">
+                    <button type="submit" class="btn btn-ghost w-full">Cerrar sesión</button>
+                </form>
+            }
         </div>
     </div>
 </div>

@@ -179,7 +179,7 @@ public class BaseAccountServiceTests
         var result = await service.RegisterUserAsync(ValidClientDto(), "https://localhost");
 
         Assert.True(result.HasError);
-        Assert.Equal("Ya existe un usuario registrado con este número de cédula.", result.Error);
+        Assert.Equal("Ya existe un usuario registrado con esta cédula.", result.Error);
         Assert.Empty(_primaryAccountProvisioner.Calls);
     }
 

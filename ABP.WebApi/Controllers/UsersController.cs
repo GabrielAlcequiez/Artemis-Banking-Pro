@@ -1,3 +1,4 @@
+using ABP.Application.Common.DTOs.Common;
 using ABP.Application.Common.DTOs.Users;
 using ABP.Application.Common.Interfaces.Identity;
 using ABP.Application.Common.Interfaces.Services;
@@ -16,6 +17,10 @@ namespace ABP.WebApi.Controllers
         private string CurrentUserId => currentUser.UserId ?? string.Empty;
 
         [HttpGet]
+        [ProducesResponseType(typeof(PagedResultDto<UserListItemApiResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<ActionResult> GetAll(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
@@ -28,6 +33,10 @@ namespace ABP.WebApi.Controllers
         }
 
         [HttpGet("commerce")]
+        [ProducesResponseType(typeof(PagedResultDto<UserListItemApiResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<ActionResult> GetCommerce(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
@@ -39,6 +48,11 @@ namespace ABP.WebApi.Controllers
         }
 
         [HttpPost]
+        [ProducesResponseType(typeof(CreateUserApiResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
         public async Task<ActionResult> Create([FromBody] CreateUserDto dto, CancellationToken cancellationToken)
         {
             var result = await accountService.RegisterUserAsync(dto, origin: null, isApi: true);
@@ -46,6 +60,12 @@ namespace ABP.WebApi.Controllers
         }
 
         [HttpPost("commerce/{commerceId:guid}")]
+        [ProducesResponseType(typeof(CreateUserApiResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
         public async Task<ActionResult> CreateCommerce(Guid commerceId, [FromBody] CreateCommerceUserRequestDto dto, CancellationToken cancellationToken)
         {
             var result = await accountService.RegisterCommerceUserAsync(dto, commerceId, origin: null);
@@ -53,6 +73,12 @@ namespace ABP.WebApi.Controllers
         }
 
         [HttpPut("{id}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Update(string id, [FromBody] EditUserDto dto, CancellationToken cancellationToken)
         {
             dto.Id = id;
@@ -61,6 +87,11 @@ namespace ABP.WebApi.Controllers
         }
 
         [HttpPatch("{id}/status")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ChangeStatus(string id, [FromBody] ChangeUserStatusRequestDto request, CancellationToken cancellationToken)
         {
             await accountService.ChangeUserStatusAsync(id, request, CurrentUserId);
@@ -68,6 +99,10 @@ namespace ABP.WebApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [ProducesResponseType(typeof(UserDetailApiResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<ActionResult> GetById(string id, CancellationToken cancellationToken)
         {
             var detail = await accountService.GetUserDetailAsync(id);
