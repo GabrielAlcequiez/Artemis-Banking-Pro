@@ -11,6 +11,10 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.Accounts.Services;
+using ABP.Application.Features.Commerce.Services.Interfaces;
+using ABP.Application.Features.HermesPay.Services.Implementations;
+using ABP.Application.Features.Dashboards.Services.Interfaces;
+using ABP.Application.Features.Dashboards.Services.Implementations;
 
 namespace ABP.Application
 {
@@ -27,6 +31,7 @@ namespace ABP.Application
             services.AddScoped<ICardPaymentService, CardPaymentService>();
             services.AddScoped<ICashAdvanceService, CashAdvanceService>();
             services.AddSingleton<ICardNumberGeneratorService, CardNumberGeneratorService>();
+            services.AddScoped<ICommerceAuthorizationResolverService, CommerceAuthorizationResolverService>();
 
             services.AddScoped<IAmortizationCalculator, AmortizationCalculator>();
             services.AddScoped<ILoanService, LoanService>();
@@ -46,8 +51,13 @@ namespace ABP.Application
             services.AddScoped<ISavingsAccountAdminService, SavingsAccountAdminService>();
             services.AddScoped<IAccountClientSelectionService, AccountClientSelectionService>();
             services.AddScoped<ISavingsAccountQueryService, SavingsAccountQueryService>();
+            services.AddScoped<IClientAccountOptionsService, ClientAccountOptionsService>();
+            services.AddScoped<ICashierAccountOperationService, CashierAccountOperationService>();
             services.AddScoped<IAccountsMetricsReader, AccountsMetricsReader>();
             services.AddScoped<ITransactionsMetricsReader, TransactionsMetricsReader>();
+
+            services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+            services.AddScoped<IClientPortfolioService, ClientPortfolioService>();
 
             // Other services here
 

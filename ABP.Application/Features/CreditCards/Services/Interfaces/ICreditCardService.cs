@@ -23,11 +23,11 @@ public interface ICreditCardService
         Task.FromResult<IReadOnlyCollection<ClientCreditCardPortfolioItemDto>>(
             Array.Empty<ClientCreditCardPortfolioItemDto>());
 
-    Task<OperationResult<Guid>> CreateAsync(
+    Task<CardOperationResult<Guid>> CreateAsync(
         CreateCreditCardRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<OperationResult> UpdateLimitAsync(
+    Task<CardOperationResult> UpdateLimitAsync(
         UpdateCreditLimitRequest request,
         CancellationToken cancellationToken = default);
 

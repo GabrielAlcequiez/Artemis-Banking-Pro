@@ -14,10 +14,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ABP.WebApi.Controllers;
 
-[ApiController]
-[Route("api/loan")]
 [Authorize(Roles = nameof(Roles.Administrator))]
-public sealed class LoansController(ISender sender) : ControllerBase
+public sealed class LoansController(ISender sender) : BaseApiController
 {
     [HttpGet]
     public async Task<ActionResult> GetAll(

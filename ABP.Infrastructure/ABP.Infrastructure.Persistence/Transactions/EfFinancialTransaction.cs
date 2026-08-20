@@ -44,8 +44,21 @@ public sealed class EfFinancialTransaction(AppDbContext context)
             }
             catch
             {
-                await transaction.RollbackAsync(cancellationToken);
-                context.ChangeTracker.Clear();
+                try
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                }
+                catch
+                {
+                    // SQL Server puede haber revertido la transacción, por ejemplo
+                    // al elegirla como víctima de un deadlock. El error del rollback
+                    // no debe ocultar la excepción original de la operación.
+                }
+                finally
+                {
+                    context.ChangeTracker.Clear();
+                }
+
                 throw;
             }
         });

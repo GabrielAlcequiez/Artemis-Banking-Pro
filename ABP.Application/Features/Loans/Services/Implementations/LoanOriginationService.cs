@@ -3,6 +3,7 @@ using ABP.Application.Common;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.Loans.DTOs;
+using ABP.Application.Features.Loans.Notifications;
 using ABP.Application.Features.Loans.Services.Interfaces;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
@@ -27,6 +28,7 @@ public sealed class LoanOriginationService(
     IClock clock,
     IValidator<CreateLoanRequest> requestValidator,
     IMapper mapper,
+    IEmailService emailService,
     ILogger<LoanOriginationService> logger)
     : ILoanOriginationService
 {
@@ -57,7 +59,7 @@ public sealed class LoanOriginationService(
         return OperationResult<HighRiskAssessmentDto>.Success(assessment);
     }
 
-    public async Task<OperationResult<LoanDetailDto>> CreateAsync(
+    public async Task<LoanOperationResult<LoanDetailDto>> CreateAsync(
         CreateLoanRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -74,8 +76,9 @@ public sealed class LoanOriginationService(
             logger.LogWarning(
                 "Intento de originación de préstamo sin un administrador autenticado.");
 
-            return OperationResult<LoanDetailDto>.Failure(
-                LoanErrors.AdministratorRequired);
+            return WithoutNotification(
+                OperationResult<LoanDetailDto>.Failure(
+                    LoanErrors.AdministratorRequired));
         }
 
         var client = await userRepository.GetByIdAsync(
@@ -84,22 +87,25 @@ public sealed class LoanOriginationService(
 
         if (client is null || client.Role != Roles.Client)
         {
-            return OperationResult<LoanDetailDto>.Failure(
-                LoanErrors.ClientNotFound);
+            return WithoutNotification(
+                OperationResult<LoanDetailDto>.Failure(
+                    LoanErrors.ClientNotFound));
         }
 
         if (!client.IsActive)
         {
-            return OperationResult<LoanDetailDto>.Failure(
-                LoanErrors.ClientInactive);
+            return WithoutNotification(
+                OperationResult<LoanDetailDto>.Failure(
+                    LoanErrors.ClientInactive));
         }
 
         if (await loanRepository.HasActiveLoanAsync(
                 request.ClientId,
                 cancellationToken))
         {
-            return OperationResult<LoanDetailDto>.Failure(
-                LoanErrors.ActiveLoanExists);
+            return WithoutNotification(
+                OperationResult<LoanDetailDto>.Failure(
+                    LoanErrors.ActiveLoanExists));
         }
 
         var riskAssessment = await loanRiskService.AssessAsync(
@@ -113,8 +119,9 @@ public sealed class LoanOriginationService(
                 request.ClientId,
                 riskAssessment.RiskType);
 
-            return OperationResult<LoanDetailDto>.Failure(
-                LoanErrors.HighRiskConfirmationRequired);
+            return WithoutNotification(
+                OperationResult<LoanDetailDto>.Failure(
+                    LoanErrors.HighRiskConfirmationRequired));
         }
 
         var principalAccount = await savingsAccountRepository
@@ -125,8 +132,9 @@ public sealed class LoanOriginationService(
         if (principalAccount is null ||
             principalAccount.Status != SavingsAccountStatus.Active)
         {
-            return OperationResult<LoanDetailDto>.Failure(
-                LoanErrors.PrincipalAccountNotFound);
+            return WithoutNotification(
+                OperationResult<LoanDetailDto>.Failure(
+                    LoanErrors.PrincipalAccountNotFound));
         }
 
         var amortization = amortizationCalculator.Calculate(
@@ -156,8 +164,9 @@ public sealed class LoanOriginationService(
                     "No fue posible generar un número único para el préstamo del cliente {ClientId}.",
                     request.ClientId);
 
-                return OperationResult<LoanDetailDto>.Failure(
-                    LoanErrors.NumberGenerationFailed);
+                return WithoutNotification(
+                    OperationResult<LoanDetailDto>.Failure(
+                        LoanErrors.NumberGenerationFailed));
             }
 
             loan = CreateLoan(
@@ -180,8 +189,9 @@ public sealed class LoanOriginationService(
                     request.ClientId,
                     disbursement.Error.Code);
 
-                return OperationResult<LoanDetailDto>.Failure(
-                    disbursement.Error);
+                return WithoutNotification(
+                    OperationResult<LoanDetailDto>.Failure(
+                        disbursement.Error));
             }
 
             await accountLedger.RecordApprovedAsync(
@@ -208,9 +218,24 @@ public sealed class LoanOriginationService(
             request.ClientId,
             assignedByUserId);
 
-        // TODO(P1 Outbox): publicar la notificación de aprobación después del commit.
-        return OperationResult<LoanDetailDto>.Success(
-            mapper.Map<LoanDetailDto>(loan));
+        var detail = mapper.Map<LoanDetailDto>(loan);
+        var recipient = ToRecipient(client);
+        var notificationSent = await LoanNotificationEmails.SendBestEffortAsync(
+            emailService,
+            logger,
+            LoanNotificationEmails.LoanApproved(
+                recipient,
+                loan.LoanNumber,
+                loan.Capital,
+                loan.TermInMonths,
+                loan.AnnualInterestRate,
+                detail.MonthlyInstallment),
+            "aprobación de préstamo",
+            loan.Id.ToString("N"));
+
+        return new LoanOperationResult<LoanDetailDto>(
+            OperationResult<LoanDetailDto>.Success(detail),
+            !notificationSent);
     }
 
     private async Task<Error> ValidateClientEligibilityAsync(
@@ -280,4 +305,15 @@ public sealed class LoanOriginationService(
 
         return loan;
     }
+
+    private static LoanNotificationRecipient ToRecipient(
+        Domain.Entities.User client) =>
+        new(
+            client.Id,
+            client.Email ?? string.Empty,
+            $"{client.Name} {client.LastName}".Trim());
+
+    private static LoanOperationResult<TValue> WithoutNotification<TValue>(
+        OperationResult<TValue> result) =>
+        new(result, false);
 }

@@ -83,14 +83,15 @@ public sealed class UpdateLoanRateCommandTests
 
         public int UpdateCalls { get; private set; }
 
-        public Task<OperationResult> UpdateRateAsync(
+        public Task<LoanOperationResult> UpdateRateAsync(
             UpdateLoanRateRequest request,
             CancellationToken cancellationToken = default)
         {
             ReceivedRequest = request;
             ReceivedCancellationToken = cancellationToken;
             UpdateCalls++;
-            return Task.FromResult(Result);
+            return Task.FromResult(
+                new LoanOperationResult(Result, false));
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Transactions;
 using ABP.Domain.Common;
 using ABP.Domain.Entities;
 using ABP.Domain.Entities.Accounts;
@@ -20,16 +21,12 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
 
     public LoanRepositoryTests()
     {
-        _connectionString = $"Server=localhost;Database={_databaseName};Integrated Security=True;TrustServerCertificate=True;MultipleActiveResultSets=true;";
+        _connectionString = TestDatabase.CreateConnectionString(_databaseName);
     }
 
     public async Task InitializeAsync()
     {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlServer(_connectionString)
-            .Options;
-
-        _context = new AppDbContext(options);
+        _context = CreateContext();
         await _context.Database.EnsureCreatedAsync();
 
         _repository = new LoanRepository(_context);
@@ -96,6 +93,27 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetActivePortfolioForClient_projects_only_the_clients_active_loan()
+    {
+        var seeded = await SeedAsync(_context);
+        _context.ChangeTracker.Clear();
+
+        var result = await _repository.GetActivePortfolioForClientAsync(
+            seeded.ActiveNew.ClientId);
+        var clientWithoutLoan = await _repository.GetActivePortfolioForClientAsync(
+            "client-without-loans");
+
+        Assert.NotNull(result);
+        Assert.Equal(seeded.ActiveNew.Id, result.Id);
+        Assert.Equal(seeded.ActiveNew.LoanNumber, result.LoanNumber);
+        Assert.Equal(10_000m, result.CapitalAmount);
+        Assert.Equal(10_000m, result.PendingAmount);
+        Assert.Equal(900m, result.MonthlyInstallment);
+        Assert.Null(clientWithoutLoan);
+        Assert.Empty(_context.ChangeTracker.Entries());
+    }
+
+    [Fact]
     public async Task HasActiveLoan_returns_expected_result()
     {
         var seeded = await SeedAsync(_context);
@@ -142,6 +160,26 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
         Assert.NotNull(result);
         Assert.Equal("María", result.Client.Name);
         Assert.Equal([1, 2], result.Installments.Select(x => x.Number).ToArray());
+        Assert.Empty(_context.ChangeTracker.Entries());
+    }
+
+    [Fact]
+    public async Task GetDetailsForClient_returns_only_the_owners_loan_without_tracking()
+    {
+        var seeded = await SeedAsync(_context);
+        _context.ChangeTracker.Clear();
+
+        var ownersResult = await _repository.GetDetailsForClientAsync(
+            seeded.ActiveNew.Id,
+            seeded.ActiveNew.ClientId);
+        var anotherClientsResult = await _repository.GetDetailsForClientAsync(
+            seeded.ActiveNew.Id,
+            seeded.ActiveOld.ClientId);
+
+        Assert.NotNull(ownersResult);
+        Assert.Equal("María", ownersResult.Client.Name);
+        Assert.Equal([1, 2], ownersResult.Installments.Select(x => x.Number).ToArray());
+        Assert.Null(anotherClientsResult);
         Assert.Empty(_context.ChangeTracker.Entries());
     }
 
@@ -368,9 +406,291 @@ public sealed class LoanRepositoryTests : IAsyncLifetime
         Assert.Empty(_context.ChangeTracker.Entries<Loan>());
     }
 
+    [Fact]
+    public async Task MarkOverdueInstallments_updates_only_eligible_rows_and_is_idempotent()
+    {
+        var seeded = await SeedAsync(_context);
+        var bankingDate = new DateOnly(2026, 4, 1);
+        var modifiedAtUtc = new DateTimeOffset(
+            2026,
+            4,
+            1,
+            4,
+            5,
+            0,
+            TimeSpan.Zero);
+        var overdue = CreateInstallment(
+            seeded.ActiveOld.Id,
+            1,
+            bankingDate.AddDays(-1));
+        var dueToday = CreateInstallment(
+            seeded.ActiveOld.Id,
+            2,
+            bankingDate);
+        var paid = CreateInstallment(
+            seeded.ActiveOld.Id,
+            3,
+            bankingDate.AddDays(-2));
+        paid.PendingAmount = 0m;
+        paid.PaymentStatus = InstallmentPaymentStatus.Paid;
+        var alreadyLate = CreateInstallment(
+            seeded.ActiveOld.Id,
+            4,
+            bankingDate.AddDays(-3));
+        alreadyLate.IsLate = true;
+        var completedLoanInstallment = CreateInstallment(
+            seeded.Completed.Id,
+            1,
+            bankingDate.AddDays(-4));
+        _context.LoanInstallments.AddRange(
+            overdue,
+            dueToday,
+            paid,
+            alreadyLate,
+            completedLoanInstallment);
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        var updated = await _repository.MarkOverdueInstallmentsAsync(
+            bankingDate,
+            modifiedAtUtc);
+        var repeated = await _repository.MarkOverdueInstallmentsAsync(
+            bankingDate,
+            modifiedAtUtc.AddMinutes(1));
+        var persisted = await _context.LoanInstallments
+            .AsNoTracking()
+            .Where(installment =>
+                installment.Id == overdue.Id
+                || installment.Id == dueToday.Id
+                || installment.Id == paid.Id
+                || installment.Id == alreadyLate.Id
+                || installment.Id == completedLoanInstallment.Id)
+            .ToDictionaryAsync(installment => installment.Id);
+
+        Assert.Equal(1, updated);
+        Assert.Equal(0, repeated);
+        Assert.True(persisted[overdue.Id].IsLate);
+        Assert.Equal(
+            modifiedAtUtc,
+            persisted[overdue.Id].LastModifiedAtUtc);
+        Assert.False(persisted[dueToday.Id].IsLate);
+        Assert.False(persisted[paid.Id].IsLate);
+        Assert.True(persisted[alreadyLate.Id].IsLate);
+        Assert.False(persisted[completedLoanInstallment.Id].IsLate);
+    }
+
+    [Fact]
+    public async Task ClearLateFlagFromPaidInstallments_updates_only_paid_rows_and_is_idempotent()
+    {
+        var seeded = await SeedAsync(_context);
+        var modifiedAtUtc = new DateTimeOffset(
+            2026,
+            4,
+            1,
+            4,
+            5,
+            0,
+            TimeSpan.Zero);
+        var paidActive = CreateInstallment(
+            seeded.ActiveOld.Id,
+            1,
+            new DateOnly(2026, 3, 1));
+        paidActive.PendingAmount = 0m;
+        paidActive.PaymentStatus = InstallmentPaymentStatus.Paid;
+        paidActive.IsLate = true;
+        var paidCompleted = CreateInstallment(
+            seeded.Completed.Id,
+            1,
+            new DateOnly(2026, 3, 1));
+        paidCompleted.PendingAmount = 0m;
+        paidCompleted.PaymentStatus = InstallmentPaymentStatus.Paid;
+        paidCompleted.IsLate = true;
+        var stillPending = CreateInstallment(
+            seeded.ActiveOld.Id,
+            2,
+            new DateOnly(2026, 3, 1));
+        stillPending.IsLate = true;
+        _context.LoanInstallments.AddRange(
+            paidActive,
+            paidCompleted,
+            stillPending);
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        var updated = await _repository.ClearLateFlagFromPaidInstallmentsAsync(
+            null,
+            modifiedAtUtc,
+            null);
+        var repeated = await _repository.ClearLateFlagFromPaidInstallmentsAsync(
+            null,
+            modifiedAtUtc.AddMinutes(1),
+            null);
+        var persisted = await _context.LoanInstallments
+            .AsNoTracking()
+            .Where(installment =>
+                installment.Id == paidActive.Id
+                || installment.Id == paidCompleted.Id
+                || installment.Id == stillPending.Id)
+            .ToDictionaryAsync(installment => installment.Id);
+
+        Assert.Equal(2, updated);
+        Assert.Equal(0, repeated);
+        Assert.False(persisted[paidActive.Id].IsLate);
+        Assert.False(persisted[paidCompleted.Id].IsLate);
+        Assert.True(persisted[stillPending.Id].IsLate);
+        Assert.Equal(
+            modifiedAtUtc,
+            persisted[paidActive.Id].LastModifiedAtUtc);
+        Assert.Equal(
+            modifiedAtUtc,
+            persisted[paidCompleted.Id].LastModifiedAtUtc);
+    }
+
+    [Fact]
+    public async Task ClearLateFlagFromPaidInstallments_scopes_update_to_requested_loan_and_actor()
+    {
+        var seeded = await SeedAsync(_context);
+        var modifiedAtUtc = new DateTimeOffset(
+            2026,
+            4,
+            1,
+            6,
+            0,
+            0,
+            TimeSpan.Zero);
+        var paidRequestedLoan = CreateInstallment(
+            seeded.ActiveOld.Id,
+            1,
+            new DateOnly(2026, 3, 1));
+        paidRequestedLoan.PendingAmount = 0m;
+        paidRequestedLoan.PaymentStatus = InstallmentPaymentStatus.Paid;
+        paidRequestedLoan.IsLate = true;
+        var paidOtherLoan = CreateInstallment(
+            seeded.ActiveNew.Id,
+            3,
+            new DateOnly(2026, 3, 1));
+        paidOtherLoan.PendingAmount = 0m;
+        paidOtherLoan.PaymentStatus = InstallmentPaymentStatus.Paid;
+        paidOtherLoan.IsLate = true;
+        _context.LoanInstallments.AddRange(
+            paidRequestedLoan,
+            paidOtherLoan);
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        var updated = await _repository.ClearLateFlagFromPaidInstallmentsAsync(
+            seeded.ActiveOld.Id,
+            modifiedAtUtc,
+            "cashier-1");
+        var persisted = await _context.LoanInstallments
+            .AsNoTracking()
+            .Where(installment =>
+                installment.Id == paidRequestedLoan.Id
+                || installment.Id == paidOtherLoan.Id)
+            .ToDictionaryAsync(installment => installment.Id);
+
+        Assert.Equal(1, updated);
+        Assert.False(persisted[paidRequestedLoan.Id].IsLate);
+        Assert.Equal(
+            "cashier-1",
+            persisted[paidRequestedLoan.Id].LastModifiedByUserId);
+        Assert.Equal(
+            modifiedAtUtc,
+            persisted[paidRequestedLoan.Id].LastModifiedAtUtc);
+        Assert.True(persisted[paidOtherLoan.Id].IsLate);
+    }
+
+    [Fact]
+    public async Task Payment_cleanup_repairs_late_flag_marked_after_installment_was_loaded()
+    {
+        var seeded = await SeedAsync(_context);
+        var bankingDate = new DateOnly(2026, 4, 1);
+        var functionModifiedAtUtc = new DateTimeOffset(
+            2026,
+            4,
+            1,
+            4,
+            5,
+            0,
+            TimeSpan.Zero);
+        var paymentModifiedAtUtc = functionModifiedAtUtc.AddHours(2);
+        var installment = CreateInstallment(
+            seeded.ActiveOld.Id,
+            1,
+            bankingDate.AddDays(-1));
+        _context.LoanInstallments.Add(installment);
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        await using var paymentContext = CreateContext();
+        var paymentRepository = new LoanRepository(paymentContext);
+        var trackedLoan = await paymentRepository.GetWithInstallmentsAsync(
+            seeded.ActiveOld.Id);
+        Assert.NotNull(trackedLoan);
+        var trackedInstallment = Assert.Single(trackedLoan.Installments);
+        Assert.False(trackedInstallment.IsLate);
+
+        var marked = await _repository.MarkOverdueInstallmentsAsync(
+            bankingDate,
+            functionModifiedAtUtc);
+        Assert.Equal(1, marked);
+
+        int cleared;
+
+        using (var transaction = new TransactionScope(
+                   TransactionScopeOption.Required,
+                   new TransactionOptions
+                   {
+                       IsolationLevel = IsolationLevel.ReadCommitted
+                   },
+                   TransactionScopeAsyncFlowOption.Enabled))
+        {
+            trackedInstallment.PendingAmount = 0m;
+            trackedInstallment.PaymentStatus = InstallmentPaymentStatus.Paid;
+            trackedInstallment.IsLate = false;
+            trackedLoan.PendingAmount = 0m;
+            trackedLoan.Status = LoanStatus.Completed;
+            await paymentContext.SaveChangesAsync();
+
+            var staleLateFlag = await paymentContext.LoanInstallments
+                .AsNoTracking()
+                .Where(item => item.Id == trackedInstallment.Id)
+                .Select(item => item.IsLate)
+                .SingleAsync();
+            Assert.True(staleLateFlag);
+
+            cleared = await paymentRepository.ClearLateFlagFromPaidInstallmentsAsync(
+                trackedLoan.Id,
+                paymentModifiedAtUtc,
+                "client-2");
+            transaction.Complete();
+        }
+
+        await using var verificationContext = CreateContext();
+        var persisted = await verificationContext.LoanInstallments
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == trackedInstallment.Id);
+
+        Assert.Equal(1, cleared);
+        Assert.Equal(0m, persisted.PendingAmount);
+        Assert.Equal(InstallmentPaymentStatus.Paid, persisted.PaymentStatus);
+        Assert.False(persisted.IsLate);
+        Assert.Equal(paymentModifiedAtUtc, persisted.LastModifiedAtUtc);
+        Assert.Equal("client-2", persisted.LastModifiedByUserId);
+    }
+
     #endregion
 
     #region Test data builders
+
+    private AppDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseSqlServer(_connectionString)
+            .Options;
+
+        return new AppDbContext(options);
+    }
 
     private static async Task<SeededLoans> SeedAsync(AppDbContext context)
     {

@@ -135,7 +135,8 @@ namespace ABP.Infrastructure.Identity
                         return Task.CompletedTask;
                     }
                 };
-            });
+              })
+            .AddCookie(IdentityConstants.TwoFactorRememberMeScheme);
 
             #endregion
 

@@ -1,14 +1,21 @@
 using ABP.Application.Common;
+using ABP.Application.Common.Interfaces.Services;
+using ABP.Application.Features.CreditCards.Notifications;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Domain.Rules.Cards;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.CreditCards.Commands.UpdateCreditLimit;
 
 public sealed class UpdateCreditLimitCommandHandler(
     ICreditCardRepository repository,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IUserRepository users,
+    IEmailService emailService,
+    IClock clock,
+    ILogger<UpdateCreditLimitCommandHandler> logger)
     : IRequestHandler<UpdateCreditLimitCommand, OperationResult>
 {
     public async Task<OperationResult> Handle(
@@ -40,9 +47,30 @@ public sealed class UpdateCreditLimitCommandHandler(
 
         card.Limit = request.CreditLimit;
 
-        // TODO(P1 Outbox): enqueue the limit-change email in this transaction so it is
-        // dispatched only after commit. Include only the last four digits, never the PAN.
+        var client = await users.GetByIdAsync(
+            card.ClientId,
+            cancellationToken);
+        var recipient = new CardNotificationRecipient(
+            card.ClientId,
+            client?.Email ?? string.Empty,
+            client is null
+                ? string.Empty
+                : $"{client.Name} {client.LastName}".Trim());
+        var cardLastFourDigits = card.CardNumber[^4..];
+        var changedAtBankingTime = clock.Now;
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await CardNotificationEmails.SendBestEffortAsync(
+            emailService,
+            logger,
+            CardNotificationEmails.LimitChanged(
+                recipient,
+                cardLastFourDigits,
+                request.CreditLimit,
+                changedAtBankingTime),
+            "modificación de límite",
+            card.Id.ToString("N"));
 
         return OperationResult.Success();
     }

@@ -120,6 +120,21 @@ public sealed class CreditCardsControllerTests
     }
 
     [Fact]
+    public async Task Create_get_generates_a_non_empty_operation_id()
+    {
+        var client = CreateClient();
+        var controller = CreateController(
+            new FakeCreditCardService(),
+            new FakeClientSelectionService { Client = client });
+
+        var result = await controller.Create(client.Id, CancellationToken.None);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<CreateCreditCardViewModel>(view.Model);
+        Assert.NotEqual(Guid.Empty, model.OperationId);
+    }
+
+    [Fact]
     public async Task Create_post_converts_shared_validation_failure_to_model_state()
     {
         var client = CreateClient();
@@ -158,6 +173,34 @@ public sealed class CreditCardsControllerTests
         var controller = CreateController(
             cards,
             new FakeClientSelectionService { Client = client });
+        var operationId = Guid.NewGuid();
+
+        var result = await controller.Create(
+            new CreateCreditCardViewModel
+            {
+                ClientId = client.Id,
+                CreditLimit = 2_000m,
+                OperationId = operationId
+            },
+            CancellationToken.None);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(CreditCardsController.Index), redirect.ActionName);
+        Assert.NotNull(controller.TempData["SuccessMessage"]);
+        Assert.Equal(operationId, cards.ReceivedCreateRequest?.OperationId);
+    }
+
+    [Fact]
+    public async Task Create_post_notification_warning_preserves_successful_prg()
+    {
+        var client = CreateClient();
+        var controller = CreateController(
+            new FakeCreditCardService
+            {
+                CreateResult = OperationResult<Guid>.Success(Guid.NewGuid()),
+                HasNotificationWarning = true
+            },
+            new FakeClientSelectionService { Client = client });
 
         var result = await controller.Create(
             new CreateCreditCardViewModel
@@ -167,9 +210,37 @@ public sealed class CreditCardsControllerTests
             },
             CancellationToken.None);
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(CreditCardsController.Index), redirect.ActionName);
-        Assert.NotNull(controller.TempData["SuccessMessage"]);
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(
+            "La tarjeta fue creada correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
+    }
+
+    [Fact]
+    public async Task EditLimit_notification_warning_preserves_confirmed_change()
+    {
+        var detail = CreateDetail();
+        var controller = CreateController(
+            new FakeCreditCardService
+            {
+                Detail = detail,
+                UpdateResult = OperationResult.Success(),
+                HasNotificationWarning = true
+            },
+            new FakeClientSelectionService());
+
+        var result = await controller.EditLimit(
+            new EditCreditLimitViewModel
+            {
+                CreditCardId = detail.Id,
+                CreditLimit = 1_500m
+            },
+            CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(
+            "El límite fue actualizado correctamente, pero no fue posible enviar el correo de notificación.",
+            controller.TempData["SuccessMessage"]);
     }
 
     [Fact]
@@ -297,11 +368,15 @@ public sealed class CreditCardsControllerTests
 
         public OperationResult UpdateResult { get; init; } = OperationResult.Success();
 
+        public bool HasNotificationWarning { get; init; }
+
         public OperationResult CancelResult { get; init; } = OperationResult.Success();
 
         public ValidationException? CreateException { get; init; }
 
         public CreditCardListRequest? ReceivedListRequest { get; private set; }
+
+        public CreateCreditCardRequest? ReceivedCreateRequest { get; private set; }
 
         public Task<CreditCardListResult> ListAsync(
             CreditCardListRequest request,
@@ -321,17 +396,26 @@ public sealed class CreditCardsControllerTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
 
-        public Task<OperationResult<Guid>> CreateAsync(
+        public Task<CardOperationResult<Guid>> CreateAsync(
             CreateCreditCardRequest request,
-            CancellationToken cancellationToken = default) =>
-            CreateException is null
-                ? Task.FromResult(CreateResult)
-                : Task.FromException<OperationResult<Guid>>(CreateException);
+            CancellationToken cancellationToken = default)
+        {
+            ReceivedCreateRequest = request;
+            return CreateException is null
+                ? Task.FromResult(
+                    new CardOperationResult<Guid>(
+                        CreateResult,
+                        HasNotificationWarning))
+                : Task.FromException<CardOperationResult<Guid>>(CreateException);
+        }
 
-        public Task<OperationResult> UpdateLimitAsync(
+        public Task<CardOperationResult> UpdateLimitAsync(
             UpdateCreditLimitRequest request,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(UpdateResult);
+            Task.FromResult(
+                new CardOperationResult(
+                    UpdateResult,
+                    HasNotificationWarning));
 
         public Task<OperationResult> CancelAsync(
             CancelCreditCardRequest request,

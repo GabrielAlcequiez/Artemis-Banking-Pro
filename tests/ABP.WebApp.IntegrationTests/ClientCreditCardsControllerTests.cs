@@ -3,6 +3,8 @@ using ABP.Application.Common;
 using ABP.Application.Features.CreditCards;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
+using ABP.Application.Features.Dashboards.DTOs;
+using ABP.Application.Features.Dashboards.Services.Interfaces;
 using ABP.Domain.Common;
 using ABP.Domain.Enums;
 using ABP.WebApp.Areas.Client.ViewModels.CreditCards;
@@ -66,11 +68,14 @@ public sealed class ClientCreditCardsControllerTests
             1_000m,
             200m,
             "08/29");
-        var service = new FakeCreditCardService
+        var portfolioService = new FakeClientPortfolioService
         {
-            ActiveCards = [card]
+            Portfolio = new ClientPortfolioDto(
+                Array.Empty<ClientSavingsAccountPortfolioItemDto>(),
+                null,
+                [card])
         };
-        var controller = new ClientHomeController(service);
+        var controller = new ClientHomeController(portfolioService);
 
         var result = await controller.Index(CancellationToken.None);
 
@@ -81,6 +86,19 @@ public sealed class ClientCreditCardsControllerTests
             model.CreditCards,
             item => item.MaskedCardNumber.Any(char.IsDigit) &&
                     item.MaskedCardNumber.Count(char.IsDigit) > 4);
+    }
+
+    private sealed class FakeClientPortfolioService : IClientPortfolioService
+    {
+        public ClientPortfolioDto Portfolio { get; init; } =
+            new(
+                Array.Empty<ClientSavingsAccountPortfolioItemDto>(),
+                null,
+                Array.Empty<ClientCreditCardPortfolioItemDto>());
+
+        public Task<ClientPortfolioDto> GetPortfolioAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Portfolio);
     }
 
     private static CreditCardDetailDto CreateDetail() =>
@@ -130,12 +148,12 @@ public sealed class ClientCreditCardsControllerTests
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<OperationResult<Guid>> CreateAsync(
+        public Task<CardOperationResult<Guid>> CreateAsync(
             CreateCreditCardRequest request,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
-        public Task<OperationResult> UpdateLimitAsync(
+        public Task<CardOperationResult> UpdateLimitAsync(
             UpdateCreditLimitRequest request,
             CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();

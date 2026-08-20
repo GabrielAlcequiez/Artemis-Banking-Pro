@@ -1,16 +1,40 @@
+@model ABP.WebApp.Areas.Cashier.ViewModels.Home.CashierHomeViewModel
 @{
     ViewData["Title"] = "Home";
+    var summary = Model.Summary;
 }
 
-<div class="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-border p-10 text-center">
+<div class="mx-auto max-w-5xl space-y-6">
     @if (TempData["SuccessMessage"] is string successMessage)
     {
-        <div class="alert mb-6 border-success/30 bg-success/10 text-success" role="status">@successMessage</div>
+        <div class="alert border-success/30 bg-success/10 text-success" role="status">@successMessage</div>
     }
     @if (TempData["ErrorMessage"] is string errorMessage)
     {
-        <div class="alert alert-danger mb-6" role="alert">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
     }
-    <h1 class="text-lg font-semibold text-ink">Home del cajero</h1>
-    <p class="mt-2 text-sm text-ink-muted">Los indicadores de operaciones se implementarán próximamente.</p>
+
+    <header>
+        <h1 class="text-2xl font-semibold text-ink">Home del cajero</h1>
+        <p class="mt-1 text-sm text-ink-muted">Tus operaciones de hoy.</p>
+    </header>
+
+    <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores de operaciones de hoy">
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Transacciones realizadas hoy</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@summary.TotalTransactionsToday.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Pagos realizados hoy</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@summary.PaymentsToday.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Depósitos realizados hoy</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@summary.DepositsToday.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Retiros realizados hoy</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@summary.WithdrawalsToday.ToString("N0")</p>
+        </article>
+    </section>
 </div>

@@ -32,6 +32,11 @@ public sealed class LoanProfile : Profile
                 nameof(LoanSummaryDto.CreatedAt),
                 options => options.MapFrom(source => source.CreatedAt));
 
+        CreateMap<ClientLoanPortfolioReadModel, ClientLoanPortfolioItemDto>()
+            .ForCtorParam(
+                nameof(ClientLoanPortfolioItemDto.IsInArrears),
+                options => options.MapFrom(source => source.HasLateInstallments));
+
         CreateMap<Loan, LoanDetailDto>()
             .ForCtorParam(
                 nameof(LoanDetailDto.ClientFullName),

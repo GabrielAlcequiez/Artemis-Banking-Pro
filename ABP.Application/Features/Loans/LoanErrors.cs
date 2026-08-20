@@ -56,6 +56,22 @@ namespace ABP.Application.Features.Loans
             "Loans.SourceAccountNotFound",
             "La cuenta de origen especificada no existe.");
 
+        public static readonly Error SourceAccountInactive = new(
+            "Loans.SourceAccountInactive",
+            "La cuenta de origen debe estar activa para realizar el pago.");
+
+        public static readonly Error InsufficientFunds = new(
+            "Loans.InsufficientFunds",
+            "La cuenta de origen no posee fondos suficientes para realizar el pago.");
+
+        public static readonly Error CashierRequired = new(
+            "Loans.CashierRequired",
+            "Se requiere un cajero autenticado para preparar este pago.");
+
+        public static readonly Error InvalidPayment = new(
+            "Loans.InvalidPayment",
+            "El monto y el identificador de la operación deben ser válidos.");
+
         public static readonly Error LoanOwnershipRequired = new(
             "Loans.LoanOwnershipRequired",
             "El cliente autenticado solo puede pagar sus propios préstamos.");

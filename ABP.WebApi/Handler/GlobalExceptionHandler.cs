@@ -24,9 +24,11 @@ namespace ABP.WebApi.Handler
                 httpContext.Request.Path);
 
             httpContext.Response.StatusCode = problemDetails.Status;
-            httpContext.Response.ContentType = "application/problem+json";
-
-            await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: cancellationToken);
+            await httpContext.Response.WriteAsJsonAsync(
+                problemDetails,
+                options: null,
+                contentType: "application/problem+json",
+                cancellationToken: cancellationToken);
 
             return true;
         }

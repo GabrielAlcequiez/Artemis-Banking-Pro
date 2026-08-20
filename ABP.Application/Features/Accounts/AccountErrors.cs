@@ -6,50 +6,54 @@ namespace ABP.Application.Features.Accounts
     {
         public static readonly Error NotFound = new(
             "Accounts.NotFound",
-            "The selected account does not exist.");
+            "La cuenta seleccionada no existe.");
 
         public static readonly Error InvalidAmount = new(
             "Accounts.InvalidAmount",
-            "The amount must be greater than zero.");
+            "El monto debe ser mayor que cero.");
 
         public static readonly Error InsufficientFunds = new(
             "Accounts.InsufficientFunds",
-            "The account has insufficient funds for this operation.");
+            "La cuenta no tiene fondos suficientes para esta operación.");
 
         public static readonly Error InactiveAccount = new(
             "Accounts.InactiveAccount",
-            "The account is not active.");
+            "La cuenta no se encuentra activa.");
 
         public static readonly Error PrincipalAlreadyExists = new(
             "Accounts.PrincipalAlreadyExists",
-            "The client already has a Principal savings account.");
+            "El cliente ya tiene una cuenta de ahorro principal.");
 
         public static readonly Error SameAccount = new(
             "Accounts.SameAccount",
-            "Source and destination accounts must be different.");
+            "La cuenta de origen y destino deben ser diferentes.");
 
         public static readonly Error CannotAddSelf = new(
             "Accounts.CannotAddSelf",
-            "You cannot add your own account as a beneficiary.");
+            "No puedes agregar tu propia cuenta como beneficiario.");
 
         public static readonly Error BeneficiaryAlreadyExists = new(
             "Accounts.BeneficiaryAlreadyExists",
-            "This account is already registered as a beneficiary.");
+            "Esta cuenta ya está registrada como beneficiario.");
 
         public static readonly Error BeneficiaryNotFound = new(
             "Accounts.BeneficiaryNotFound",
-            "The beneficiary was not found.");
+            "El beneficiario indicado no existe.");
 
         public static readonly Error CannotCancelPrincipal = new(
             "Accounts.CannotCancelPrincipal",
-            "The Principal savings account cannot be cancelled.");
+            "La cuenta principal no se puede cancelar.");
 
         public static readonly Error AlreadyCancelled = new(
             "Accounts.AlreadyCancelled",
-            "The savings account is already cancelled.");
+            "La cuenta ya se encuentra cancelada.");
 
         public static readonly Error PrincipalNotFound = new(
             "Accounts.PrincipalNotFound",
-            "The account balance cannot be transferred because the owner has no Principal account.");
+            "El saldo no pudo transferirse porque el cliente no tiene cuenta principal.");
+
+        public static readonly Error NotEnoughActiveAccounts = new(
+            "Accounts.NotEnoughActiveAccounts",
+            "Debe tener al menos dos cuentas de ahorro activas para realizar una transferencia entre cuentas.");
     }
 }

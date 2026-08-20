@@ -1,6 +1,7 @@
 using ABP.Application.Common;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Loans.DTOs;
+using ABP.Application.Features.Loans.Notifications;
 using ABP.Application.Features.Loans.Services.Interfaces;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -9,9 +10,18 @@ using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.Loans.Services.Implementations;
 
-public sealed class LoanRateService(ILoanRepository repository, IAmortizationCalculator amortizationCalculator, IUnitOfWork unitOfWork, IClock clock, IValidator<UpdateLoanRateRequest> validator, ILogger<LoanRateService> logger) : ILoanRateService
+public sealed class LoanRateService(
+    ILoanRepository repository,
+    IAmortizationCalculator amortizationCalculator,
+    IUnitOfWork unitOfWork,
+    IClock clock,
+    IValidator<UpdateLoanRateRequest> validator,
+    IEmailService emailService,
+    ILogger<LoanRateService> logger) : ILoanRateService
 {
-    public async Task<OperationResult> UpdateRateAsync(UpdateLoanRateRequest request, CancellationToken cancellationToken = default)
+    public async Task<LoanOperationResult> UpdateRateAsync(
+        UpdateLoanRateRequest request,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -27,7 +37,8 @@ public sealed class LoanRateService(ILoanRepository repository, IAmortizationCal
                 "No se pudo actualizar la tasa porque el préstamo {LoanId} no existe.",
                 request.LoanId);
 
-            return OperationResult.Failure(LoanErrors.NotFound);
+            return WithoutNotification(
+                OperationResult.Failure(LoanErrors.NotFound));
         }
 
         if (loan.Status != LoanStatus.Active)
@@ -37,7 +48,8 @@ public sealed class LoanRateService(ILoanRepository repository, IAmortizationCal
                 loan.Id,
                 loan.Status);
 
-            return OperationResult.Failure(LoanErrors.Inactive);
+            return WithoutNotification(
+                OperationResult.Failure(LoanErrors.Inactive));
         }
 
         var today = clock.Today;
@@ -55,12 +67,18 @@ public sealed class LoanRateService(ILoanRepository repository, IAmortizationCal
                 "No se pudo actualizar la tasa del préstamo {LoanId} porque no tiene cuotas futuras pendientes.",
                 loan.Id);
 
-            return OperationResult.Failure(LoanErrors.NoFuturePendingInstallments);
+            return WithoutNotification(
+                OperationResult.Failure(
+                    LoanErrors.NoFuturePendingInstallments));
         }
 
-        var capitalToRecalculate = futurePendingInstallments.Sum(installment => installment.CapitalAmount);
-
-        var recalculatedSchedule = amortizationCalculator.Calculate(capitalToRecalculate, request.AnnualInterestRate, futurePendingInstallments.Length, today);
+        var capitalToRecalculate = futurePendingInstallments.Sum(
+            installment => installment.CapitalAmount);
+        var recalculatedSchedule = amortizationCalculator.Calculate(
+            capitalToRecalculate,
+            request.AnnualInterestRate,
+            futurePendingInstallments.Length,
+            today);
         var recalculatedInstallments = recalculatedSchedule.Installments.ToArray();
 
         for (var index = 0; index < futurePendingInstallments.Length; index++)
@@ -85,6 +103,31 @@ public sealed class LoanRateService(ILoanRepository repository, IAmortizationCal
             loan.Id,
             futurePendingInstallments.Length);
 
-        return OperationResult.Success();
+        var nextInstallment = futurePendingInstallments[0];
+        var recipient = new LoanNotificationRecipient(
+            loan.ClientId,
+            loan.Client?.Email ?? string.Empty,
+            loan.Client is null
+                ? string.Empty
+                : $"{loan.Client.Name} {loan.Client.LastName}".Trim());
+        var notificationSent = await LoanNotificationEmails.SendBestEffortAsync(
+            emailService,
+            logger,
+            LoanNotificationEmails.RateChanged(
+                recipient,
+                loan.LoanNumber,
+                request.AnnualInterestRate,
+                nextInstallment.InstallmentAmount,
+                nextInstallment.DueDate),
+            "actualización de tasa",
+            loan.Id.ToString("N"));
+
+        return new LoanOperationResult(
+            OperationResult.Success(),
+            !notificationSent);
     }
+
+    private static LoanOperationResult WithoutNotification(
+        OperationResult result) =>
+        new(result, false);
 }

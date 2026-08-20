@@ -1,12 +1,15 @@
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards.Commands.UpdateCreditLimit;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards;
 using ABP.Application.Features.CreditCards.Validation;
 using ABP.Domain.Common;
+using ABP.Domain.Entities;
 using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Domain.ReadModels.CreditCards;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ABP.Application.UnitTests.Features.CreditCards.Commands.UpdateCreditLimit;
 
@@ -38,7 +41,11 @@ public sealed class UpdateCreditLimitCommandTests
         var card = CreateCard(CreditCardStatus.Active, 150m, 500m);
         var repository = new StubCreditCardRepository { CardForUpdate = card };
         var unitOfWork = new StubUnitOfWork();
-        var handler = new UpdateCreditLimitCommandHandler(repository, unitOfWork);
+        var emails = new RecordingCardEmailService
+        {
+            IsOperationCommitted = () => unitOfWork.SaveCalls == 1
+        };
+        var handler = CreateHandler(repository, unitOfWork, emails);
 
         var result = await handler.Handle(
             CreateCommand(cardId, 750m),
@@ -48,6 +55,34 @@ public sealed class UpdateCreditLimitCommandTests
         Assert.Equal(cardId, repository.ReceivedCreditCardId);
         Assert.Equal(750m, card.Limit);
         Assert.Equal(1, unitOfWork.SaveCalls);
+        var email = Assert.Single(emails.SentEmails);
+        Assert.False(emails.WasCalledBeforeCommit);
+        Assert.Contains("1234", email.Body);
+        Assert.Contains("750.00", email.Body);
+        Assert.Contains("08/08/2026", email.Body);
+        Assert.DoesNotContain(card.CardNumber, email.Subject + email.Body);
+        Assert.DoesNotContain(card.CvcHash, email.Subject + email.Body);
+    }
+
+    [Fact]
+    public async Task Handler_email_failure_does_not_reverse_limit_change()
+    {
+        var card = CreateCard(CreditCardStatus.Active, 150m, 500m);
+        var unitOfWork = new StubUnitOfWork();
+        var emails = new RecordingCardEmailService { ThrowOnSend = true };
+        var handler = CreateHandler(
+            new StubCreditCardRepository { CardForUpdate = card },
+            unitOfWork,
+            emails);
+
+        var result = await handler.Handle(
+            CreateCommand(Guid.NewGuid(), 750m),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(750m, card.Limit);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(1, emails.SendAttempts);
     }
 
     [Fact]
@@ -59,7 +94,7 @@ public sealed class UpdateCreditLimitCommandTests
             debt: 500m,
             limit: 700m);
         var unitOfWork = new StubUnitOfWork();
-        var handler = new UpdateCreditLimitCommandHandler(
+        var handler = CreateHandler(
             new StubCreditCardRepository { CardForUpdate = card },
             unitOfWork);
 
@@ -82,7 +117,7 @@ public sealed class UpdateCreditLimitCommandTests
             debt: 0m,
             limit: 500m);
         var unitOfWork = new StubUnitOfWork();
-        var handler = new UpdateCreditLimitCommandHandler(
+        var handler = CreateHandler(
             new StubCreditCardRepository { CardForUpdate = card },
             unitOfWork);
 
@@ -100,7 +135,7 @@ public sealed class UpdateCreditLimitCommandTests
     public async Task Handler_returns_not_found_without_committing()
     {
         var unitOfWork = new StubUnitOfWork();
-        var handler = new UpdateCreditLimitCommandHandler(
+        var handler = CreateHandler(
             new StubCreditCardRepository(),
             unitOfWork);
 
@@ -117,6 +152,30 @@ public sealed class UpdateCreditLimitCommandTests
         Guid cardId,
         decimal creditLimit) =>
         new(new UpdateCreditLimitRequest(cardId, creditLimit));
+
+    private static UpdateCreditLimitCommandHandler CreateHandler(
+        StubCreditCardRepository repository,
+        StubUnitOfWork unitOfWork,
+        RecordingCardEmailService? emails = null)
+    {
+        var users = new StubCardUserRepository();
+        users.Users["client-1"] = new User("client-1")
+        {
+            Name = "Ana",
+            LastName = "Pérez",
+            Email = "client@example.com",
+            Role = Roles.Client,
+            IsActive = true
+        };
+
+        return new UpdateCreditLimitCommandHandler(
+            repository,
+            unitOfWork,
+            users,
+            emails ?? new RecordingCardEmailService(),
+            new StubClock(),
+            NullLogger<UpdateCreditLimitCommandHandler>.Instance);
+    }
 
     private static CreditCard CreateCard(
         CreditCardStatus status,
@@ -146,8 +205,21 @@ public sealed class UpdateCreditLimitCommandTests
         }
     }
 
+    private sealed class StubClock : IClock
+    {
+        public DateTimeOffset UtcNow =>
+            new(2026, 8, 8, 14, 30, 0, TimeSpan.Zero);
+
+        public DateTimeOffset Now =>
+            new(2026, 8, 8, 10, 30, 0, TimeSpan.FromHours(-4));
+
+        public DateOnly Today => new(2026, 8, 8);
+    }
+
     private sealed class StubCreditCardRepository : ICreditCardRepository
     {
+        public Task<CreditCard?> GetByCreationOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CreditCard?>(null);
+
         public CreditCard? CardForUpdate { get; init; }
 
         public Guid? ReceivedCreditCardId { get; private set; }

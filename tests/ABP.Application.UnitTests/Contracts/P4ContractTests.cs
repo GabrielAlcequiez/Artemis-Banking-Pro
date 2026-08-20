@@ -114,7 +114,7 @@ namespace ABP.Application.UnitTests.Contracts
             // ICardPaymentService
             var paymentMethod = typeof(ICardPaymentService).GetMethod("ProcessPaymentAsync");
             Assert.NotNull(paymentMethod);
-            Assert.Equal(typeof(Task<OperationResult<FinancialOperationReceipt>>), paymentMethod.ReturnType);
+            Assert.Equal(typeof(Task<CardOperationResult<FinancialOperationReceipt>>), paymentMethod.ReturnType);
             var paymentParams = paymentMethod.GetParameters();
             Assert.Equal(2, paymentParams.Length);
             Assert.Equal(typeof(CreditCardPaymentRequest), paymentParams[0].ParameterType);
@@ -123,7 +123,7 @@ namespace ABP.Application.UnitTests.Contracts
             // ICashAdvanceService
             var advanceMethod = typeof(ICashAdvanceService).GetMethod("ProcessCashAdvanceAsync");
             Assert.NotNull(advanceMethod);
-            Assert.Equal(typeof(Task<OperationResult<FinancialOperationReceipt>>), advanceMethod.ReturnType);
+            Assert.Equal(typeof(Task<CardOperationResult<FinancialOperationReceipt>>), advanceMethod.ReturnType);
             var advanceParams = advanceMethod.GetParameters();
             Assert.Equal(2, advanceParams.Length);
             Assert.Equal(typeof(CashAdvanceRequest), advanceParams[0].ParameterType);
@@ -142,9 +142,10 @@ namespace ABP.Application.UnitTests.Contracts
         [Fact]
         public void Requests_MustHaveExactFrozenPropertiesAndTypes()
         {
-            // CreateCreditCardRequest (ClientId: string, CreditLimit: decimal)
+            // CreateCreditCardRequest (ClientId: string, CreditLimit: decimal, OperationId: Guid)
             AssertProperty<CreateCreditCardRequest>("ClientId", typeof(string));
             AssertProperty<CreateCreditCardRequest>("CreditLimit", typeof(decimal));
+            AssertProperty<CreateCreditCardRequest>("OperationId", typeof(Guid));
 
             // UpdateCreditLimitRequest (CreditCardId: Guid, CreditLimit: decimal)
             AssertProperty<UpdateCreditLimitRequest>("CreditCardId", typeof(Guid));

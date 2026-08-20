@@ -5,11 +5,13 @@ using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Exceptions;
 using ABP.Application.Features.Accounts.Services.Interfaces;
 using ABP.Application.Features.CreditCards.DTOs;
+using ABP.Application.Features.CreditCards.Notifications;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.CreditCards.Services.Implementations;
 
@@ -23,7 +25,9 @@ public sealed class CardPaymentService(
     IFinancialTransaction financialTransaction,
     ICurrentUserService currentUser,
     IClock clock,
-    IValidator<CreditCardPaymentRequest> validator) : ICardPaymentService
+    IValidator<CreditCardPaymentRequest> validator,
+    IEmailService emailService,
+    ILogger<CardPaymentService> logger) : ICardPaymentService
 {
     public async Task<ClientCardOperationOptions> GetClientOptionsAsync(
         CancellationToken cancellationToken = default)
@@ -133,7 +137,7 @@ public sealed class CardPaymentService(
                 effectiveAmount));
     }
 
-    public async Task<OperationResult<FinancialOperationReceipt>> ProcessPaymentAsync(
+    public async Task<CardOperationResult<FinancialOperationReceipt>> ProcessPaymentAsync(
         CreditCardPaymentRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -143,8 +147,9 @@ public sealed class CardPaymentService(
         var actor = GetActor();
         if (actor is null)
         {
-            return OperationResult<FinancialOperationReceipt>.Failure(
-                CardFinancialOperationErrors.RoleNotAllowed);
+            return WithoutNotification(
+                OperationResult<FinancialOperationReceipt>.Failure(
+                    CardFinancialOperationErrors.RoleNotAllowed));
         }
 
         var previousPayment = await creditCards.GetPaymentByOperationIdAsync(
@@ -152,7 +157,8 @@ public sealed class CardPaymentService(
             cancellationToken);
         if (previousPayment is not null)
         {
-            return ResolveReplay(previousPayment, request, actor.Value.UserId);
+            return WithoutNotification(
+                ResolveReplay(previousPayment, request, actor.Value.UserId));
         }
 
         var card = await creditCards.GetByIdAsync(
@@ -160,8 +166,9 @@ public sealed class CardPaymentService(
             cancellationToken);
         if (card is null)
         {
-            return OperationResult<FinancialOperationReceipt>.Failure(
-                CardFinancialOperationErrors.CardNotFound);
+            return WithoutNotification(
+                OperationResult<FinancialOperationReceipt>.Failure(
+                    CardFinancialOperationErrors.CardNotFound));
         }
 
         var account = await accounts.GetByIdAsync(
@@ -169,13 +176,26 @@ public sealed class CardPaymentService(
             cancellationToken);
         if (account is null)
         {
-            return OperationResult<FinancialOperationReceipt>.Failure(
-                CardFinancialOperationErrors.AccountNotFound);
+            return WithoutNotification(
+                OperationResult<FinancialOperationReceipt>.Failure(
+                    CardFinancialOperationErrors.AccountNotFound));
         }
+
+        var cardOwner = await users.GetByIdAsync(
+            card.ClientId,
+            cancellationToken);
+        var accountOwner = card.ClientId == account.OwnerUserId
+            ? cardOwner
+            : await users.GetByIdAsync(
+                account.OwnerUserId,
+                cancellationToken);
+        var cardOwnerRecipient = ToRecipient(cardOwner, card.ClientId);
+        var accountOwnerRecipient = ToRecipient(accountOwner, account.OwnerUserId);
+        PaymentNotification? notification = null;
 
         try
         {
-            return await financialTransaction.ExecuteAsync(
+            var result = await financialTransaction.ExecuteAsync(
                 async transactionCancellationToken =>
             {
                 var trackedCard = await creditCards.GetForUpdateAsync(
@@ -206,6 +226,7 @@ public sealed class CardPaymentService(
                     ? Math.Min(request.Amount, trackedCard.Debt)
                     : 0m;
                 var processedAtUtc = clock.UtcNow;
+                var processedAtBankingTime = clock.Now;
 
                 if (currentValidationError is not null)
                 {
@@ -270,6 +291,16 @@ public sealed class CardPaymentService(
                     actor.Value.Role,
                     transactionCancellationToken);
 
+                notification = new PaymentNotification(
+                    request.OperationId,
+                    cardOwnerRecipient,
+                    accountOwnerRecipient,
+                    LastFour(trackedCard.CardNumber),
+                    LastFour(currentAccount.AccountNumber),
+                    effectiveAmount,
+                    processedAtBankingTime,
+                    trackedCard.ClientId != currentAccount.OwnerUserId);
+
                 return OperationResult<FinancialOperationReceipt>.Success(
                     new FinancialOperationReceipt(
                         request.OperationId,
@@ -277,6 +308,18 @@ public sealed class CardPaymentService(
                         processedAtUtc));
             },
             cancellationToken);
+
+            if (result.IsFailure)
+            {
+                return WithoutNotification(result);
+            }
+
+            var notificationSent = notification is not null &&
+                await SendPaymentNotificationsAsync(notification);
+
+            return new CardOperationResult<FinancialOperationReceipt>(
+                result,
+                !notificationSent);
         }
         catch (Exception exception)
             when (exception is PersistenceConflictException or
@@ -291,11 +334,47 @@ public sealed class CardPaymentService(
                 throw;
             }
 
-            return ResolveReplay(
-                concurrentPayment,
-                request,
-                actor.Value.UserId);
+            return WithoutNotification(
+                ResolveReplay(
+                    concurrentPayment,
+                    request,
+                    actor.Value.UserId));
         }
+    }
+
+    private async Task<bool> SendPaymentNotificationsAsync(
+        PaymentNotification notification)
+    {
+        var cardOwnerNotified = await CardNotificationEmails.SendBestEffortAsync(
+            emailService,
+            logger,
+            CardNotificationEmails.CardPayment(
+                notification.CardOwner,
+                notification.CardLastFourDigits,
+                notification.SourceAccountLastFourDigits,
+                notification.EffectiveAmount,
+                notification.ProcessedAtBankingTime),
+            "pago al propietario de la tarjeta",
+            notification.OperationId.ToString("N"));
+
+        if (!notification.NotifyAccountOwnerSeparately)
+        {
+            return cardOwnerNotified;
+        }
+
+        var accountOwnerNotified = await CardNotificationEmails.SendBestEffortAsync(
+            emailService,
+            logger,
+            CardNotificationEmails.PaymentAccountDebit(
+                notification.AccountOwner,
+                notification.CardLastFourDigits,
+                notification.SourceAccountLastFourDigits,
+                notification.EffectiveAmount,
+                notification.ProcessedAtBankingTime),
+            "débito al propietario de la cuenta",
+            notification.OperationId.ToString("N"));
+
+        return cardOwnerNotified && accountOwnerNotified;
     }
 
     private async Task PersistRejectedPaymentAsync(
@@ -450,4 +529,28 @@ public sealed class CardPaymentService(
 
     private static string FullName(string name, string lastName) =>
         $"{name} {lastName}".Trim();
+
+    private static CardNotificationRecipient ToRecipient(
+        Domain.Entities.User? user,
+        string userId) =>
+        new(
+            userId,
+            user?.Email ?? string.Empty,
+            user is null
+                ? string.Empty
+                : FullName(user.Name, user.LastName));
+
+    private static CardOperationResult<FinancialOperationReceipt> WithoutNotification(
+        OperationResult<FinancialOperationReceipt> result) =>
+        new(result, false);
+
+    private sealed record PaymentNotification(
+        Guid OperationId,
+        CardNotificationRecipient CardOwner,
+        CardNotificationRecipient AccountOwner,
+        string CardLastFourDigits,
+        string SourceAccountLastFourDigits,
+        decimal EffectiveAmount,
+        DateTimeOffset ProcessedAtBankingTime,
+        bool NotifyAccountOwnerSeparately);
 }

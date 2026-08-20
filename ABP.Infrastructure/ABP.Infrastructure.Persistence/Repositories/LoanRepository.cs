@@ -34,6 +34,20 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
             .SingleOrDefaultAsync(loan => loan.Id == id, cancellationToken);
     }
 
+    public Task<Loan?> GetDetailsForClientAsync(
+        Guid id,
+        string clientId,
+        CancellationToken cancellationToken = default)
+    {
+        return Entities
+            .AsNoTracking()
+            .Include(loan => loan.Client)
+            .Include(loan => loan.Installments.OrderBy(installment => installment.Number))
+            .SingleOrDefaultAsync(
+                loan => loan.Id == id && loan.ClientId == clientId,
+                cancellationToken);
+    }
+
     public Task<LoanPayment?> GetPaymentByOperationIdAsync(
         Guid operationId,
         CancellationToken cancellationToken = default)
@@ -51,6 +65,34 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
         return Entities.AsNoTracking().FirstOrDefaultAsync(
             loan => loan.ClientId == clientId && loan.Status == LoanStatus.Active,
             cancellationToken);
+    }
+
+    public Task<ClientLoanPortfolioReadModel?> GetActivePortfolioForClientAsync(
+        string clientId,
+        CancellationToken cancellationToken = default)
+    {
+        return Entities
+            .AsNoTracking()
+            .Where(loan =>
+                loan.ClientId == clientId
+                && loan.Status == LoanStatus.Active)
+            .Select(loan => new ClientLoanPortfolioReadModel(
+                loan.Id,
+                loan.LoanNumber,
+                loan.Capital,
+                loan.PendingAmount,
+                loan.Installments
+                    .OrderBy(installment => installment.Number)
+                    .Select(installment => installment.InstallmentAmount)
+                    .FirstOrDefault(),
+                loan.AnnualInterestRate,
+                loan.TermInMonths,
+                loan.Installments.Count,
+                loan.Installments.Count(installment =>
+                    installment.PaymentStatus == InstallmentPaymentStatus.Paid),
+                loan.Installments.Any(installment =>
+                    installment.IsLate && installment.PendingAmount > 0m)))
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default)
@@ -291,17 +333,54 @@ public class LoanRepository(AppDbContext context) : GenericRepository<Loan, Guid
             totalRecords);
     }
 
-    public async Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(DateOnly bankingDate, CancellationToken cancellationToken = default)
+    public Task<int> MarkOverdueInstallmentsAsync(
+        DateOnly bankingDate,
+        DateTimeOffset modifiedAtUtc,
+        CancellationToken cancellationToken = default)
     {
-        return await _context.LoanInstallments
+        return _context.LoanInstallments
             .Where(installment =>
-                (installment.Loan.Status == LoanStatus.Active
-                    && installment.DueDate < bankingDate
-                    && installment.PendingAmount > 0m
-                    && !installment.IsLate)
-                || (installment.IsLate && installment.PendingAmount == 0m))
-            .OrderBy(installment => installment.DueDate)
-            .ToListAsync(cancellationToken);
+                installment.Loan.Status == LoanStatus.Active
+                && installment.DueDate < bankingDate
+                && installment.PendingAmount > 0m
+                && !installment.IsLate)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(
+                        installment => installment.IsLate,
+                        true)
+                    .SetProperty(
+                        installment => installment.LastModifiedAtUtc,
+                        modifiedAtUtc)
+                    .SetProperty(
+                        installment => installment.LastModifiedByUserId,
+                        (string?)null),
+                cancellationToken);
+    }
+
+    public Task<int> ClearLateFlagFromPaidInstallmentsAsync(
+        Guid? loanId,
+        DateTimeOffset modifiedAtUtc,
+        string? modifiedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.LoanInstallments
+            .Where(installment =>
+                installment.IsLate
+                && installment.PendingAmount == 0m
+                && (!loanId.HasValue || installment.LoanId == loanId.Value))
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(
+                        installment => installment.IsLate,
+                        false)
+                    .SetProperty(
+                        installment => installment.LastModifiedAtUtc,
+                        modifiedAtUtc)
+                    .SetProperty(
+                        installment => installment.LastModifiedByUserId,
+                        modifiedByUserId),
+                cancellationToken);
     }
 
     public async Task AddInstallmentsAsync(IReadOnlyCollection<LoanInstallment> installments, CancellationToken cancellationToken = default)

@@ -22,6 +22,7 @@
     <form asp-action="Create" method="post" class="card space-y-5 p-5" novalidate>
         @Html.AntiForgeryToken()
         <input asp-for="ClientId" type="hidden" />
+        <input asp-for="OperationId" type="hidden" />
         <div asp-validation-summary="ModelOnly" class="alert alert-danger empty:hidden" role="alert"></div>
         <span asp-validation-for="ClientId" class="block text-sm text-danger"></span>
 

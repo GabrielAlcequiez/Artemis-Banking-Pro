@@ -115,6 +115,10 @@ namespace ABP.Application.UnitTests.Features.Accounts.Queries.GetSavingsAccountD
                 Guid accountId, int count, CancellationToken cancellationToken = default) =>
                 Task.FromResult(RecentTransactions);
 
+            public Task<IReadOnlyCollection<AccountTransaction>> GetAllByAccountAsync(
+                Guid accountId, CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
             public Task<PagedResult<AccountTransaction>> GetPagedByAccountAsync(
                 Guid accountId, PagedRequest request, CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
@@ -126,7 +130,24 @@ namespace ABP.Application.UnitTests.Features.Accounts.Queries.GetSavingsAccountD
             public Task<int> CountByActorTodayAsync(string actorUserId, DateOnly today, CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
 
+            public Task<int> CountByActorAndTypesTodayAsync(
+                string actorUserId, DateOnly today, IReadOnlyCollection<FinancialOperationType> types,
+                TransactionDirection? direction = null, CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
             public Task<decimal> SumAmountByActorTodayAsync(string actorUserId, DateOnly today, CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
+            public Task<int> CountAllAsync(CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
+            public Task<int> CountByDateAsync(DateOnly date, CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
+            public Task<int> CountPaymentsAsync(CancellationToken cancellationToken = default) =>
+                throw new NotImplementedException();
+
+            public Task<int> CountPaymentsByDateAsync(DateOnly date, CancellationToken cancellationToken = default) =>
                 throw new NotImplementedException();
 
             public IQueryable<AccountTransaction> GetAllQueryable(bool trackChanges = false) =>

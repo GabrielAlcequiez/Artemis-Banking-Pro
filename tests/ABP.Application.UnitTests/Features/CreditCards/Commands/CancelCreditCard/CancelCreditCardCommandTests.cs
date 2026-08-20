@@ -124,6 +124,8 @@ public sealed class CancelCreditCardCommandTests
 
     private sealed class FakeCreditCardRepository : ICreditCardRepository
     {
+        public Task<CreditCard?> GetByCreationOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult<CreditCard?>(null);
+
         public CreditCard? CardForUpdate { get; init; }
 
         public Guid? RequestedCreditCardId { get; private set; }

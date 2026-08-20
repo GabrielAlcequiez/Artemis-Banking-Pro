@@ -6,6 +6,7 @@ using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Implementations;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Common;
+using ABP.Domain.Entities;
 using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
@@ -261,6 +262,12 @@ public sealed class CreditCardCoreServicesTests
         var numberGenerator = new FakeCardNumberGeneratorService("0000000000001234");
         var cvcService = new FakeCvcService { GeneratedCvc = "007" };
         var transaction = new FakeFinancialTransaction();
+        var emails = new RecordingCardEmailService
+        {
+            IsOperationCommitted = () => transaction.IsCommitted
+        };
+        var users = CreateUsers();
+        users.Users["client-1"].Name = "Ana <script>";
         var service = CreateService(
             repository,
             unitOfWork,
@@ -268,10 +275,13 @@ public sealed class CreditCardCoreServicesTests
             currentUser,
             numberGenerator,
             cvcService,
-            transaction);
+            transaction,
+            users,
+            emails);
 
+        var operationId = Guid.NewGuid();
         var result = await service.CreateAsync(
-            new CreateCreditCardRequest("client-1", 5_000m));
+            new CreateCreditCardRequest("client-1", 5_000m, operationId));
 
         Assert.True(result.IsSuccess);
         var card = Assert.IsType<CreditCard>(repository.AddedCard);
@@ -286,9 +296,107 @@ public sealed class CreditCardCoreServicesTests
         Assert.Equal(new DateOnly(2029, 8, 31), card.ExpirationDate);
         Assert.Equal(CreditCardStatus.Active, card.Status);
         Assert.Equal("admin-1", card.AssignedByUserId);
+        Assert.Equal(operationId, card.CreationOperationId);
         Assert.Equal(1, repository.AddCalls);
         Assert.Equal(1, unitOfWork.SaveCalls);
         Assert.Equal(IsolationLevel.Serializable, transaction.IsolationLevel);
+        Assert.False(result.HasNotificationWarning);
+        var email = Assert.Single(emails.SentEmails);
+        Assert.False(emails.WasCalledBeforeCommit);
+        Assert.Contains("1234", email.Body);
+        Assert.Contains("5,000.00", email.Body);
+        Assert.Contains("08/29", email.Body);
+        Assert.Contains("08/08/2026", email.Body);
+        Assert.Contains("&lt;script&gt;", email.Body);
+        Assert.DoesNotContain("<script>", email.Body);
+        Assert.DoesNotContain(card.CardNumber, email.Subject + email.Body);
+        Assert.DoesNotContain(cvcService.GeneratedCvc, email.Subject + email.Body);
+        Assert.DoesNotContain(cvcService.HashedCvc, email.Subject + email.Body);
+    }
+
+    [Fact]
+    public async Task Create_exact_replay_returns_existing_id_without_generating_saving_or_emailing()
+    {
+        var operationId = Guid.NewGuid();
+        var existingCard = new CreditCard
+        {
+            ClientId = "client-1",
+            AssignedByUserId = "admin-1",
+            Limit = 5_000m,
+            CreationOperationId = operationId
+        };
+        var repository = new FakeCreditCardRepository { ExistingCard = existingCard };
+        var unitOfWork = new FakeUnitOfWork();
+        var generator = new FakeCardNumberGeneratorService();
+        var emails = new RecordingCardEmailService();
+        var service = CreateService(
+            repository,
+            unitOfWork,
+            currentUser: new FakeCurrentUserService { UserId = "admin-1" },
+            numberGenerator: generator,
+            emails: emails);
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("client-1", 5_000m, operationId));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(existingCard.Id, result.Value);
+        Assert.False(result.HasNotificationWarning);
+        Assert.Equal(0, generator.GenerateCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+        Assert.Empty(emails.SentEmails);
+    }
+
+    [Fact]
+    public async Task Create_reused_operation_with_different_limit_returns_creation_conflict()
+    {
+        var operationId = Guid.NewGuid();
+        var repository = new FakeCreditCardRepository
+        {
+            ExistingCard = new CreditCard
+            {
+                ClientId = "client-1",
+                AssignedByUserId = "admin-1",
+                Limit = 4_000m,
+                CreationOperationId = operationId
+            }
+        };
+        var service = CreateService(
+            repository,
+            currentUser: new FakeCurrentUserService { UserId = "admin-1" });
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("client-1", 5_000m, operationId));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.CreationOperationConflict, result.Error);
+        Assert.Equal(0, repository.AddCalls);
+    }
+
+    [Fact]
+    public async Task Create_email_failure_keeps_card_and_returns_notification_warning()
+    {
+        var repository = new FakeCreditCardRepository
+        {
+            IsActiveClient = true,
+            CardNumberExists = false
+        };
+        var unitOfWork = new FakeUnitOfWork();
+        var emails = new RecordingCardEmailService { ThrowOnSend = true };
+        var service = CreateService(
+            repository,
+            unitOfWork,
+            emails: emails);
+
+        var result = await service.CreateAsync(
+            new CreateCreditCardRequest("client-1", 5_000m, Guid.NewGuid()));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.HasNotificationWarning);
+        Assert.NotNull(repository.AddedCard);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(1, emails.SendAttempts);
     }
 
     [Fact]
@@ -303,7 +411,7 @@ public sealed class CreditCardCoreServicesTests
             numberGenerator: numberGenerator);
 
         var result = await service.CreateAsync(
-            new CreateCreditCardRequest("client-1", 5_000m));
+            new CreateCreditCardRequest("client-1", 5_000m, Guid.NewGuid()));
 
         Assert.True(result.IsFailure);
         Assert.Equal(CreditCardErrors.ClientInactive, result.Error);
@@ -324,7 +432,7 @@ public sealed class CreditCardCoreServicesTests
         var service = CreateService(repository, unitOfWork);
 
         var result = await service.CreateAsync(
-            new CreateCreditCardRequest("missing-client", 5_000m));
+            new CreateCreditCardRequest("missing-client", 5_000m, Guid.NewGuid()));
 
         Assert.True(result.IsFailure);
         Assert.Equal(CreditCardErrors.ClientNotFound, result.Error);
@@ -350,7 +458,7 @@ public sealed class CreditCardCoreServicesTests
             currentUser: currentUser);
 
         var result = await service.CreateAsync(
-            new CreateCreditCardRequest("client-1", 5_000m));
+            new CreateCreditCardRequest("client-1", 5_000m, Guid.NewGuid()));
 
         Assert.True(result.IsFailure);
         Assert.Equal(CreditCardErrors.AdministratorRequired, result.Error);
@@ -375,7 +483,7 @@ public sealed class CreditCardCoreServicesTests
             numberGenerator: numberGenerator);
 
         var result = await service.CreateAsync(
-            new CreateCreditCardRequest("client-1", 5_000m));
+            new CreateCreditCardRequest("client-1", 5_000m, Guid.NewGuid()));
 
         Assert.True(result.IsFailure);
         Assert.Equal(CreditCardErrors.NumberGenerationFailed, result.Error);
@@ -395,7 +503,11 @@ public sealed class CreditCardCoreServicesTests
         var card = CreateCard(CreditCardStatus.Active, debt: 150m, limit: 500m);
         var repository = new FakeCreditCardRepository { CardForUpdate = card };
         var unitOfWork = new FakeUnitOfWork();
-        var service = CreateService(repository, unitOfWork);
+        var emails = new RecordingCardEmailService
+        {
+            IsOperationCommitted = () => unitOfWork.SaveCalls == 1
+        };
+        var service = CreateService(repository, unitOfWork, emails: emails);
 
         var result = await service.UpdateLimitAsync(
             new UpdateCreditLimitRequest(Guid.NewGuid(), 750m));
@@ -403,6 +515,35 @@ public sealed class CreditCardCoreServicesTests
         Assert.True(result.IsSuccess);
         Assert.Equal(750m, card.Limit);
         Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.False(result.HasNotificationWarning);
+        var email = Assert.Single(emails.SentEmails);
+        Assert.False(emails.WasCalledBeforeCommit);
+        Assert.Contains("1234", email.Body);
+        Assert.Contains("750.00", email.Body);
+        Assert.Contains("08/08/2026", email.Body);
+        Assert.DoesNotContain(card.CardNumber, email.Subject + email.Body);
+        Assert.DoesNotContain(card.CvcHash, email.Subject + email.Body);
+    }
+
+    [Fact]
+    public async Task UpdateLimit_email_failure_keeps_new_limit_and_returns_warning()
+    {
+        var card = CreateCard(CreditCardStatus.Active, debt: 150m, limit: 500m);
+        var unitOfWork = new FakeUnitOfWork();
+        var emails = new RecordingCardEmailService { ThrowOnSend = true };
+        var service = CreateService(
+            new FakeCreditCardRepository { CardForUpdate = card },
+            unitOfWork,
+            emails: emails);
+
+        var result = await service.UpdateLimitAsync(
+            new UpdateCreditLimitRequest(Guid.NewGuid(), 750m));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.HasNotificationWarning);
+        Assert.Equal(750m, card.Limit);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(1, emails.SendAttempts);
     }
 
     [Fact]
@@ -538,7 +679,9 @@ public sealed class CreditCardCoreServicesTests
         ICurrentUserService? currentUser = null,
         ICardNumberGeneratorService? numberGenerator = null,
         ICvcService? cvcService = null,
-        IFinancialTransaction? financialTransaction = null) =>
+        IFinancialTransaction? financialTransaction = null,
+        StubCardUserRepository? users = null,
+        RecordingCardEmailService? emails = null) =>
         CreateProvider(
             repository,
             unitOfWork,
@@ -546,7 +689,9 @@ public sealed class CreditCardCoreServicesTests
             currentUser,
             numberGenerator,
             cvcService,
-            financialTransaction).GetRequiredService<ICreditCardService>();
+            financialTransaction,
+            users,
+            emails).GetRequiredService<ICreditCardService>();
 
     private static IServiceProvider CreateProvider(
         FakeCreditCardRepository repository,
@@ -555,10 +700,14 @@ public sealed class CreditCardCoreServicesTests
         ICurrentUserService? currentUser = null,
         ICardNumberGeneratorService? numberGenerator = null,
         ICvcService? cvcService = null,
-        IFinancialTransaction? financialTransaction = null)
+        IFinancialTransaction? financialTransaction = null,
+        StubCardUserRepository? users = null,
+        RecordingCardEmailService? emails = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton<ILogger<CreditCardService>>(
+            NullLogger<CreditCardService>.Instance);
         services.AddApplicationServices();
         services.AddSingleton<ICreditCardRepository>(repository);
         services.AddSingleton<IUnitOfWork>(unitOfWork ?? new FakeUnitOfWork());
@@ -571,25 +720,50 @@ public sealed class CreditCardCoreServicesTests
             numberGenerator ?? new FakeCardNumberGeneratorService());
         services.AddSingleton<ICvcService>(
             cvcService ?? new FakeCvcService());
+        services.AddSingleton<IUserRepository>(users ?? CreateUsers());
+        services.AddSingleton<IEmailService>(
+            emails ?? new RecordingCardEmailService());
         return services.BuildServiceProvider();
+    }
+
+    private static StubCardUserRepository CreateUsers()
+    {
+        var users = new StubCardUserRepository();
+        users.Users["client-1"] = new User("client-1")
+        {
+            Name = "Ana",
+            LastName = "Pérez",
+            Email = "client@example.com",
+            Role = Roles.Client,
+            IsActive = true
+        };
+        return users;
     }
 
     private sealed class FakeFinancialTransaction : IFinancialTransaction
     {
         public IsolationLevel? IsolationLevel { get; private set; }
 
-        public Task<TResult> ExecuteAsync<TResult>(
-            Func<CancellationToken, Task<TResult>> operation,
-            CancellationToken cancellationToken = default) =>
-            operation(cancellationToken);
+        public bool IsCommitted { get; private set; }
 
-        public Task<TResult> ExecuteAsync<TResult>(
+        public async Task<TResult> ExecuteAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await operation(cancellationToken);
+            IsCommitted = true;
+            return result;
+        }
+
+        public async Task<TResult> ExecuteAsync<TResult>(
             IsolationLevel isolationLevel,
             Func<CancellationToken, Task<TResult>> operation,
             CancellationToken cancellationToken = default)
         {
             IsolationLevel = isolationLevel;
-            return operation(cancellationToken);
+            var result = await operation(cancellationToken);
+            IsCommitted = true;
+            return result;
         }
     }
 
@@ -599,6 +773,9 @@ public sealed class CreditCardCoreServicesTests
         decimal limit) =>
         new()
         {
+            ClientId = "client-1",
+            CardNumber = "4111111111111234",
+            CvcHash = "hashed-cvc",
             Status = status,
             Debt = debt,
             Limit = limit
@@ -668,6 +845,16 @@ public sealed class CreditCardCoreServicesTests
         public int IsActiveClientCalls { get; private set; }
         public int AddCalls { get; private set; }
         public CreditCard? AddedCard { get; private set; }
+
+        public CreditCard? ExistingCard { get; init; }
+
+        public Task<CreditCard?> GetByCreationOperationIdAsync(
+            Guid operationId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(
+                ExistingCard?.CreationOperationId == operationId
+                    ? ExistingCard
+                    : null);
 
         public Task<bool> ClientExistsAsync(
             string clientId,

@@ -5,7 +5,9 @@ using ABP.Application.Features.Loans;
 using ABP.Application.Features.Loans.DTOs;
 using ABP.Application.Features.Loans.Services.Implementations;
 using ABP.Application.Features.Loans.Validation;
+using ABP.Application.UnitTests.Features.Loans;
 using ABP.Domain.Common;
+using ABP.Domain.Entities;
 using ABP.Domain.Entities.Accounts;
 using ABP.Domain.Entities.Lending;
 using ABP.Domain.Enums;
@@ -17,6 +19,67 @@ namespace ABP.Application.UnitTests.Features.Loans.Services;
 
 public sealed class LoanPaymentServiceTests
 {
+    [Fact]
+    public async Task GetClientOptionsAsync_returns_only_the_clients_active_products()
+    {
+        var dependencies = CreateDependencies(Roles.Client, "client-1");
+        dependencies.Loans.Loan = CreateLoan(CreateInstallment(1, 100m));
+        var service = dependencies.CreateService();
+
+        var result = await service.GetClientOptionsAsync();
+
+        var loan = Assert.Single(result.Loans);
+        var account = Assert.Single(result.SavingsAccounts);
+        Assert.Equal("client-1", dependencies.Loans.ReceivedClientId);
+        Assert.Equal("client-1", dependencies.Accounts.ReceivedOwnerId);
+        Assert.Equal("123456789", loan.LoanNumber);
+        Assert.Equal(100m, loan.PendingAmount);
+        Assert.Equal("987654321", account.AccountNumber);
+    }
+
+    [Fact]
+    public async Task PrepareCashierPaymentAsync_allows_different_owners_and_caps_amount()
+    {
+        var dependencies = CreateDependencies(
+            Roles.Cashier,
+            "cashier-1",
+            accountOwnerId: "account-client");
+        dependencies.Loans.Loan = CreateLoan(CreateInstallment(1, 100m));
+        var service = dependencies.CreateService();
+
+        var result = await service.PrepareCashierPaymentAsync(
+            " 987654321 ",
+            " 123456789 ",
+            500m,
+            Guid.NewGuid());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Cuenta Titular", result.Value.AccountOwnerFullName);
+        Assert.Equal("Préstamo Titular", result.Value.LoanOwnerFullName);
+        Assert.Equal(500m, result.Value.RequestedAmount);
+        Assert.Equal(100m, result.Value.EffectiveAmount);
+        Assert.Equal("987654321", dependencies.Accounts.ReceivedAccountNumber);
+        Assert.Equal("123456789", dependencies.Loans.ReceivedLoanNumber);
+    }
+
+    [Fact]
+    public async Task PrepareCashierPaymentAsync_rejects_non_cashier_before_querying()
+    {
+        var dependencies = CreateDependencies(Roles.Client, "client-1");
+        var service = dependencies.CreateService();
+
+        var result = await service.PrepareCashierPaymentAsync(
+            "987654321",
+            "123456789",
+            50m,
+            Guid.NewGuid());
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(LoanErrors.CashierRequired, result.Error);
+        Assert.Null(dependencies.Accounts.ReceivedAccountNumber);
+        Assert.Null(dependencies.Loans.ReceivedLoanNumber);
+    }
+
     [Fact]
     public async Task ProcessPaymentAsync_applies_partial_payment_to_oldest_installment()
     {
@@ -43,6 +106,12 @@ public sealed class LoanPaymentServiceTests
         Assert.Equal(50m, dependencies.Balance.DebitedAmount);
         Assert.Equal(1, dependencies.Ledger.ApprovedCalls);
         Assert.Equal(1, dependencies.UnitOfWork.SaveCalls);
+        Assert.Equal(0, dependencies.Loans.ClearPaidLateCalls);
+        Assert.False(result.HasNotificationWarning);
+        var email = Assert.Single(dependencies.Emails.SentEmails);
+        Assert.Equal("client-1@example.com", email.ToEmail);
+        Assert.Contains("123456789", email.Subject);
+        Assert.False(dependencies.Emails.WasCalledBeforeCommit);
     }
 
     [Fact]
@@ -73,6 +142,42 @@ public sealed class LoanPaymentServiceTests
         Assert.Equal(0m, loan.PendingAmount);
         Assert.Equal(LoanStatus.Completed, loan.Status);
         Assert.True(result.Value.IsCompleted);
+        Assert.Equal(1, dependencies.Loans.ClearPaidLateCalls);
+        Assert.Equal(loan.Id, dependencies.Loans.ReceivedClearLoanId);
+        Assert.Equal("cashier-1", dependencies.Loans.ReceivedClearModifiedByUserId);
+        Assert.Equal(
+            new DateTimeOffset(2026, 8, 11, 12, 0, 0, TimeSpan.Zero),
+            dependencies.Loans.ReceivedClearModifiedAtUtc);
+        Assert.False(dependencies.Loans.WasClearCalledBeforeSave);
+        Assert.Equal(2, dependencies.Emails.SentEmails.Count);
+        Assert.Contains(
+            dependencies.Emails.SentEmails,
+            email => email.ToEmail == "client-1@example.com");
+        Assert.Contains(
+            dependencies.Emails.SentEmails,
+            email => email.ToEmail == "different-client@example.com");
+    }
+
+    [Fact]
+    public async Task ProcessPaymentAsync_keeps_payment_confirmed_when_email_fails()
+    {
+        var dependencies = CreateDependencies(
+            Roles.Client,
+            "client-1");
+        dependencies.Emails.ThrowOnSend = true;
+        var loan = CreateLoan(CreateInstallment(1, 100m));
+        dependencies.Loans.Loan = loan;
+        var service = dependencies.CreateService();
+
+        var result = await service.ProcessPaymentAsync(
+            CreateRequest(50m));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.HasNotificationWarning);
+        Assert.Equal(50m, loan.PendingAmount);
+        Assert.Equal(1, dependencies.UnitOfWork.SaveCalls);
+        Assert.Equal(1, dependencies.Emails.SendAttempts);
+        Assert.False(dependencies.Emails.WasCalledBeforeCommit);
     }
 
     [Fact]
@@ -119,6 +224,7 @@ public sealed class LoanPaymentServiceTests
         Assert.Equal(0, dependencies.Balance.DebitCalls);
         Assert.Null(dependencies.Loans.AddedPayment);
         Assert.Equal(0, dependencies.Ledger.ApprovedCalls);
+        Assert.Equal(0, dependencies.Emails.SendAttempts);
     }
 
     [Fact]
@@ -241,7 +347,9 @@ public sealed class LoanPaymentServiceTests
             Balance = new StubAccountBalanceService(),
             Ledger = new StubAccountLedger(),
             UnitOfWork = new StubUnitOfWork(),
-            CurrentUser = new StubCurrentUser(role, userId)
+            CurrentUser = new StubCurrentUser(role, userId),
+            Users = new StubUserRepository(),
+            Emails = new RecordingLoanEmailService()
         };
 
     private sealed class Dependencies
@@ -252,18 +360,27 @@ public sealed class LoanPaymentServiceTests
         public required StubAccountLedger Ledger { get; init; }
         public required StubUnitOfWork UnitOfWork { get; init; }
         public required StubCurrentUser CurrentUser { get; init; }
+        public required StubUserRepository Users { get; init; }
+        public required RecordingLoanEmailService Emails { get; init; }
 
-        public LoanPaymentService CreateService() =>
-            new(
+        public LoanPaymentService CreateService()
+        {
+            Emails.IsOperationCommitted = () => UnitOfWork.SaveCalls > 0;
+            Loans.IsPaymentSaved = () => UnitOfWork.SaveCalls > 0;
+
+            return new LoanPaymentService(
                 Loans,
                 Accounts,
+                Users,
                 Balance,
                 Ledger,
                 UnitOfWork,
                 CurrentUser,
                 new StubClock(),
                 new LoanPaymentRequestValidator(),
+                Emails,
                 NullLogger<LoanPaymentService>.Instance);
+        }
     }
 
     private sealed class StubCurrentUser(Roles role, string userId)
@@ -333,6 +450,14 @@ public sealed class LoanPaymentServiceTests
         public Loan? Loan { get; set; }
         public LoanPayment? PreviousPayment { get; set; }
         public LoanPayment? AddedPayment { get; private set; }
+        public string? ReceivedClientId { get; private set; }
+        public string? ReceivedLoanNumber { get; private set; }
+        public int ClearPaidLateCalls { get; private set; }
+        public Guid? ReceivedClearLoanId { get; private set; }
+        public DateTimeOffset? ReceivedClearModifiedAtUtc { get; private set; }
+        public string? ReceivedClearModifiedByUserId { get; private set; }
+        public bool WasClearCalledBeforeSave { get; private set; }
+        public Func<bool>? IsPaymentSaved { get; set; }
         public Task<Loan?> GetWithInstallmentsAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(Loan);
         public Task<LoanPayment?> GetPaymentByOperationIdAsync(Guid operationId, CancellationToken cancellationToken = default) => Task.FromResult(PreviousPayment);
         public Task AddPaymentAsync(LoanPayment payment, CancellationToken cancellationToken = default)
@@ -340,9 +465,19 @@ public sealed class LoanPaymentServiceTests
             AddedPayment = payment;
             return Task.CompletedTask;
         }
-        public Task<Loan?> GetByLoanNumberAsync(string loanNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Loan?> GetByLoanNumberAsync(string loanNumber, CancellationToken cancellationToken = default)
+        {
+            ReceivedLoanNumber = loanNumber;
+            return Task.FromResult(Loan);
+        }
         public Task<Loan?> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Loan?> GetDetailsForClientAsync(Guid id, string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Loan?> GetActiveByClientIdAsync(string clientId, CancellationToken cancellationToken = default)
+        {
+            ReceivedClientId = clientId;
+            return Task.FromResult(Loan);
+        }
+        public Task<ClientLoanPortfolioReadModel?> GetActivePortfolioForClientAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> HasActiveLoanAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<decimal> GetActiveDebtByClientIdAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyDictionary<string, decimal>> GetActiveDebtByClientIdsAsync(IReadOnlyCollection<string> clientIds, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -352,7 +487,16 @@ public sealed class LoanPaymentServiceTests
         public Task<int> CountActiveLoansAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> LoanNumberExistsAsync(string loanNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<LoanSummaryReadModel>> GetPagedAsync(PagedRequest request, string? clientIdentification = null, LoanStatusFilter? status = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<IReadOnlyCollection<LoanInstallment>> GetInstallmentsForDelinquencyUpdateAsync(DateOnly bankingDate, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> MarkOverdueInstallmentsAsync(DateOnly bankingDate, DateTimeOffset modifiedAtUtc, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> ClearLateFlagFromPaidInstallmentsAsync(Guid? loanId, DateTimeOffset modifiedAtUtc, string? modifiedByUserId, CancellationToken cancellationToken = default)
+        {
+            ClearPaidLateCalls++;
+            ReceivedClearLoanId = loanId;
+            ReceivedClearModifiedAtUtc = modifiedAtUtc;
+            ReceivedClearModifiedByUserId = modifiedByUserId;
+            WasClearCalledBeforeSave = IsPaymentSaved is not null && !IsPaymentSaved();
+            return Task.FromResult(1);
+        }
         public Task AddInstallmentsAsync(IReadOnlyCollection<LoanInstallment> installments, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public IQueryable<Loan> GetAllQueryable(bool trackChanges = false) => throw new NotImplementedException();
         public Task<IReadOnlyList<Loan>> GetAllAsync(bool trackChanges = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -365,9 +509,20 @@ public sealed class LoanPaymentServiceTests
     private sealed class StubSavingsAccountRepository : ISavingsAccountRepository
     {
         public SavingsAccount? Account { get; init; }
+        public string? ReceivedOwnerId { get; private set; }
+        public string? ReceivedAccountNumber { get; private set; }
         public Task<SavingsAccount?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(Account);
-        public Task<IReadOnlyCollection<SavingsAccount>> GetActiveByOwnerIdAsync(string ownerUserId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<SavingsAccount?> GetByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyCollection<SavingsAccount>> GetActiveByOwnerIdAsync(string ownerUserId, CancellationToken cancellationToken = default)
+        {
+            ReceivedOwnerId = ownerUserId;
+            IReadOnlyCollection<SavingsAccount> accounts = Account is null ? [] : [Account];
+            return Task.FromResult(accounts);
+        }
+        public Task<SavingsAccount?> GetByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken = default)
+        {
+            ReceivedAccountNumber = accountNumber;
+            return Task.FromResult(Account);
+        }
         public Task<SavingsAccount?> GetPrincipalAccountAsync(string ownerUserId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<PagedResult<SavingsAccount>> GetPagedAsync(PagedRequest request, string? ownerIdentification = null, SavingsAccountStatus? status = null, SavingsAccountType? type = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -376,5 +531,34 @@ public sealed class LoanPaymentServiceTests
         public IQueryable<SavingsAccount> GetAllQueryable(bool trackChanges = false) => throw new NotImplementedException();
         public Task<SavingsAccount?> UpdateAsync(Guid id, SavingsAccount value, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<SavingsAccount?> DeleteAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+    }
+
+    private sealed class StubUserRepository : IUserRepository
+    {
+        public Task<User?> GetByIdAsync(
+            string id,
+            CancellationToken cancellationToken = default)
+        {
+            var user = new User(id)
+            {
+                Name = id == "account-client" ? "Cuenta" : "Préstamo",
+                LastName = "Titular",
+                Email = $"{id}@example.com"
+            };
+            return Task.FromResult<User?>(user);
+        }
+
+        public Task<User?> FindByIdentificationAsync(string identification) => throw new NotImplementedException();
+        public Task<PagedResult<User>> GetPagedAsync(PagedRequest request, bool commerceOnly = false, Roles? role = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<PagedResult<User>> GetActiveClientsPagedAsync(PagedRequest request, string? identification = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<User?> GetActiveClientByIdAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> CountActiveClientsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<int> CountInactiveClientsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<bool> ExistsByCommerceIdAsync(Guid commerceId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<User>> GetAllAsync(bool trackChanges = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public IQueryable<User> GetAllQueryable(bool trackChanges = false) => throw new NotImplementedException();
+        public Task<User> AddAsync(User entity, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<User?> UpdateAsync(string id, User value, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<User?> DeleteAsync(string id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

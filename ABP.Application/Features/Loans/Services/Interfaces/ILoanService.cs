@@ -7,4 +7,6 @@ public interface ILoanService
 {
     Task<PagedResult<LoanSummaryDto>> ListAsync(LoanListRequest request, CancellationToken cancellationToken = default);
     Task<LoanDetailDto?> GetDetailAsync(Guid loanId, CancellationToken cancellationToken = default);
+    Task<LoanDetailDto?> GetClientDetailAsync(Guid loanId, CancellationToken cancellationToken = default);
+    Task<ClientLoanPortfolioItemDto?> GetClientActiveLoanAsync(CancellationToken cancellationToken = default);
 }

@@ -1,3 +1,4 @@
+using ABP.Application.Common.DTOs;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services;
 using ABP.Application.Features.CreditCards.DTOs;
@@ -57,6 +58,49 @@ public sealed class CardFinancialOperationsTests
         Assert.Equal(0m, card.Debt);
         Assert.Single(environment.Context.CardPayments);
         Assert.Single(environment.Context.AccountTransactions);
+        var email = Assert.Single(environment.Emails.SentEmails);
+        Assert.Equal(1, environment.Emails.SendAttempts);
+        Assert.Contains(card.CardNumber[^4..], email.Body);
+        Assert.Contains(account.AccountNumber[^4..], email.Body);
+        Assert.Contains("500.00", email.Body);
+        Assert.Contains("11/08/2026", email.Body);
+        Assert.Contains("12:00:00", email.Body);
+        Assert.DoesNotContain(card.CardNumber, email.Subject + email.Body);
+        Assert.DoesNotContain(card.CvcHash, email.Subject + email.Body);
+    }
+
+    [Fact]
+    public async Task Client_payment_email_failure_keeps_confirmed_payment_and_returns_warning()
+    {
+        await using var environment = CreateEnvironment(
+            "client-1",
+            Roles.Client,
+            failEmails: true);
+        var products = await environment.SeedProductsAsync(
+            "client-1",
+            "client-1",
+            accountBalance: 1_000m,
+            cardDebt: 500m,
+            cardLimit: 2_000m);
+
+        var result = await environment.CreatePaymentService().ProcessPaymentAsync(
+            new CreditCardPaymentRequest(
+                products.CardId,
+                products.AccountId,
+                100m,
+                Guid.NewGuid()));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.HasNotificationWarning);
+        Assert.Equal(1, environment.Emails.SendAttempts);
+        Assert.Equal(
+            900m,
+            (await environment.Context.SavingsAccounts.AsNoTracking()
+                .SingleAsync(account => account.Id == products.AccountId)).Balance);
+        Assert.Equal(
+            400m,
+            (await environment.Context.CreditCards.AsNoTracking()
+                .SingleAsync(card => card.Id == products.CardId)).Debt);
     }
 
     [Fact]
@@ -220,6 +264,38 @@ public sealed class CardFinancialOperationsTests
             .SingleAsync(item => item.Id == products.CardId);
         Assert.Equal(900m, account.Balance);
         Assert.Equal(200m, card.Debt);
+        Assert.Equal(2, environment.Emails.SentEmails.Count);
+        Assert.Contains(
+            environment.Emails.SentEmails,
+            email => email.ToEmail == "client-1@example.com");
+        Assert.Contains(
+            environment.Emails.SentEmails,
+            email => email.ToEmail == "client-2@example.com");
+    }
+
+    [Fact]
+    public async Task Cashier_payment_with_same_owner_sends_only_one_notification()
+    {
+        await using var environment = CreateEnvironment("cashier-1", Roles.Cashier);
+        var products = await environment.SeedProductsAsync(
+            cardOwnerId: "client-1",
+            accountOwnerId: "client-1",
+            accountBalance: 1_000m,
+            cardDebt: 300m,
+            cardLimit: 2_000m);
+        await environment.AddUserAsync("cashier-1", Roles.Cashier);
+
+        var result = await environment.CreatePaymentService().ProcessPaymentAsync(
+            new CreditCardPaymentRequest(
+                products.CardId,
+                products.AccountId,
+                100m,
+                Guid.NewGuid()));
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.HasNotificationWarning);
+        Assert.Single(environment.Emails.SentEmails);
+        Assert.Equal("client-1@example.com", environment.Emails.SentEmails[0].ToEmail);
     }
 
     [Fact]
@@ -269,6 +345,52 @@ public sealed class CardFinancialOperationsTests
         Assert.Equal(products.AccountId, consumption.TargetAccountId);
         Assert.Equal("AVANCE", consumption.CommerceName);
         Assert.Equal(ConsumptionStatus.Approved, consumption.Status);
+        var email = Assert.Single(environment.Emails.SentEmails);
+        Assert.Equal(1, environment.Emails.SendAttempts);
+        Assert.Contains("6.25%", email.Body);
+        Assert.Contains("106.25", email.Body);
+        Assert.Contains(card.CardNumber[^4..], email.Body);
+        Assert.Contains(account.AccountNumber[^4..], email.Body);
+        Assert.Contains("100.00", email.Body);
+        Assert.Contains("11/08/2026", email.Body);
+        Assert.Contains("12:00:00", email.Body);
+        Assert.DoesNotContain(card.CardNumber, email.Subject + email.Body);
+        Assert.DoesNotContain(card.CvcHash, email.Subject + email.Body);
+    }
+
+    [Fact]
+    public async Task Cash_advance_email_failure_keeps_confirmed_balances_and_returns_warning()
+    {
+        await using var environment = CreateEnvironment(
+            "client-1",
+            Roles.Client,
+            failEmails: true);
+        var products = await environment.SeedProductsAsync(
+            "client-1",
+            "client-1",
+            accountBalance: 50m,
+            cardDebt: 100m,
+            cardLimit: 1_000m);
+
+        var result = await environment.CreateCashAdvanceService()
+            .ProcessCashAdvanceAsync(
+                new CashAdvanceRequest(
+                    products.CardId,
+                    products.AccountId,
+                    100m,
+                    Guid.NewGuid()));
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.HasNotificationWarning);
+        Assert.Equal(1, environment.Emails.SendAttempts);
+        Assert.Equal(
+            150m,
+            (await environment.Context.SavingsAccounts.AsNoTracking()
+                .SingleAsync(account => account.Id == products.AccountId)).Balance);
+        Assert.Equal(
+            206.25m,
+            (await environment.Context.CreditCards.AsNoTracking()
+                .SingleAsync(card => card.Id == products.CardId)).Debt);
     }
 
     [Fact]
@@ -309,8 +431,9 @@ public sealed class CardFinancialOperationsTests
 
     private static TestEnvironment CreateEnvironment(
         string userId,
-        Roles role) =>
-        new(userId, role);
+        Roles role,
+        bool failEmails = false) =>
+        new(userId, role, failEmails);
 
     private sealed class TestEnvironment : IAsyncDisposable
     {
@@ -325,7 +448,7 @@ public sealed class CardFinancialOperationsTests
         private readonly AccountLedger ledger;
         private readonly EfFinancialTransaction financialTransaction;
 
-        public TestEnvironment(string userId, Roles role)
+        public TestEnvironment(string userId, Roles role, bool failEmails)
         {
             var options = new DbContextOptionsBuilder<AppDbContext>()
                 .UseInMemoryDatabase($"CardOperations_{Guid.NewGuid():N}")
@@ -346,9 +469,12 @@ public sealed class CardFinancialOperationsTests
                 unitOfWork,
                 NullLogger<AccountLedger>.Instance);
             financialTransaction = new EfFinancialTransaction(Context);
+            Emails = new RecordingEmailService(failEmails);
         }
 
         public AppDbContext Context { get; }
+
+        public RecordingEmailService Emails { get; }
 
         public CardPaymentService CreatePaymentService() =>
             new(
@@ -361,7 +487,9 @@ public sealed class CardFinancialOperationsTests
                 financialTransaction,
                 currentUser,
                 clock,
-                new CreditCardPaymentRequestValidator());
+                new CreditCardPaymentRequestValidator(),
+                Emails,
+                NullLogger<CardPaymentService>.Instance);
 
         public CashAdvanceService CreateCashAdvanceService() =>
             new(
@@ -373,7 +501,10 @@ public sealed class CardFinancialOperationsTests
                 financialTransaction,
                 currentUser,
                 clock,
-                new CashAdvanceRequestValidator());
+                new CashAdvanceRequestValidator(),
+                users,
+                Emails,
+                NullLogger<CashAdvanceService>.Instance);
 
         public async Task<(Guid CardId, Guid AccountId)> SeedProductsAsync(
             string cardOwnerId,
@@ -460,5 +591,24 @@ public sealed class CardFinancialOperationsTests
             new(2026, 8, 11, 12, 0, 0, TimeSpan.Zero);
         public DateTimeOffset Now => UtcNow;
         public DateOnly Today => new(2026, 8, 11);
+    }
+
+    private sealed class RecordingEmailService(bool throwOnSend) : IEmailService
+    {
+        public List<EmailRequestDto> SentEmails { get; } = [];
+
+        public int SendAttempts { get; private set; }
+
+        public Task SendAsync(EmailRequestDto emailRequestDto)
+        {
+            SendAttempts++;
+            if (throwOnSend)
+            {
+                throw new InvalidOperationException("Fallo SMTP simulado.");
+            }
+
+            SentEmails.Add(emailRequestDto);
+            return Task.CompletedTask;
+        }
     }
 }

@@ -14,7 +14,7 @@ public sealed class GlobalExceptionHandlerSecurityTests
         var logger = new CapturingLogger<GlobalExceptionHandler>();
         var handler = new GlobalExceptionHandler(logger);
         var context = new DefaultHttpContext();
-        context.Request.Path = "/api/credit-card";
+        context.Request.Path = "/api/v1/CreditCards";
         context.Response.Body = new MemoryStream();
 
         await handler.TryHandleAsync(
@@ -25,6 +25,7 @@ public sealed class GlobalExceptionHandlerSecurityTests
         context.Response.Body.Position = 0;
         var response = await new StreamReader(context.Response.Body).ReadToEndAsync();
 
+        Assert.Equal("application/problem+json", context.Response.ContentType);
         Assert.DoesNotContain(fullPan, response);
         Assert.DoesNotContain(fullPan, string.Join(' ', logger.Messages));
         Assert.All(logger.Exceptions, Assert.Null);

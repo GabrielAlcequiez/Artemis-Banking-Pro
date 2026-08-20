@@ -2,6 +2,8 @@ namespace ABP.WebApp.Areas.Admin.ViewModels.CreditCards;
 
 public sealed class CreateCreditCardViewModel
 {
+    public Guid OperationId { get; set; }
+
     public string ClientId { get; set; } = string.Empty;
 
     public string ClientFullName { get; set; } = string.Empty;

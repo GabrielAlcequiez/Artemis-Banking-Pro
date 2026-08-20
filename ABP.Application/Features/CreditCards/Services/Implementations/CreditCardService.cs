@@ -4,6 +4,8 @@ using System.Data;
 using ABP.Application.Common.Interfaces.Persistence;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.CreditCards.DTOs;
+using ABP.Application.Features.CreditCards.Notifications;
+using ABP.Application.Exceptions;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Domain.Common;
 using ABP.Domain.Entities.CreditCards;
@@ -13,6 +15,7 @@ using ABP.Domain.ReadModels.CreditCards;
 using ABP.Domain.Rules.Cards;
 using AutoMapper;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.CreditCards.Services.Implementations;
 
@@ -28,7 +31,10 @@ public sealed class CreditCardService(
     IValidator<CreditCardListRequest> listValidator,
     IValidator<CreateCreditCardRequest> createValidator,
     IValidator<UpdateCreditLimitRequest> updateLimitValidator,
-    IValidator<CancelCreditCardRequest> cancelValidator) : ICreditCardService
+    IValidator<CancelCreditCardRequest> cancelValidator,
+    IUserRepository users,
+    IEmailService emailService,
+    ILogger<CreditCardService> logger) : ICreditCardService
 {
     public async Task<CreditCardListResult> ListAsync(
         CreditCardListRequest request,
@@ -158,7 +164,7 @@ public sealed class CreditCardService(
             ? null
             : identification.Trim();
 
-    public async Task<OperationResult<Guid>> CreateAsync(
+    public async Task<CardOperationResult<Guid>> CreateAsync(
         CreateCreditCardRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -176,14 +182,41 @@ public sealed class CreditCardService(
 
         if (string.IsNullOrWhiteSpace(assignedByUserId))
         {
-            return OperationResult<Guid>.Failure(
-                CreditCardErrors.AdministratorRequired);
+            return new CardOperationResult<Guid>(
+                OperationResult<Guid>.Failure(
+                    CreditCardErrors.AdministratorRequired),
+                false);
         }
 
-        return await financialTransaction.ExecuteAsync(
-            IsolationLevel.Serializable,
-            async transactionCancellationToken =>
-            {
+        var existingCard = await repository.GetByCreationOperationIdAsync(
+            request.OperationId,
+            cancellationToken);
+        if (existingCard is not null)
+        {
+            return WithoutNotification(
+                ResolveCreationReplay(existingCard, request, assignedByUserId));
+        }
+
+        AssignmentNotification? notification = null;
+        OperationResult<Guid> result;
+
+        try
+        {
+            result = await financialTransaction.ExecuteAsync(
+                IsolationLevel.Serializable,
+                async transactionCancellationToken =>
+                {
+                    existingCard = await repository.GetByCreationOperationIdAsync(
+                        request.OperationId,
+                        transactionCancellationToken);
+                    if (existingCard is not null)
+                    {
+                        return ResolveCreationReplay(
+                            existingCard,
+                            request,
+                            assignedByUserId);
+                    }
+
                 var clientExists = await repository.ClientExistsAsync(
                     request.ClientId,
                     transactionCancellationToken);
@@ -226,23 +259,85 @@ public sealed class CreditCardService(
                     Debt = 0m,
                     ExpirationDate = expirationDate,
                     Status = CreditCardStatus.Active,
-                    AssignedByUserId = assignedByUserId
+                    AssignedByUserId = assignedByUserId,
+                    CreationOperationId = request.OperationId
                 };
 
                 var createdCard = await repository.AddAsync(
                     card,
                     transactionCancellationToken);
 
-                // TODO(P1 Outbox): enqueue the assignment email in this transaction so it is
-                // dispatched only after commit. Never include the full PAN, CVC, or CVC hash.
+                var client = await users.GetByIdAsync(
+                    request.ClientId,
+                    transactionCancellationToken);
+                notification = new AssignmentNotification(
+                    createdCard.Id,
+                    ToRecipient(client, request.ClientId),
+                    LastFour(cardNumber),
+                    request.CreditLimit,
+                    expirationDate,
+                    clock.Now);
+
+
                 await unitOfWork.SaveChangesAsync(transactionCancellationToken);
 
                 return OperationResult<Guid>.Success(createdCard.Id);
-            },
-            cancellationToken);
+                },
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is PersistenceConflictException or
+                  FinancialConcurrencyException)
+        {
+            existingCard = await repository.GetByCreationOperationIdAsync(
+                request.OperationId,
+                cancellationToken);
+            if (existingCard is null)
+            {
+                throw;
+            }
+
+            result = ResolveCreationReplay(existingCard, request, assignedByUserId);
+            notification = null;
+        }
+
+        if (result.IsFailure)
+        {
+            return new CardOperationResult<Guid>(result, false);
+        }
+
+        var notificationSent = notification is not null &&
+            await CardNotificationEmails.SendBestEffortAsync(
+                emailService,
+                logger,
+                CardNotificationEmails.Assignment(
+                    notification.Recipient,
+                    notification.CardLastFourDigits,
+                    notification.CreditLimit,
+                    notification.ExpirationDate,
+                    notification.AssignedAtBankingTime),
+                "asignación de tarjeta",
+                notification.CreditCardId.ToString("N"));
+
+        return new CardOperationResult<Guid>(result, !notificationSent);
     }
 
-    public async Task<OperationResult> UpdateLimitAsync(
+    private static CardOperationResult<Guid> WithoutNotification(
+        OperationResult<Guid> result) =>
+        new(result, false);
+
+    private static OperationResult<Guid> ResolveCreationReplay(
+        CreditCard card,
+        CreateCreditCardRequest request,
+        string assignedByUserId) =>
+        card.AssignedByUserId == assignedByUserId &&
+        card.ClientId == request.ClientId &&
+        card.Limit == request.CreditLimit
+            ? OperationResult<Guid>.Success(card.Id)
+            : OperationResult<Guid>.Failure(
+                CreditCardErrors.CreationOperationConflict);
+
+    public async Task<CardOperationResult> UpdateLimitAsync(
         UpdateCreditLimitRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -256,26 +351,50 @@ public sealed class CreditCardService(
 
         if (card is null)
         {
-            return OperationResult.Failure(CreditCardErrors.NotFound);
+            return new CardOperationResult(
+                OperationResult.Failure(CreditCardErrors.NotFound),
+                false);
         }
 
         if (card.Status == CreditCardStatus.Cancelled)
         {
-            return OperationResult.Failure(CreditCardErrors.Cancelled);
+            return new CardOperationResult(
+                OperationResult.Failure(CreditCardErrors.Cancelled),
+                false);
         }
 
         if (!CreditCardRules.CanChangeLimit(card.Status, card.Debt, request.CreditLimit))
         {
-            return OperationResult.Failure(CreditCardErrors.LimitBelowDebt);
+            return new CardOperationResult(
+                OperationResult.Failure(CreditCardErrors.LimitBelowDebt),
+                false);
         }
 
         card.Limit = request.CreditLimit;
 
-        // TODO(P1 Outbox): enqueue the limit-change email in this transaction so it is
-        // dispatched only after commit. Include only the last four digits, never the PAN.
+        var client = await users.GetByIdAsync(
+            card.ClientId,
+            cancellationToken);
+        var recipient = ToRecipient(client, card.ClientId);
+        var cardLastFourDigits = LastFour(card.CardNumber);
+        var changedAtBankingTime = clock.Now;
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return OperationResult.Success();
+        var notificationSent = await CardNotificationEmails.SendBestEffortAsync(
+            emailService,
+            logger,
+            CardNotificationEmails.LimitChanged(
+                recipient,
+                cardLastFourDigits,
+                request.CreditLimit,
+                changedAtBankingTime),
+            "modificación de límite",
+            card.Id.ToString("N"));
+
+        return new CardOperationResult(
+            OperationResult.Success(),
+            !notificationSent);
     }
 
     public async Task<OperationResult> CancelAsync(
@@ -349,5 +468,25 @@ public sealed class CreditCardService(
             expirationMonth.Month,
             lastDayOfMonth);
     }
+
+    private static CardNotificationRecipient ToRecipient(
+        Domain.Entities.User? user,
+        string userId) =>
+        new(
+            userId,
+            user?.Email ?? string.Empty,
+            user is null
+                ? string.Empty
+                : $"{user.Name} {user.LastName}".Trim());
+
+    private static string LastFour(string value) => value[^4..];
+
+    private sealed record AssignmentNotification(
+        Guid CreditCardId,
+        CardNotificationRecipient Recipient,
+        string CardLastFourDigits,
+        decimal CreditLimit,
+        DateOnly ExpirationDate,
+        DateTimeOffset AssignedAtBankingTime);
     #endregion
 }

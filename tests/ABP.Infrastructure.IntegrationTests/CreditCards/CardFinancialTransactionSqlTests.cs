@@ -1,3 +1,4 @@
+using ABP.Application.Common.DTOs;
 using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Accounts.Services;
 using ABP.Application.Features.Accounts.Services.Interfaces;
@@ -11,7 +12,6 @@ using ABP.Domain.Enums;
 using ABP.Infrastructure.Persistence.Context;
 using ABP.Infrastructure.Persistence.Repositories;
 using ABP.Infrastructure.Persistence.Transactions;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -25,21 +25,8 @@ public sealed class CardFinancialTransactionSqlTests : IAsyncLifetime
 
     public CardFinancialTransactionSqlTests()
     {
-        var configuredConnection = Environment.GetEnvironmentVariable(
-            "ABP_TEST_SQL_CONNECTION");
-        var builder = string.IsNullOrWhiteSpace(configuredConnection)
-            ? new SqlConnectionStringBuilder
-            {
-                DataSource = "localhost",
-                IntegratedSecurity = true,
-                TrustServerCertificate = true,
-                MultipleActiveResultSets = true
-            }
-            : new SqlConnectionStringBuilder(configuredConnection);
-
-        builder.InitialCatalog =
-            $"ABP_CardFinanceTests_{Guid.NewGuid():N}";
-        connectionString = builder.ConnectionString;
+        connectionString = TestDatabase.CreateConnectionString(
+            $"ABP_CardFinanceTests_{Guid.NewGuid():N}");
     }
 
     public async Task InitializeAsync()
@@ -102,7 +89,9 @@ public sealed class CardFinancialTransactionSqlTests : IAsyncLifetime
                 new EfFinancialTransaction(operationContext),
                 new TestCurrentUser(),
                 new TestClock(),
-                new CreditCardPaymentRequestValidator());
+                new CreditCardPaymentRequestValidator(),
+                new NoOpEmailService(),
+                NullLogger<CardPaymentService>.Instance);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.ProcessPaymentAsync(
@@ -192,6 +181,12 @@ public sealed class CardFinancialTransactionSqlTests : IAsyncLifetime
             string? actorUserId,
             string? actorRole,
             CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class NoOpEmailService : IEmailService
+    {
+        public Task SendAsync(EmailRequestDto emailRequestDto) =>
             Task.CompletedTask;
     }
 }

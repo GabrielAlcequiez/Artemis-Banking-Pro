@@ -109,7 +109,8 @@ public sealed class UsersController(
         var user = await accountService.GetUserByIdAsync(id);
         if (user is null)
         {
-            return NotFound();
+            TempData[ErrorMessageKey] = "El usuario seleccionado no existe.";
+            return RedirectToAction(nameof(Index));
         }
 
         return View(new EditUserViewModel
@@ -131,7 +132,8 @@ public sealed class UsersController(
         var persisted = await accountService.GetUserByIdAsync(model.Id);
         if (persisted is null)
         {
-            return NotFound();
+            TempData[ErrorMessageKey] = "El usuario seleccionado no existe.";
+            return RedirectToAction(nameof(Index));
         }
 
         if (string.Equals(model.Id, currentUser.UserId, StringComparison.Ordinal))
@@ -192,7 +194,8 @@ public sealed class UsersController(
         var user = await accountService.GetUserByIdAsync(id);
         if (user is null)
         {
-            return NotFound();
+            TempData[ErrorMessageKey] = "El usuario seleccionado no existe.";
+            return RedirectToAction(nameof(Index));
         }
 
         return View(ToChangeStatusViewModel(user, !user.IsActive));
@@ -205,7 +208,8 @@ public sealed class UsersController(
         var user = await accountService.GetUserByIdAsync(model.Id);
         if (user is null)
         {
-            return NotFound();
+            TempData[ErrorMessageKey] = "El usuario seleccionado no existe.";
+            return RedirectToAction(nameof(Index));
         }
 
         CopyUserPresentation(user, model);

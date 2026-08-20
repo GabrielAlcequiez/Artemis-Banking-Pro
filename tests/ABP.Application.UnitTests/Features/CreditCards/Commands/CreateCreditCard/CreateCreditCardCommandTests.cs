@@ -6,11 +6,14 @@ using ABP.Application.Features.CreditCards.Commands.CreateCreditCard;
 using ABP.Application.Features.CreditCards.DTOs;
 using ABP.Application.Features.CreditCards.Services.Interfaces;
 using ABP.Application.Features.CreditCards.Validation;
+using ABP.Application.Exceptions;
 using ABP.Domain.Common;
+using ABP.Domain.Entities;
 using ABP.Domain.Entities.CreditCards;
 using ABP.Domain.Enums;
 using ABP.Domain.Interfaces;
 using ABP.Domain.ReadModels.CreditCards;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ABP.Application.UnitTests.Features.CreditCards.Commands.CreateCreditCard;
 
@@ -22,7 +25,7 @@ public sealed class CreateCreditCardCommandTests
         var validator = new CreateCreditCardCommandValidator(
             new CreateCreditCardRequestValidator());
         var command = new CreateCreditCardCommand(
-            new CreateCreditCardRequest(string.Empty, 0m));
+            new CreateCreditCardRequest(string.Empty, 0m, Guid.Empty));
 
         var result = await validator.ValidateAsync(command);
 
@@ -33,6 +36,9 @@ public sealed class CreateCreditCardCommandTests
         Assert.Contains(
             result.Errors,
             error => error.PropertyName == "Request.CreditLimit");
+        Assert.Contains(
+            result.Errors,
+            error => error.PropertyName == "Request.OperationId");
     }
 
     [Fact]
@@ -46,6 +52,10 @@ public sealed class CreateCreditCardCommandTests
         var unitOfWork = new StubUnitOfWork();
         var cvcService = new StubCvcService("007", "hashed-007");
         var transaction = new StubFinancialTransaction();
+        var emails = new RecordingCardEmailService
+        {
+            IsOperationCommitted = () => transaction.IsCommitted
+        };
         var handler = CreateHandler(
             repository,
             unitOfWork,
@@ -53,11 +63,13 @@ public sealed class CreateCreditCardCommandTests
             numberGenerator: new StubCardNumberGenerator("0000000000001234"),
             clock: new StubClock(new DateOnly(2026, 8, 8)),
             currentUser: StubCurrentUser.Administrator("admin-1"),
-            transaction: transaction);
+            transaction: transaction,
+            emails: emails);
 
+        var operationId = Guid.NewGuid();
         var result = await handler.Handle(
             new CreateCreditCardCommand(
-                new CreateCreditCardRequest("client-1", 5_000m)),
+                new CreateCreditCardRequest("client-1", 5_000m, operationId)),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -73,9 +85,132 @@ public sealed class CreateCreditCardCommandTests
         Assert.Equal(new DateOnly(2029, 8, 31), card.ExpirationDate);
         Assert.Equal(CreditCardStatus.Active, card.Status);
         Assert.Equal("admin-1", card.AssignedByUserId);
+        Assert.Equal(operationId, card.CreationOperationId);
         Assert.Equal(1, repository.AddCalls);
+        Assert.Equal(2, repository.CreationLookupCalls);
         Assert.Equal(1, unitOfWork.SaveCalls);
         Assert.Equal(IsolationLevel.Serializable, transaction.IsolationLevel);
+        var email = Assert.Single(emails.SentEmails);
+        Assert.False(emails.WasCalledBeforeCommit);
+        Assert.Equal("client@example.com", email.ToEmail);
+        Assert.Contains("1234", email.Body);
+        Assert.Contains("5,000.00", email.Body);
+        Assert.Contains("08/29", email.Body);
+        Assert.Contains("08/08/2026", email.Body);
+        Assert.DoesNotContain("0000000000001234", email.Subject + email.Body);
+        Assert.DoesNotContain("007", email.Subject + email.Body);
+        Assert.DoesNotContain("hashed-007", email.Subject + email.Body);
+    }
+
+    [Fact]
+    public async Task Handler_exact_replay_returns_existing_id_without_side_effects()
+    {
+        var operationId = Guid.NewGuid();
+        var existingCard = new CreditCard
+        {
+            ClientId = "client-1",
+            AssignedByUserId = "admin-1",
+            Limit = 5_000m,
+            CreationOperationId = operationId
+        };
+        var repository = new StubCreditCardRepository { ExistingCard = existingCard };
+        var unitOfWork = new StubUnitOfWork();
+        var numberGenerator = new StubCardNumberGenerator();
+        var emails = new RecordingCardEmailService();
+        var handler = CreateHandler(
+            repository,
+            unitOfWork,
+            numberGenerator: numberGenerator,
+            emails: emails);
+
+        var result = await handler.Handle(
+            new CreateCreditCardCommand(
+                new CreateCreditCardRequest("client-1", 5_000m, operationId)),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(existingCard.Id, result.Value);
+        Assert.Equal(0, numberGenerator.GenerateCalls);
+        Assert.Equal(0, repository.AddCalls);
+        Assert.Equal(0, unitOfWork.SaveCalls);
+        Assert.Empty(emails.SentEmails);
+    }
+
+    [Fact]
+    public async Task Handler_reused_operation_with_different_creation_data_returns_conflict()
+    {
+        var operationId = Guid.NewGuid();
+        var repository = new StubCreditCardRepository
+        {
+            ExistingCard = new CreditCard
+            {
+                ClientId = "client-1",
+                AssignedByUserId = "admin-1",
+                Limit = 4_000m,
+                CreationOperationId = operationId
+            }
+        };
+
+        var result = await CreateHandler(repository).Handle(
+            new CreateCreditCardCommand(
+                new CreateCreditCardRequest("client-1", 5_000m, operationId)),
+            CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(CreditCardErrors.CreationOperationConflict, result.Error);
+        Assert.Equal(0, repository.AddCalls);
+    }
+
+    [Fact]
+    public async Task Handler_persistence_race_requeries_and_resolves_exact_replay()
+    {
+        var operationId = Guid.NewGuid();
+        var existingCard = new CreditCard
+        {
+            ClientId = "client-1",
+            AssignedByUserId = "admin-1",
+            Limit = 5_000m,
+            CreationOperationId = operationId
+        };
+        var repository = new StubCreditCardRepository();
+        repository.CreationLookupResults.Enqueue(null);
+        repository.CreationLookupResults.Enqueue(existingCard);
+        var transaction = new StubFinancialTransaction
+        {
+            ExceptionToThrow = new PersistenceConflictException()
+        };
+
+        var result = await CreateHandler(repository, transaction: transaction).Handle(
+            new CreateCreditCardCommand(
+                new CreateCreditCardRequest("client-1", 5_000m, operationId)),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(existingCard.Id, result.Value);
+        Assert.Equal(2, repository.CreationLookupCalls);
+    }
+
+    [Fact]
+    public async Task Handler_email_failure_does_not_reverse_confirmed_card()
+    {
+        var repository = new StubCreditCardRepository
+        {
+            IsActiveClient = true,
+            CardNumberExists = false
+        };
+        var unitOfWork = new StubUnitOfWork();
+        var emails = new RecordingCardEmailService { ThrowOnSend = true };
+        var handler = CreateHandler(
+            repository,
+            unitOfWork,
+            emails: emails);
+
+        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(repository.AddedCard);
+        Assert.Equal(1, unitOfWork.SaveCalls);
+        Assert.Equal(1, emails.SendAttempts);
     }
 
     [Fact]
@@ -181,35 +316,78 @@ public sealed class CreateCreditCardCommandTests
         ICardNumberGeneratorService? numberGenerator = null,
         IClock? clock = null,
         ICurrentUserService? currentUser = null,
-        StubFinancialTransaction? transaction = null) =>
-        new(
+        StubFinancialTransaction? transaction = null,
+        StubCardUserRepository? users = null,
+        RecordingCardEmailService? emails = null)
+    {
+        var userRepository = users ?? CreateUsers();
+
+        return new(
             cvcService ?? new StubCvcService(),
             numberGenerator ?? new StubCardNumberGenerator(),
             repository,
             unitOfWork ?? new StubUnitOfWork(),
             transaction ?? new StubFinancialTransaction(),
             clock ?? new StubClock(new DateOnly(2026, 8, 8)),
-            currentUser ?? StubCurrentUser.Administrator("admin-1"));
+            currentUser ?? StubCurrentUser.Administrator("admin-1"),
+            userRepository,
+            emails ?? new RecordingCardEmailService(),
+            NullLogger<CreateCreditCardCommandHandler>.Instance);
+    }
+
+    private static StubCardUserRepository CreateUsers()
+    {
+        var repository = new StubCardUserRepository();
+        repository.Users["client-1"] = new User("client-1")
+        {
+            Name = "Ana",
+            LastName = "Pérez",
+            Email = "client@example.com",
+            Role = Roles.Client,
+            IsActive = true
+        };
+        return repository;
+    }
 
     private static CreateCreditCardCommand ValidCommand() =>
-        new(new CreateCreditCardRequest("client-1", 5_000m));
+        new(new CreateCreditCardRequest("client-1", 5_000m, Guid.NewGuid()));
 
     private sealed class StubFinancialTransaction : IFinancialTransaction
     {
+        public Exception? ExceptionToThrow { get; init; }
+
         public IsolationLevel? IsolationLevel { get; private set; }
 
-        public Task<TResult> ExecuteAsync<TResult>(
-            Func<CancellationToken, Task<TResult>> operation,
-            CancellationToken cancellationToken = default) =>
-            operation(cancellationToken);
+        public bool IsCommitted { get; private set; }
 
-        public Task<TResult> ExecuteAsync<TResult>(
+        public async Task<TResult> ExecuteAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            if (ExceptionToThrow is not null)
+            {
+                throw ExceptionToThrow;
+            }
+
+            var result = await operation(cancellationToken);
+            IsCommitted = true;
+            return result;
+        }
+
+        public async Task<TResult> ExecuteAsync<TResult>(
             IsolationLevel isolationLevel,
             Func<CancellationToken, Task<TResult>> operation,
             CancellationToken cancellationToken = default)
         {
             IsolationLevel = isolationLevel;
-            return operation(cancellationToken);
+            if (ExceptionToThrow is not null)
+            {
+                throw ExceptionToThrow;
+            }
+
+            var result = await operation(cancellationToken);
+            IsCommitted = true;
+            return result;
         }
     }
 
@@ -314,6 +492,24 @@ public sealed class CreateCreditCardCommandTests
         public int AddCalls { get; private set; }
 
         public CreditCard? AddedCard { get; private set; }
+
+        public CreditCard? ExistingCard { get; init; }
+
+        public Queue<CreditCard?> CreationLookupResults { get; } = new();
+
+        public int CreationLookupCalls { get; private set; }
+
+        public Task<CreditCard?> GetByCreationOperationIdAsync(
+            Guid operationId,
+            CancellationToken cancellationToken = default)
+        {
+            CreationLookupCalls++;
+            var card = CreationLookupResults.Count > 0
+                ? CreationLookupResults.Dequeue()
+                : ExistingCard;
+            return Task.FromResult(
+                card?.CreationOperationId == operationId ? card : null);
+        }
 
         public Task<bool> ClientExistsAsync(
             string clientId,

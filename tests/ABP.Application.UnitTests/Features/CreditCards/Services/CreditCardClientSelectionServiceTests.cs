@@ -159,6 +159,10 @@ public sealed class CreditCardClientSelectionServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(Page.TotalRecords);
 
+        public Task<int> CountInactiveClientsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
         public Task<bool> ExistsByCommerceIdAsync(
             Guid commerceId,
             CancellationToken cancellationToken = default) =>

@@ -1,8 +1,65 @@
+@model ABP.WebApp.Areas.Admin.ViewModels.Home.AdminHomeViewModel
 @{
     ViewData["Title"] = "Home";
+    var dashboard = Model.Dashboard;
 }
 
-<div class="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-border p-10 text-center">
-    <h1 class="text-lg font-semibold text-ink">Home del administrador</h1>
-    <p class="mt-2 text-sm text-ink-muted">Los indicadores generales se implementarán próximamente.</p>
+<div class="mx-auto max-w-7xl space-y-6">
+    <header>
+        <h1 class="text-2xl font-semibold text-ink">Home del administrador</h1>
+        <p class="mt-1 text-sm text-ink-muted">Indicadores generales de la plataforma.</p>
+    </header>
+
+    <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Indicadores de transacciones y pagos">
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Total de transacciones históricas</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.TotalTransactions.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Transacciones del día</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.TodayTransactions.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Total de pagos históricos</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.TotalPayments.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Pagos del día</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.TodayPayments.ToString("N0")</p>
+        </article>
+    </section>
+
+    <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Indicadores de clientes y productos">
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Clientes activos</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.ActiveClients.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Clientes inactivos</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.InactiveClients.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Total de productos financieros</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.TotalFinancialProducts.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Préstamos vigentes</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.ActiveLoans.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Tarjetas de crédito activas</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.ActiveCreditCards.ToString("N0")</p>
+        </article>
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Cuentas de ahorro activas</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">@dashboard.ActiveSavingsAccounts.ToString("N0")</p>
+        </article>
+    </section>
+
+    <section aria-label="Deuda promedio">
+        <article class="card p-5">
+            <p class="text-sm text-ink-muted">Monto promedio de deuda por cliente</p>
+            <p class="tnum mt-2 text-2xl font-semibold text-ink">RD$ @dashboard.AverageDebtPerClient.ToString("N2")</p>
+        </article>
+    </section>
 </div>

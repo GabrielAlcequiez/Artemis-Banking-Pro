@@ -20,6 +20,11 @@ namespace ABP.Infrastructure.Persistence.Repositories
             {
                 throw new FinancialConcurrencyException(exception);
             }
+            catch (Exception exception)
+                when (IsSqlServerDeadlock(exception))
+            {
+                throw new FinancialConcurrencyException(exception);
+            }
             catch (DbUpdateException exception)
                 when (IsUniqueConstraintViolation(exception))
             {
@@ -37,5 +42,20 @@ namespace ABP.Infrastructure.Persistence.Repositories
             {
                 Number: 2601 or 2627
             };
+
+        private static bool IsSqlServerDeadlock(Exception exception)
+        {
+            for (Exception? current = exception;
+                 current is not null;
+                 current = current.InnerException)
+            {
+                if (current is SqlException { Number: 1205 })
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

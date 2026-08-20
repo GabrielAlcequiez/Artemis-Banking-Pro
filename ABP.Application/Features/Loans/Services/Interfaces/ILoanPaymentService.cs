@@ -5,5 +5,7 @@ namespace ABP.Application.Features.Loans.Services.Interfaces;
 
 public interface ILoanPaymentService
 {
-    Task<OperationResult<LoanPaymentResult>> ProcessPaymentAsync(LoanPaymentRequest request, CancellationToken cancellationToken = default);
+    Task<ClientLoanPaymentOptions> GetClientOptionsAsync(CancellationToken cancellationToken = default);
+    Task<OperationResult<CashierLoanPaymentPreview>> PrepareCashierPaymentAsync(string sourceAccountNumber, string loanNumber, decimal amount, Guid operationId, CancellationToken cancellationToken = default);
+    Task<LoanOperationResult<LoanPaymentResult>> ProcessPaymentAsync(LoanPaymentRequest request, CancellationToken cancellationToken = default);
 }

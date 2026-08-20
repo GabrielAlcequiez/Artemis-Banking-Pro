@@ -1,28 +1,41 @@
+using System.Transactions;
+using ABP.Application.Common.Interfaces.Services;
 using ABP.Application.Features.Loans.Services.Interfaces;
 using ABP.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace ABP.Application.Features.Loans.Services.Implementations;
 
-public sealed class LoanDelinquencyService(ILoanRepository repository, IUnitOfWork unitOfWork, ILogger<LoanDelinquencyService> logger) : ILoanDelinquencyService
+public sealed class LoanDelinquencyService(
+    ILoanRepository repository,
+    IClock clock,
+    ILogger<LoanDelinquencyService> logger) : ILoanDelinquencyService
 {
     public async Task<int> UpdateDelinquencyAsync(DateOnly bankingDate, CancellationToken cancellationToken = default)
     {
-        var installments = await repository.GetInstallmentsForDelinquencyUpdateAsync(bankingDate, cancellationToken);
-        var updatedInstallments = 0;
+        var modifiedAtUtc = clock.UtcNow;
+        int updatedInstallments;
 
-        foreach (var installment in installments)
+        using (var transaction = new TransactionScope(
+                   TransactionScopeOption.Required,
+                   new TransactionOptions
+                   {
+                       IsolationLevel = IsolationLevel.ReadCommitted
+                   },
+                   TransactionScopeAsyncFlowOption.Enabled))
         {
-            var shouldBeLate = installment.DueDate < bankingDate
-                && installment.PendingAmount > 0m;
-
-            if (installment.IsLate == shouldBeLate)
-            {
-                continue;
-            }
-
-            installment.IsLate = shouldBeLate;
-            updatedInstallments++;
+            var markedInstallments = await repository.MarkOverdueInstallmentsAsync(
+                bankingDate,
+                modifiedAtUtc,
+                cancellationToken);
+            var clearedInstallments = await repository
+                .ClearLateFlagFromPaidInstallmentsAsync(
+                    null,
+                    modifiedAtUtc,
+                    null,
+                    cancellationToken);
+            updatedInstallments = markedInstallments + clearedInstallments;
+            transaction.Complete();
         }
 
         if (updatedInstallments == 0)
@@ -33,8 +46,6 @@ public sealed class LoanDelinquencyService(ILoanRepository repository, IUnitOfWo
 
             return 0;
         }
-
-        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "El proceso de mora actualizó {InstallmentCount} cuotas en la fecha bancaria {BankingDate}.",

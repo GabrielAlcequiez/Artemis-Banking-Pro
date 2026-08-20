@@ -1,0 +1,46 @@
+@model ABP.WebApp.Areas.Cashier.ViewModels.Accounts.CashierThirdPartyTransferConfirmationViewModel
+@{
+    ViewData["Title"] = "Confirmar transferencia";
+}
+
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a class="text-sm text-ink-muted hover:text-ink" asp-action="ThirdPartyTransfer">← Cancelar y volver</a>
+        <h1 class="mt-3 text-2xl font-semibold text-ink">Confirmar transferencia</h1>
+        <p class="mt-1 text-sm text-ink-muted">¿Está seguro que desea realizar esta transferencia?</p>
+    </header>
+
+    <section class="card p-6">
+        <dl class="grid gap-5 text-sm sm:grid-cols-2">
+            <div>
+                <dt class="text-ink-muted">Titular de la cuenta origen</dt>
+                <dd class="mt-1 font-medium text-ink">@Model.SourceOwnerFullName</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Cuenta origen</dt>
+                <dd class="mt-1 font-mono text-ink">@Model.SourceAccountNumber</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Titular de la cuenta destino</dt>
+                <dd class="mt-1 font-medium text-ink">@Model.DestinationOwnerFullName</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Cuenta destino</dt>
+                <dd class="mt-1 font-mono text-ink">@Model.DestinationAccountNumber</dd>
+            </div>
+            <div>
+                <dt class="text-ink-muted">Monto a transferir</dt>
+                <dd class="tnum mt-1 font-medium text-ink">RD$ @Model.Amount.ToString("N2")</dd>
+            </div>
+        </dl>
+    </section>
+
+    <form asp-action="ExecuteThirdPartyTransfer" method="post" class="flex gap-3">
+        @Html.AntiForgeryToken()
+        <input asp-for="SourceAccountId" type="hidden" />
+        <input asp-for="DestinationAccountId" type="hidden" />
+        <input asp-for="Amount" type="hidden" />
+        <a class="btn btn-ghost border border-border" asp-action="ThirdPartyTransfer">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Confirmar transferencia</button>
+    </form>
+</div>

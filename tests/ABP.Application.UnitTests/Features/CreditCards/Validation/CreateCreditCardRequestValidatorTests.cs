@@ -13,7 +13,8 @@ namespace ABP.Application.UnitTests.Features.CreditCards.Validation
             // Given
             var request = new CreateCreditCardRequest(
                 ClientId: "cliente-123",
-                CreditLimit: 10_000m);
+                CreditLimit: 10_000.25m,
+                OperationId: Guid.NewGuid());
             // When
             var result = _validator.Validate(request);
             // Then
@@ -27,7 +28,8 @@ namespace ABP.Application.UnitTests.Features.CreditCards.Validation
             // Arrange
             var request = new CreateCreditCardRequest(
                 ClientId: clientId,
-                CreditLimit: 10_000m);
+                CreditLimit: 10_000m,
+                OperationId: Guid.NewGuid());
 
             // Act
             var result = _validator.Validate(request);
@@ -45,7 +47,8 @@ namespace ABP.Application.UnitTests.Features.CreditCards.Validation
             // Arrange
             var request = new CreateCreditCardRequest(
                 ClientId: "client-123",
-                CreditLimit: creditLimit);
+                CreditLimit: creditLimit,
+                OperationId: Guid.NewGuid());
 
             // Act
             var result = _validator.Validate(request);
@@ -53,6 +56,49 @@ namespace ABP.Application.UnitTests.Features.CreditCards.Validation
             // Assert
             Assert.Contains(result.Errors, error =>
                 error.PropertyName == nameof(CreateCreditCardRequest.CreditLimit));
+        }
+
+        [Fact]
+        public void Credit_limit_accepts_two_decimal_places()
+        {
+            var request = new CreateCreditCardRequest(
+                ClientId: "client-123",
+                CreditLimit: 10_000.25m,
+                OperationId: Guid.NewGuid());
+
+            var result = _validator.Validate(request);
+
+            Assert.True(result.IsValid);
+        }
+
+        [Fact]
+        public void Credit_limit_rejects_more_than_two_decimal_places()
+        {
+            var request = new CreateCreditCardRequest(
+                ClientId: "client-123",
+                CreditLimit: 10_000.001m,
+                OperationId: Guid.NewGuid());
+
+            var result = _validator.Validate(request);
+
+            Assert.Contains(result.Errors, error =>
+                error.PropertyName == nameof(CreateCreditCardRequest.CreditLimit)
+                && error.ErrorMessage == "El límite de crédito debe tener un máximo de dos decimales.");
+        }
+
+        [Fact]
+        public void Operation_id_is_required()
+        {
+            var request = new CreateCreditCardRequest(
+                ClientId: "client-123",
+                CreditLimit: 10_000m,
+                OperationId: Guid.Empty);
+
+            var result = _validator.Validate(request);
+
+            Assert.Contains(result.Errors, error =>
+                error.PropertyName == nameof(CreateCreditCardRequest.OperationId)
+                && error.ErrorMessage == "El identificador de la operación es requerido.");
         }
     }
 }

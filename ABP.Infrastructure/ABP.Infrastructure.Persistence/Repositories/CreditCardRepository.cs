@@ -21,12 +21,30 @@ public class CreditCardRepository(AppDbContext context) : GenericRepository<Cred
             .FirstOrDefaultAsync(card => card.CardNumber == cardNumber, cancellationToken);
     }
 
+    public Task<CreditCard?> GetByCardNumberForUpdateAsync(
+        string cardNumber,
+        CancellationToken cancellationToken = default)
+    {
+        return Entities.SingleOrDefaultAsync(
+            card => card.CardNumber == cardNumber,
+            cancellationToken);
+    }
+
     public Task<bool> CardNumberExistsAsync(string cardNumber, CancellationToken cancellationToken = default)
     {
         return Entities
             .AsNoTracking()
             .AnyAsync(card => card.CardNumber == cardNumber, cancellationToken);
     }
+
+    public Task<CreditCard?> GetByCreationOperationIdAsync(
+        Guid operationId,
+        CancellationToken cancellationToken = default) =>
+        Entities
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                card => card.CreationOperationId == operationId,
+                cancellationToken);
 
     public async Task AddConsumptionAsync(CardConsumption consumption, CancellationToken cancellationToken = default)
     {
