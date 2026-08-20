@@ -85,10 +85,10 @@
                             <tr>
                                 <td class="whitespace-nowrap px-4 py-3 font-mono text-ink">@account.AccountNumber</td>
                                 <td class="px-4 py-3 text-ink-soft">@account.OwnerUserId</td>
-                                <td class="px-4 py-3 text-ink-soft">@account.Type</td>
+                                <td class="px-4 py-3 text-ink-soft">@(isSecondary ? "Secundaria" : "Principal")</td>
                                 <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @account.Balance.ToString("N2")</td>
                                 <td class="px-4 py-3">
-                                    <span class="badge @(isActive ? "badge-success" : "badge-neutral")">@account.Status</span>
+                                    <span class="badge @(isActive ? "badge-success" : "badge-neutral")">@(isActive ? "Activa" : "Cancelada")</span>
                                 </td>
                                 <td class="whitespace-nowrap px-4 py-3 text-right">
                                     <a class="btn btn-ghost px-2" asp-action="Details" asp-route-id="@account.Id">Ver detalles</a>

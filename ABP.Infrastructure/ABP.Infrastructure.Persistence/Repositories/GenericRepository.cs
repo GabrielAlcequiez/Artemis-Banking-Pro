@@ -79,12 +79,21 @@ namespace ABP.Infrastructure.Persistence.Repositories
             return existing;
         }
 
-        // PENDIENTE
-        public Task<TEntity?> DeleteAsync(
+        public async Task<TEntity?> DeleteAsync(
             TKey id,
             CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            var existing = await Entities.FirstOrDefaultAsync(
+                entity => EF.Property<TKey>(entity, "Id")!.Equals(id),
+                cancellationToken);
+
+            if (existing is null)
+            {
+                return null;
+            }
+
+            Entities.Remove(existing);
+            return existing;
         }
     }
 }

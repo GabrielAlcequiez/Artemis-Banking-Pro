@@ -6,6 +6,26 @@
     var isActive = account.Status == SavingsAccountStatus.Active;
     var isSecondary = account.Type == SavingsAccountType.Secondary;
 }
+@functions {
+    private static string OperationTypeLabel(FinancialOperationType type) => type switch
+    {
+        FinancialOperationType.InitialBalance => "Saldo inicial",
+        FinancialOperationType.AdministrativeCredit => "Crédito administrativo",
+        FinancialOperationType.LoanDisbursement => "Desembolso de préstamo",
+        FinancialOperationType.Deposit => "Depósito",
+        FinancialOperationType.Withdrawal => "Retiro",
+        FinancialOperationType.ExpressTransfer => "Transferencia express",
+        FinancialOperationType.BeneficiaryTransfer => "Transferencia a beneficiario",
+        FinancialOperationType.OwnAccountTransfer => "Transferencia entre cuentas propias",
+        FinancialOperationType.ThirdPartyTransfer => "Transferencia a terceros",
+        FinancialOperationType.CreditCardPayment => "Pago de tarjeta de crédito",
+        FinancialOperationType.LoanPayment => "Pago de préstamo",
+        FinancialOperationType.CashAdvance => "Avance de efectivo",
+        FinancialOperationType.HermesPayment => "Pago Hermes",
+        FinancialOperationType.AccountCancellationTransfer => "Transferencia por cancelación",
+        _ => type.ToString()
+    };
+}
 
 <div class="mx-auto max-w-6xl space-y-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -34,10 +54,10 @@
     <section class="card p-5" aria-labelledby="account-summary-heading">
         <div class="flex items-center justify-between gap-3">
             <h2 id="account-summary-heading" class="font-medium text-ink">Información general</h2>
-            <span class="badge @(isActive ? "badge-success" : "badge-neutral")">@account.Status</span>
+            <span class="badge @(isActive ? "badge-success" : "badge-neutral")">@(isActive ? "Activa" : "Cancelada")</span>
         </div>
         <dl class="mt-5 grid gap-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div><dt class="text-ink-muted">Tipo</dt><dd class="mt-1 font-medium text-ink">@account.Type</dd></div>
+            <div><dt class="text-ink-muted">Tipo</dt><dd class="mt-1 font-medium text-ink">@(isSecondary ? "Secundaria" : "Principal")</dd></div>
             <div><dt class="text-ink-muted">Saldo</dt><dd class="tnum mt-1 font-medium text-ink">RD$ @account.Balance.ToString("N2")</dd></div>
             <div><dt class="text-ink-muted">Titular</dt><dd class="mt-1 font-mono text-ink">@account.OwnerUserId</dd></div>
             <div><dt class="text-ink-muted">Fecha de apertura</dt><dd class="mt-1 text-ink">@account.CreatedAtUtc.ToString("dd/MM/yyyy HH:mm")</dd></div>
@@ -76,14 +96,14 @@
                                 var isCredit = transaction.Direction == TransactionDirection.Credit;
                                 <tr>
                                     <td class="whitespace-nowrap px-4 py-3 text-ink-soft">@transaction.CreatedAtUtc.ToString("dd/MM/yyyy HH:mm")</td>
-                                    <td class="px-4 py-3 text-ink">@transaction.OperationType</td>
+                                    <td class="px-4 py-3 text-ink">@OperationTypeLabel(transaction.OperationType)</td>
                                     <td class="px-4 py-3">
-                                        <span class="badge @(isCredit ? "badge-success" : "badge-neutral")">@transaction.Direction</span>
+                                        <span class="badge @(isCredit ? "badge-success" : "badge-neutral")">@(isCredit ? "CRÉDITO" : "DÉBITO")</span>
                                     </td>
                                     <td class="tnum whitespace-nowrap px-4 py-3 text-right text-ink">RD$ @transaction.Amount.ToString("N2")</td>
                                     <td class="px-4 py-3 text-ink-soft">@(transaction.Beneficiary ?? transaction.Origin ?? "—")</td>
                                     <td class="px-4 py-3">
-                                        <span class="badge @(approved ? "badge-success" : "badge-danger")">@transaction.Status</span>
+                                        <span class="badge @(approved ? "badge-success" : "badge-danger")">@(approved ? "APROBADA" : "RECHAZADA")</span>
                                     </td>
                                 </tr>
                             }

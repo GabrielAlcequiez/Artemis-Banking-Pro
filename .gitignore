@@ -5,6 +5,7 @@
 /graphify-out/
 .graphifyignore
 .codex
+.claude/
 
 # Our specific ignore rules
 Images*/
